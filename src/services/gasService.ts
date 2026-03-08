@@ -1,65 +1,90 @@
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwwkfzr_IDPacSINQFIWHyVERoIS75BHLWarqvrbkkeBEyjfXkc-jBUe2PzP5b4Ib2u/exec'
 
-export interface SaveData {
-    playerName: string
-    level: number
-    exp: number
-    hp: number
-    mp: number
-    jobMain: string | null
-    jobSub: string | null
-    inventory: string[]
-    bossesDefeated: string[]
-    timestamp?: number
+/**
+ * Custom parser for the "HEADERS|... \n ROW|..." format used in the provided GAS script.
+ */
+function parseGASResponse(text: string): any[] {
+    if (!text || text === 'EMPTY' || text.startsWith('ERROR')) return []
+    const lines = text.split('\n')
+    if (lines.length < 2) return []
+
+    const headerLine = lines.find(l => l.startsWith('HEADERS|'))
+    if (!headerLine) return []
+
+    const headers = headerLine.replace('HEADERS|', '').split('|')
+    const dataRows = lines.filter(l => l.startsWith('ROW|'))
+
+    return dataRows.map(rowLine => {
+        const values = rowLine.replace('ROW|', '').split('|')
+        const obj: any = {}
+        headers.forEach((h, i) => {
+            obj[h] = values[i]
+        })
+        return obj
+    })
 }
 
 class GASService {
-    async saveData(data: SaveData): Promise<boolean> {
+    private async post(action: string, params: Record<string, string>): Promise<string> {
+        const body = new URLSearchParams({ action, ...params }).toString()
         try {
             const response = await fetch(GAS_URL, {
                 method: 'POST',
-                mode: 'no-cors', // standard for GAS web apps unless CORS is explicitly handled
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: JSON.stringify({
-                    action: 'save',
-                    data: {
-                        ...data,
-                        timestamp: Date.now()
-                    }
-                }),
+                body: body,
             })
-            // Since no-cors doesn't return response body, we assume success if no error
-            return true
+            return await response.text()
         } catch (error) {
-            console.error('Failed to save data to GAS:', error)
-            return false
+            console.error(`GAS POST Error [${action}]:`, error)
+            return `ERROR|${error}`
         }
     }
 
-    async loadData(playerName: string): Promise<SaveData | null> {
+    private async get(action: string, params: Record<string, string>): Promise<string> {
+        const query = new URLSearchParams({ action, ...params }).toString()
         try {
-            const response = await fetch(`${GAS_URL}?action=load&playerName=${encodeURIComponent(playerName)}`)
-            if (!response.ok) throw new Error('Load failed')
-            return await response.json()
+            const response = await fetch(`${GAS_URL}?${query}`)
+            return await response.text()
         } catch (error) {
-            console.error('Failed to load data from GAS:', error)
-            return null
+            console.error(`GAS GET Error [${action}]:`, error)
+            return `ERROR|${error}`
         }
     }
 
-    async reportBossDefeat(bossId: string, playerName: string): Promise<void> {
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({
-                action: 'reportBoss',
-                bossId,
-                playerName,
-                timestamp: Date.now()
-            })
+    async getPlayer(playerId: string) {
+        const res = await this.get('get_player', { player_id: playerId })
+        const results = parseGASResponse(res)
+        if (results.length > 0) {
+            const player = results[0]
+            if (player.appearance) {
+                try {
+                    player.appearance = JSON.parse(player.appearance)
+                } catch (e) {
+                    player.appearance = { color: '#10b981', face: '😎' }
+                }
+            }
+            return player
+        }
+        return null
+    }
+
+    async createPlayer(playerId: string, name: string, appearance: any) {
+        return await this.post('create_player', {
+            player_id: playerId,
+            name,
+            appearance: JSON.stringify(appearance)
         })
+    }
+
+    async updateStats(playerId: string, stats: any) {
+        if (stats.appearance) stats.appearance = JSON.stringify(stats.appearance)
+        return await this.post('update_player_stats', { player_id: playerId, ...stats })
+    }
+
+    async setMainJob(playerId: string, jobId: string) {
+        return await this.post('set_main_job', { player_id: playerId, job_id: jobId })
     }
 }
 

@@ -9,8 +9,7 @@ import {
     Wind,
     ChevronUp,
     Trophy,
-    Activity,
-    UserCircle2
+    Activity
 } from 'lucide-react'
 
 const HUD = () => {
@@ -31,11 +30,13 @@ const HUD = () => {
                     className="flex items-center gap-4 animate-in fade-in duration-700"
                 >
                     <div className="relative group pointer-events-auto cursor-pointer">
-                        <div className="h-16 w-16 rounded-full border-2 border-emerald-500/50 bg-black/50 p-1 backdrop-blur-md transition-all duration-300 group-hover:border-emerald-400 group-hover:scale-105 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                            <div className="h-full w-full rounded-full bg-gradient-to-tr from-emerald-600 to-cyan-500 flex items-center justify-center">
-                                <UserCircle2 className="h-10 w-10 text-white" />
-                            </div>
-                        </div>
+                        <motion.div
+                            style={{ backgroundColor: player.appearance.color }}
+                            className="h-16 w-16 rounded-full border-2 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center justify-center text-3xl transition-all duration-300 group-hover:scale-105"
+                        >
+                            {player.appearance.face}
+                            <div className="absolute inset-0 rounded-full border-2 border-white/5" />
+                        </motion.div>
                         <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-black border border-black shadow-lg">
                             {stats.level}
                         </div>

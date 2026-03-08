@@ -1,35 +1,57 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
+import CharacterCreator from '@/components/ui/CharacterCreator'
+import { useGameStore } from '@/store/gameStore'
+import { AnimatePresence, motion } from 'framer-motion'
 
-const GameScene = dynamic(() => import('@/components/game/Scene'), {
+const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
   ssr: false,
 })
 
 export default function Home() {
+  const { isInitialized, auth } = useGameStore()
+
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-black font-sans text-white select-none">
-      <Suspense fallback={
-        <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-emerald-500 font-mono text-xl animate-pulse">
-          BOOTING ZENITH FRONTIER...
-        </div>
-      }>
-        <GameScene />
-      </Suspense>
+      <AnimatePresence mode="wait">
+        {!isInitialized ? (
+          <motion.div
+            key="creator"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="z-50"
+          >
+            <CharacterCreator />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="game"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="h-full w-full"
+          >
+            <Suspense fallback={
+              <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-emerald-500 font-mono text-xl animate-pulse">
+                LOADING FRONTIER...
+              </div>
+            }>
+              <GameScene2D />
+            </Suspense>
 
-      {/* Overlays */}
-      <HUD />
-      <Inventory />
+            {/* Overlays */}
+            <HUD />
+            <Inventory />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Loading Filter */}
-      <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center opacity-0 transition-opacity duration-1000 bg-black" id="scene-loader">
-        <div className="text-4xl font-bold tracking-[0.5em] text-white underline underline-offset-8 decoration-emerald-500 shadow-emerald-500 shadow-2xl animate-pulse">
-          ZENITH FRONTIER
-        </div>
-      </div>
+      {/* Loading Filter Effect */}
+      <div className="pointer-events-none absolute inset-0 z-40 bg-black/50 opacity-0 transition-opacity duration-1000" id="scene-vignette" />
     </main>
   )
 }
