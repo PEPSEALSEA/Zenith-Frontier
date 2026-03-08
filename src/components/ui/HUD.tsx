@@ -9,8 +9,25 @@ import {
     Wind,
     ChevronUp,
     Trophy,
-    Activity
+    Activity,
+    Ghost,
+    Skull,
+    Flame,
+    Star,
+    Crown,
+    Swords,
+    Target,
+    Activity as HeartIcon,
+    Shield as ShieldIcon,
+    Zap
 } from 'lucide-react'
+
+import { FACES_MAP, FaceKey } from './CharacterCreator'
+
+const FaceIcon = ({ faceKey, className }: { faceKey: string, className?: string }) => {
+    const Icon = FACES_MAP[faceKey as FaceKey] || Ghost
+    return <Icon className={className} />
+}
 
 const HUD = () => {
     const { player, world } = useGameStore()
@@ -32,9 +49,9 @@ const HUD = () => {
                     <div className="relative group pointer-events-auto cursor-pointer">
                         <motion.div
                             style={{ backgroundColor: player.appearance.color }}
-                            className="h-16 w-16 rounded-full border-2 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center justify-center text-3xl transition-all duration-300 group-hover:scale-105"
+                            className="h-16 w-16 rounded-full border-2 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center justify-center transition-all duration-300 group-hover:scale-105"
                         >
-                            {player.appearance.face}
+                            <FaceIcon faceKey={player.appearance.face} className="h-8 w-8 text-white drop-shadow-sm" />
                             <div className="absolute inset-0 rounded-full border-2 border-white/5" />
                         </motion.div>
                         <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-black border border-black shadow-lg">

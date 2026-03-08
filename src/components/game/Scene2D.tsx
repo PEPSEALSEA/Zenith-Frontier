@@ -5,6 +5,69 @@ import { useGameStore } from '@/store/gameStore'
 
 const WORLD_SIZE = 2000
 
+const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, face: string) => {
+    ctx.strokeStyle = 'white'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+
+    switch (face) {
+        case 'ghost':
+            ctx.arc(x, y - r * 0.2, r * 0.7, Math.PI, 0)
+            ctx.lineTo(x + r * 0.7, y + r * 0.7)
+            ctx.lineTo(x + r * 0.4, y + r * 0.4)
+            ctx.lineTo(x + r * 0.1, y + r * 0.7)
+            ctx.lineTo(x - r * 0.2, y + r * 0.4)
+            ctx.lineTo(x - r * 0.5, y + r * 0.7)
+            ctx.closePath()
+            break
+        case 'skull':
+            ctx.arc(x, y - r * 0.3, r * 0.7, Math.PI * 0.8, Math.PI * 2.2)
+            ctx.lineTo(x + r * 0.4, y + r * 0.8)
+            ctx.lineTo(x - r * 0.4, y + r * 0.8)
+            ctx.closePath()
+            break
+        case 'fire':
+            ctx.moveTo(x, y - r)
+            ctx.bezierCurveTo(x + r, y, x - r, y + r, x, y + r)
+            ctx.bezierCurveTo(x + r * 0.5, y + r * 0.5, x + r * 0.5, y - r * 0.5, x, y - r)
+            break
+        case 'bolt':
+            ctx.moveTo(x + r * 0.2, y - r)
+            ctx.lineTo(x - r * 0.5, y + r * 0.1)
+            ctx.lineTo(x, y + r * 0.1)
+            ctx.lineTo(x - r * 0.2, y + r)
+            ctx.lineTo(x + r * 0.5, y - r * 0.1)
+            ctx.lineTo(x, y - r * 0.1)
+            ctx.closePath()
+            break
+        case 'star':
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 0.8 - 0.5) * Math.PI
+                ctx.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r)
+                const nextAngle = (i * 0.8 - 0.1) * Math.PI
+                ctx.lineTo(x + Math.cos(nextAngle) * r * 0.4, y + Math.sin(nextAngle) * r * 0.4)
+            }
+            ctx.closePath()
+            break
+        case 'crown':
+            ctx.moveTo(x - r, y + r * 0.5)
+            ctx.lineTo(x - r, y - r * 0.3)
+            ctx.lineTo(x - r * 0.5, y + r * 0.1)
+            ctx.lineTo(x, y - r * 0.7)
+            ctx.lineTo(x + r * 0.5, y + r * 0.1)
+            ctx.lineTo(x + r, y - r * 0.3)
+            ctx.lineTo(x + r, y + r * 0.5)
+            ctx.closePath()
+            break
+        default:
+            ctx.arc(x, y, r * 0.8, 0, Math.PI * 2)
+            break
+    }
+    ctx.stroke()
+}
+
 export default function GameScene2D() {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const { player, updatePosition, world, updateWorldCycle } = useGameStore()
@@ -113,12 +176,9 @@ export default function GameScene2D() {
         ctx.fillStyle = gradient
         ctx.fill()
 
-        // Face (Emoji)
+        // Face (Vector Icon)
         ctx.shadowBlur = 0
-        ctx.font = '30px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(player.appearance.face, pX, pY + 2)
+        drawFace(ctx, pX, pY, radius * 0.5, player.appearance.face)
 
         // Level Tag
         ctx.fillStyle = 'white'

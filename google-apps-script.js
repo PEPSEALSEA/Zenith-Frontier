@@ -74,14 +74,25 @@ function setupAllSheets() {
         ]
     };
 
+    var logs = [];
     for (var name in schemas) {
         var sh = ss.getSheetByName(name);
         if (!sh) {
             sh = ss.insertSheet(name);
+            logs.push("Created Sheet: " + name);
         }
-        if (sh.getLastRow() === 0) {
-            sh.getRange(1, 1, 1, schemas[name].length).setValues([schemas[name]]);
+
+        var existingHeaders = sh.getLastColumn() > 0 ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0] : [];
+        var requiredHeaders = schemas[name];
+        var missingHeaders = requiredHeaders.filter(h => existingHeaders.indexOf(h) === -1);
+
+        if (missingHeaders.length > 0) {
+            var startCol = (existingHeaders.length || 0) + 1;
+            sh.getRange(1, startCol, 1, missingHeaders.length).setValues([missingHeaders]);
+            logs.push("Adjusted " + name + " - Added: " + missingHeaders.join(", "));
         }
+
+        if (sh.getFrozenRows() === 0) sh.setFrozenRows(1);
     }
 
     var wsSheet = ss.getSheetByName("WorldState");
@@ -94,7 +105,7 @@ function setupAllSheets() {
         wsSheet.getRange(2, 1, defaults.length, 3).setValues(defaults);
     }
 
-    SpreadsheetApp.getUi().alert("Setup complete! All sheets created.");
+    return "Setup Complete:\n" + logs.join("\n");
 }
 
 function seedSampleData() {
@@ -103,12 +114,14 @@ function seedSampleData() {
     var jobsSheet = ss.getSheetByName("Jobs");
     if (jobsSheet && jobsSheet.getLastRow() < 2) {
         var jobs = [
-            ["JOB_001", "Warrior", "low", "", "base_warrior", "0", "", "atk+10,def+5", "ทหารราบขั้นพื้นฐาน"],
-            ["JOB_002", "Knight", "high", "JOB_001", "tank", "0", "", "def+20,hp+50", "อัศวินนักป้องกัน"],
-            ["JOB_003", "Berserker", "high", "JOB_001", "dps", "0", "", "atk+30,def-10", "นักรบคลั่ง"],
-            ["JOB_004", "Paladin", "highest", "JOB_002", "holy", "0", "", "def+40,mp+30", "จอมอัศวินศักดิ์สิทธิ์"],
-            ["JOB_005", "Mage", "low", "", "base_mage", "0", "", "mp+20,atk+5", "นักเวทย์ขั้นพื้นฐาน"],
-            ["JOB_006", "Avenger", "hidden", "", "dark", "1", "kill_100_pk_victims", "atk+50,karma+10_per_kill", "อาชีพลับ ต้องผ่านเงื่อนไขพิเศษ"]
+            ["JOB_001", "Warrior", "low", "", "base_warrior", "0", "", "atk+10,def+5", "นักรบเริ่มต้น"],
+            ["JOB_002", "Archer", "low", "", "base_archer", "0", "", "spd+10,atk+5", "นักธนูเริ่มต้น"],
+            ["JOB_003", "Twin-Blade", "low", "", "base_assassin", "0", "", "spd+15,atk+3", "นักดาบคู่ผู้รวดเร็ว"],
+            ["JOB_004", "Spearman", "low", "", "base_spear", "0", "", "atk+7,def+8", "พลหอกระยะกลาง"],
+            ["JOB_005", "Supporter", "low", "", "base_support", "0", "", "mp+30,def+5", "สายสนับสนุนทีม"],
+            ["JOB_006", "Knight", "high", "JOB_001", "tank", "0", "", "def+20,hp+50", "อัศวินนักป้องกัน"],
+            ["JOB_007", "Berserker", "high", "JOB_001", "dps", "0", "", "atk+30,def-10", "นักรบคลั่ง"],
+            ["JOB_008", "Mage", "low", "", "base_mage", "0", "", "mp+20,atk+5", "นักเวทย์เริ่มต้น"]
         ];
         jobsSheet.getRange(2, 1, jobs.length, 9).setValues(jobs);
     }

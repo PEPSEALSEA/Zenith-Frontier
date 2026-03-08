@@ -90,7 +90,7 @@ export const useGameStore = create<GameState>((set) => ({
         name: 'Adventurer',
         appearance: {
             color: '#10b981',
-            face: '😊'
+            face: 'ghost'
         },
         stats: {
             hp: 100,

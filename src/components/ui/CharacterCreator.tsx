@@ -12,20 +12,52 @@ import {
     Smile,
     Shield,
     Sword,
+    Target,
+    Zap,
+    DraftingCompass,
+    Heart,
     ChevronRight,
     LogOut,
-    Loader2
+    Loader2,
+    Ghost,
+    Skull,
+    Flame,
+    Star,
+    Crown,
+    Swords,
+    Target as TargetIcon,
+    Zap as BoltIcon,
+    Activity
 } from 'lucide-react'
 
-const FACES = ['😎', '😊', '😡', '😱', '🤡', '🤖', '👾', '🐱', '🦊', '🐸']
+export const FACES_MAP = {
+    'ghost': Ghost,
+    'skull': Skull,
+    'fire': Flame,
+    'bolt': BoltIcon,
+    'star': Star,
+    'crown': Crown,
+    'swords': Swords,
+    'target': TargetIcon,
+    'shield': Shield,
+    'heart': Activity,
+}
+
+export type FaceKey = keyof typeof FACES_MAP
+
+const FACES: FaceKey[] = ['ghost', 'skull', 'fire', 'bolt', 'star', 'crown', 'swords', 'target', 'shield', 'heart']
 const COLORS = [
     '#10b981', '#3b82f6', '#ef4444', '#f59e0b',
     '#8b5cf6', '#ec4899', '#ffffff', '#000000',
 ]
 
-const JOBS: Job[] = [
-    { id: 'JOB_001', name: 'Warrior', level: 1, type: 'main', skills: ['Slash', 'Heavy Blow'] },
-    { id: 'JOB_005', name: 'Mage', level: 1, type: 'main', skills: ['Arcane Bolt'] },
+const JOBS: (Job & { icon: any })[] = [
+    { id: 'JOB_001', name: 'Warrior', level: 1, type: 'main', skills: ['Slash'], icon: Sword },
+    { id: 'JOB_002', name: 'Archer', level: 1, type: 'main', skills: ['Double Shot'], icon: Target },
+    { id: 'JOB_003', name: 'Twin-Blade', level: 1, type: 'main', skills: ['Quick Step'], icon: Zap },
+    { id: 'JOB_004', name: 'Spearman', level: 1, type: 'main', skills: ['Pierce'], icon: DraftingCompass },
+    { id: 'JOB_005', name: 'Supporter', level: 1, type: 'main', skills: ['Heal'], icon: Heart },
+    { id: 'JOB_008', name: 'Mage', level: 1, type: 'main', skills: ['Arcane Bolt'], icon: Shield },
 ]
 
 export default function CharacterCreator() {
@@ -101,9 +133,12 @@ export default function CharacterCreator() {
                     <div className="flex flex-col items-center justify-center border-b border-white/5 p-12 lg:border-b-0 lg:border-r bg-zinc-950/20">
                         <motion.div
                             style={{ backgroundColor: appearance.color }}
-                            className="h-48 w-48 rounded-full shadow-[0_0_50px_rgba(255,255,255,0.05)] flex items-center justify-center text-7xl select-none relative"
+                            className="h-48 w-48 rounded-full shadow-[0_0_50px_rgba(255,255,255,0.05)] flex items-center justify-center select-none relative"
                         >
-                            {appearance.face}
+                            {React.createElement(FACES_MAP[appearance.face as FaceKey] || Ghost, {
+                                className: "h-24 w-24 text-white drop-shadow-lg",
+                                strokeWidth: 2.5
+                            })}
                             <div className="absolute inset-0 rounded-full border-[8px] border-white/10" />
                         </motion.div>
                         <div className="text-center mt-8">
@@ -142,9 +177,18 @@ export default function CharacterCreator() {
                                             </div>
                                             <SectionTitle icon={Smile} title="Facial Identity" />
                                             <div className="flex flex-wrap gap-2">
-                                                {FACES.map(f => (
-                                                    <button key={f} onClick={() => setAppearance({ ...appearance, face: f })} className={`h-12 w-12 rounded-xl bg-white/5 border-2 flex items-center justify-center text-2xl ${appearance.face === f ? 'border-emerald-500' : 'border-transparent'}`}>{f}</button>
-                                                ))}
+                                                {FACES.map(f => {
+                                                    const Icon = FACES_MAP[f]
+                                                    return (
+                                                        <button
+                                                            key={f}
+                                                            onClick={() => setAppearance({ ...appearance, face: f })}
+                                                            className={`h-12 w-12 rounded-xl bg-white/5 border-2 flex items-center justify-center transition-all ${appearance.face === f ? 'border-emerald-500 bg-emerald-500/10' : 'border-transparent hover:bg-white/10'}`}
+                                                        >
+                                                            <Icon className={`h-6 w-6 ${appearance.face === f ? 'text-emerald-500' : 'text-white/40'}`} />
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
                                             <button onClick={() => setStep(3)} className="w-full h-14 bg-emerald-600 rounded-xl font-black tracking-widest text-white mt-4">NEXT SYSTEM</button>
                                         </motion.div>
@@ -154,9 +198,14 @@ export default function CharacterCreator() {
                                         <motion.div key="s3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                                             <SectionTitle icon={Sword} title="Select Job" />
                                             {JOBS.map(job => (
-                                                <button key={job.id} onClick={() => setSelectedJob(job)} className={`w-full p-4 rounded-xl border-2 text-left ${selectedJob.id === job.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/5 bg-white/5'}`}>
-                                                    <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
-                                                    <p className="text-[10px] text-emerald-500/60 uppercase font-black">Skills: {job.skills.join(', ')}</p>
+                                                <button key={job.id} onClick={() => setSelectedJob(job)} className={`w-full p-4 rounded-xl border-2 text-left flex items-start gap-4 transition-all ${selectedJob.id === job.id ? 'border-emerald-500 bg-emerald-500/10 scale-[1.02]' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+                                                    <div className={`p-2 rounded-lg ${selectedJob.id === job.id ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40'}`}>
+                                                        <job.icon className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
+                                                        <p className="text-[10px] text-emerald-500/60 uppercase font-black">Skills: {job.skills.join(', ')}</p>
+                                                    </div>
                                                 </button>
                                             ))}
                                             <div className="flex gap-4 mt-4">
