@@ -21,7 +21,7 @@ import {
 const Inventory = () => {
     const [isOpen, setIsOpen] = useState(false)
     const [activeTab, setActiveTab] = useState('EQUIPMENT')
-    const { player, gainExp, takeDamage } = useGameStore()
+    const { player, gainExp, takeDamage, auth } = useGameStore()
 
     const tabs = ['EQUIPMENT', 'JOB SYSTEM', 'INVENTORY', 'WORLD BOOK', 'ARCANUM']
 
@@ -105,18 +105,22 @@ const Inventory = () => {
 
                                 {/* Footer Controls */}
                                 <div className="p-6 border-t border-white/5 bg-black/40 flex items-center justify-end gap-4">
-                                    <button
-                                        onClick={() => gainExp(50)}
-                                        className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-white transition-all uppercase"
-                                    >
-                                        Gain EXP (DEBUG)
-                                    </button>
-                                    <button
-                                        onClick={() => takeDamage(10)}
-                                        className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-rose-500 hover:border-rose-500/30 transition-all uppercase"
-                                    >
-                                        Take DMG (DEBUG)
-                                    </button>
+                                    {auth.user?.email === 'sealseapep@gmail.com' && (
+                                        <>
+                                            <button
+                                                onClick={() => gainExp(50)}
+                                                className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-white transition-all uppercase"
+                                            >
+                                                Gain EXP (DEBUG)
+                                            </button>
+                                            <button
+                                                onClick={() => takeDamage(10)}
+                                                className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-rose-500 hover:border-rose-500/30 transition-all uppercase"
+                                            >
+                                                Take DMG (DEBUG)
+                                            </button>
+                                        </>
+                                    )}
                                     <button
                                         onClick={() => setIsOpen(false)}
                                         className="px-8 py-2 rounded border border-emerald-500/50 bg-emerald-500/10 text-[10px] font-bold tracking-widest text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all uppercase"

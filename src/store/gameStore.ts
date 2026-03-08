@@ -12,6 +12,7 @@ export interface CharacterStats {
     def: number
     spd: number
     luck: number
+    money: number
 }
 
 export interface Job {
@@ -65,6 +66,7 @@ export interface GameState {
         moonPhase: number // 0 to 7
         activeScenario: string | null
         bossesDefeated: string[]
+        lastAttack: { type: 'light' | 'hard' | null, time: number }
     }
 
     // Actions
@@ -78,7 +80,11 @@ export interface GameState {
     updatePosition: (x: number, y: number) => void
     addInventoryItem: (item: string) => void
     updateWorldCycle: (delta: number) => void
+    attack: (type: 'light' | 'hard') => void
+    addMoney: (amount: number) => void
 }
+
+export const ADMIN_EMAIL = 'sealseapep@gmail.com'
 
 export const useGameStore = create<GameState>((set) => ({
     auth: {
@@ -103,7 +109,8 @@ export const useGameStore = create<GameState>((set) => ({
             atk: 10,
             def: 5,
             spd: 12,
-            luck: 8
+            luck: 8,
+            money: 100
         },
         jobs: {
             main: null,
@@ -126,7 +133,8 @@ export const useGameStore = create<GameState>((set) => ({
         manaCycle: 0.5,
         moonPhase: 0,
         activeScenario: null,
-        bossesDefeated: []
+        bossesDefeated: [],
+        lastAttack: { type: null, time: 0 }
     },
 
     login: (userData) => set((state) => ({
@@ -227,6 +235,23 @@ export const useGameStore = create<GameState>((set) => ({
         world: {
             ...state.world,
             manaCycle: (state.world.manaCycle + delta) % 1
+        }
+    })),
+
+    attack: (type) => set((state) => ({
+        world: {
+            ...state.world,
+            lastAttack: { type, time: Date.now() }
+        }
+    })),
+
+    addMoney: (amount) => set((state) => ({
+        player: {
+            ...state.player,
+            stats: {
+                ...state.player.stats,
+                money: state.player.stats.money + amount
+            }
         }
     }))
 }))

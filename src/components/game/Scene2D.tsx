@@ -7,7 +7,7 @@ const WORLD_SIZE = 2000
 
 const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, face: string) => {
     ctx.strokeStyle = 'white'
-    ctx.lineWidth = 2
+    ctx.lineWidth = 2.5
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.beginPath()
@@ -61,6 +61,26 @@ const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number
             ctx.lineTo(x + r, y + r * 0.5)
             ctx.closePath()
             break
+        case 'swords':
+            ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r)
+            ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r)
+            break
+        case 'target':
+            ctx.arc(x, y, r, 0, Math.PI * 2)
+            ctx.moveTo(x, y - r * 0.5); ctx.arc(x, y, r * 0.5, 1.5 * Math.PI, 1.49 * Math.PI)
+            break
+        case 'shield':
+            ctx.moveTo(x - r * 0.7, y - r * 0.7)
+            ctx.lineTo(x + r * 0.7, y - r * 0.7)
+            ctx.lineTo(x + r * 0.7, y + r * 0.2)
+            ctx.quadraticCurveTo(x, y + r, x - r * 0.7, y + r * 0.2)
+            ctx.closePath()
+            break
+        case 'heart':
+            ctx.moveTo(x, y + r * 0.5)
+            ctx.bezierCurveTo(x - r, y - r * 0.5, x - r * 0.5, y - r, x, y - r * 0.3)
+            ctx.bezierCurveTo(x + r * 0.5, y - r, x + r, y - r * 0.5, x, y + r * 0.5)
+            break
         default:
             ctx.arc(x, y, r * 0.8, 0, Math.PI * 2)
             break
@@ -70,131 +90,169 @@ const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 
 export default function GameScene2D() {
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const { player, updatePosition, world, updateWorldCycle } = useGameStore()
+    const { player, updatePosition, world, updateWorldCycle, attack } = useGameStore()
     const [keys, setKeys] = useState<{ [key: string]: boolean }>({})
     const requestRef = useRef<number>(0)
+    const posRef = useRef({ x: player.position.x, y: player.position.y })
+    const lastTimeRef = useRef<number>(0)
 
     // Input handling
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => setKeys(prev => ({ ...prev, [e.code]: true }))
         const handleKeyUp = (e: KeyboardEvent) => setKeys(prev => ({ ...prev, [e.code]: false }))
+        const handleMouseDown = (e: MouseEvent) => {
+            if (e.button === 0) attack('light')
+            if (e.button === 2) attack('hard')
+        }
+        const handleContextMenu = (e: MouseEvent) => e.preventDefault()
+
         window.addEventListener('keydown', handleKeyDown)
         window.addEventListener('keyup', handleKeyUp)
+        window.addEventListener('mousedown', handleMouseDown)
+        window.addEventListener('contextmenu', handleContextMenu)
+
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
+            window.removeEventListener('mousedown', handleMouseDown)
+            window.removeEventListener('contextmenu', handleContextMenu)
         }
-    }, [])
+    }, [attack])
 
     const animate = (time: number) => {
+        if (!lastTimeRef.current) lastTimeRef.current = time
+        const deltaTime = (time - lastTimeRef.current) / 16.66 // normalized to 60fps
+        lastTimeRef.current = time
+
         const canvas = canvasRef.current
         if (!canvas) return
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        // Movement Logic
+        // Smoother Movement Mechanics
         let dx = 0
         let dy = 0
-        const speed = player.stats.spd * 0.5
-        if (keys['KeyW'] || keys['ArrowUp']) dy -= speed
-        if (keys['KeyS'] || keys['ArrowDown']) dy += speed
-        if (keys['KeyA'] || keys['ArrowLeft']) dx -= speed
-        if (keys['KeyD'] || keys['ArrowRight']) dx += speed
+        const baseSpeed = player.stats.spd * 0.8
+        if (keys['KeyW'] || keys['ArrowUp']) dy -= baseSpeed
+        if (keys['KeyS'] || keys['ArrowDown']) dy += baseSpeed
+        if (keys['KeyA'] || keys['ArrowLeft']) dx -= baseSpeed
+        if (keys['KeyD'] || keys['ArrowRight']) dx += baseSpeed
 
-        if (dx !== 0 || dy !== 0) {
-            const newX = Math.max(0, Math.min(WORLD_SIZE, player.position.x + dx))
-            const newY = Math.max(0, Math.min(WORLD_SIZE, player.position.y + dy))
-            updatePosition(newX, newY)
+        // Normalize diagonal speed
+        if (dx !== 0 && dy !== 0) {
+            const factor = 1 / Math.sqrt(2)
+            dx *= factor
+            dy *= factor
         }
 
-        // World Update
-        updateWorldCycle(0.0001)
+        // Apply movement with delta-time for smoothness
+        posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + dx * deltaTime))
+        posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + dy * deltaTime))
+
+        // Update global state every few frames to save performance
+        if (time % 100 < 20) {
+            updatePosition(posRef.current.x, posRef.current.y)
+        }
+
+        updateWorldCycle(0.0001 * deltaTime)
 
         // Render
         const { width, height } = canvas
         ctx.clearRect(0, 0, width, height)
 
-        // Camera follow (interpolated toward player)
-        const camX = player.position.x - width / 2
-        const camY = player.position.y - height / 2
+        const camX = posRef.current.x - width / 2
+        const camY = posRef.current.y - height / 2
 
         ctx.save()
         ctx.translate(-camX, -camY)
 
-        // Draw Grid
-        ctx.strokeStyle = '#1e293b'
+        // Draw Ambient Floor (Atmospheric)
+        const gradientBg = ctx.createRadialGradient(posRef.current.x, posRef.current.y, 100, posRef.current.x, posRef.current.y, 800)
+        gradientBg.addColorStop(0, '#020617')
+        gradientBg.addColorStop(1, '#000000')
+        ctx.fillStyle = gradientBg
+        ctx.fillRect(camX, camY, width, height)
+
+        // Grid
+        ctx.strokeStyle = 'rgba(30, 41, 59, 0.5)'
         ctx.lineWidth = 1
-        const gridSize = 100
-        for (let x = 0; x <= WORLD_SIZE; x += gridSize) {
-            ctx.beginPath()
-            ctx.moveTo(x, 0)
-            ctx.lineTo(x, WORLD_SIZE)
-            ctx.stroke()
+        for (let x = 0; x <= WORLD_SIZE; x += 100) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); ctx.stroke()
         }
-        for (let y = 0; y <= WORLD_SIZE; y += gridSize) {
-            ctx.beginPath()
-            ctx.moveTo(0, y)
-            ctx.lineTo(WORLD_SIZE, y)
-            ctx.stroke()
+        for (let y = 0; y <= WORLD_SIZE; y += 100) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); ctx.stroke()
         }
 
-        // Draw World Boundary
-        ctx.strokeStyle = '#334155'
-        ctx.lineWidth = 5
-        ctx.strokeRect(0, 0, WORLD_SIZE, WORLD_SIZE)
-
-        // Draw "Mana Crystals" (Decorative)
-        ctx.fillStyle = `hsla(${world.manaCycle * 360}, 70%, 50%, 0.3)`
-        for (let i = 0; i < 50; i++) {
-            const seed = i * 1337
-            const x = (seed % WORLD_SIZE)
-            const y = ((seed * 7) % WORLD_SIZE)
+        // Draw "Mana Particles"
+        ctx.fillStyle = `hsla(${world.manaCycle * 360}, 70%, 60%, 0.4)`
+        for (let i = 0; i < 40; i++) {
+            const seed = i * 2500
+            const px = (seed % WORLD_SIZE)
+            const py = ((seed * 3) % WORLD_SIZE)
+            const pulse = Math.sin(time * 0.001 + i) * 3
             ctx.beginPath()
-            ctx.arc(x, y, 5 + Math.sin(time * 0.002 + i) * 2, 0, Math.PI * 2)
+            ctx.arc(px, py, 3 + pulse, 0, Math.PI * 2)
             ctx.fill()
         }
 
-        // Draw Player
-        const pX = player.position.x
-        const pY = player.position.y
-        const radius = 30
+        // --- DRAW PLAYER ---
+        const pX = posRef.current.x
+        const pY = posRef.current.y
+        const radius = 35
 
-        // Shadow
-        ctx.shadowBlur = 20
+        // Attack FX
+        const attackAge = Date.now() - world.lastAttack.time
+        if (attackAge < 300) {
+            const progress = attackAge / 300
+            const ringRadius = radius * (1 + progress * 2)
+            ctx.beginPath()
+            ctx.arc(pX, pY, ringRadius, 0, Math.PI * 2)
+            ctx.strokeStyle = world.lastAttack.type === 'hard' ? 'rgba(239, 68, 68, ' + (1 - progress) + ')' : 'rgba(255, 255, 255, ' + (1 - progress) + ')'
+            ctx.lineWidth = 4 * (1 - progress)
+            ctx.stroke()
+        }
+
+        // Glow
+        ctx.shadowBlur = 40
         ctx.shadowColor = player.appearance.color
-
-        // Circle Body
         ctx.fillStyle = player.appearance.color
         ctx.beginPath()
         ctx.arc(pX, pY, radius, 0, Math.PI * 2)
         ctx.fill()
 
-        // Inner Glow
-        const gradient = ctx.createRadialGradient(pX, pY, 0, pX, pY, radius)
-        gradient.addColorStop(0, 'rgba(255,255,255,0.4)')
-        gradient.addColorStop(1, 'transparent')
-        ctx.fillStyle = gradient
+        // Inner Light
+        const pGrad = ctx.createRadialGradient(pX, pY, 0, pX, pY, radius)
+        pGrad.addColorStop(0, 'rgba(255,255,255,0.6)')
+        pGrad.addColorStop(1, 'transparent')
+        ctx.fillStyle = pGrad
         ctx.fill()
-
-        // Face (Vector Icon)
         ctx.shadowBlur = 0
+
+        // Vector Face
         drawFace(ctx, pX, pY, radius * 0.5, player.appearance.face)
 
-        // Level Tag
-        ctx.fillStyle = 'white'
-        ctx.strokeStyle = 'black'
-        ctx.lineWidth = 2
-        ctx.font = 'bold 12px Arial'
-        ctx.strokeText(`LVL ${player.stats.level}`, pX, pY - radius - 10)
-        ctx.fillText(`LVL ${player.stats.level}`, pX, pY - radius - 10)
+        // Floating Info (Fixed bad alignment)
+        ctx.textAlign = 'center'
 
-        // Name Tag
-        ctx.fillStyle = 'rgba(255,255,255,0.6)'
-        ctx.font = 'bold 10px Arial'
-        ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 15)
+        // Level Circle Tag
+        ctx.fillStyle = '#000'
+        ctx.beginPath(); ctx.arc(pX - 45, pY - 45, 12, 0, Math.PI * 2); ctx.fill()
+        ctx.strokeStyle = '#10b981'
+        ctx.lineWidth = 2; ctx.stroke()
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 10px Inter'
+        ctx.fillText(stats.level.toString(), pX - 45, pY - 41)
+
+        // Name (Now Cool and properly placed)
+        ctx.font = 'black 12px Inter'
+        ctx.letterSpacing = '2px'
+        ctx.fillStyle = 'white'
+        ctx.lineWidth = 4
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)'
+        ctx.strokeText(player.name.toUpperCase(), pX, pY + radius + 25)
+        ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 25)
 
         ctx.restore()
-
         requestRef.current = requestAnimationFrame(animate)
     }
 
@@ -203,7 +261,6 @@ export default function GameScene2D() {
         return () => cancelAnimationFrame(requestRef.current)
     }, [player, keys, world])
 
-    // Handle Resize
     useEffect(() => {
         const handleResize = () => {
             if (canvasRef.current) {
@@ -219,7 +276,7 @@ export default function GameScene2D() {
     return (
         <canvas
             ref={canvasRef}
-            className="absolute inset-0 cursor-crosshair"
+            className="absolute inset-0 cursor-crosshair bg-black"
         />
     )
 }
