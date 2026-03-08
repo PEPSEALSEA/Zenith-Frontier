@@ -71,6 +71,9 @@ function setupAllSheets() {
         ],
         "NPCStatus": [
             "npc_id", "scenario_id", "is_dead", "killed_by", "killed_at", "quest_closed"
+        ],
+        "MapObjects": [
+            "id", "type", "x", "y", "name", "radius", "params"
         ]
     };
 
@@ -339,6 +342,7 @@ function routeGet(action, p) {
     if (action === "get_all_equipment") return getAllEquipment();
     if (action === "get_all_titles") return getAllTitles();
     if (action === "get_moon_cycle") return getMoonCycle();
+    if (action === "get_world_map") return getWorldMap();
     return "ERROR|UNKNOWN_GET_ACTION";
 }
 
@@ -368,6 +372,7 @@ function routePost(action, p) {
     if (action === "advance_moon_cycle") return advanceMoonCycle(p);
     if (action === "npc_permadeath") return npcPermadeath(p);
     if (action === "update_holder_title") return updateHolderTitle(p);
+    if (action === "save_world_map") return saveWorldMap(p);
     return "ERROR|UNKNOWN_POST_ACTION";
 }
 

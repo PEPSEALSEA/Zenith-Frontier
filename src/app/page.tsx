@@ -6,7 +6,7 @@ import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
 import MapEditor from '@/components/ui/MapEditor'
-import { useGameStore } from '@/store/gameStore'
+import { useGameStore, ADMIN_EMAIL } from '@/store/gameStore'
 import { AnimatePresence, motion } from 'framer-motion'
 
 const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
@@ -14,7 +14,7 @@ const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
 })
 
 export default function Home() {
-  const { isInitialized, auth } = useGameStore()
+  const { isInitialized, isEditorMode, auth } = useGameStore()
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-black font-sans text-white select-none">
@@ -44,15 +44,34 @@ export default function Home() {
               <GameScene2D />
             </Suspense>
 
-            {/* Overlays */}
-            <HUD />
-            <Inventory />
+            {/* Overlays - Hidden in Editor Mode for focus */}
+            <AnimatePresence>
+              {!isEditorMode && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <HUD />
+                  <Inventory />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <MapEditor />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Loading Filter Effect */}
+      {/* Editor Grid Overlay (Visual Only) */}
+      {isEditorMode && (
+        <div className="pointer-events-none absolute inset-0 z-10 border-[20px] border-amber-500/10 opacity-50">
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-black px-6 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl border-2 border-black">
+            MAP ENGINE: EDITOR MODE ACTIVE
+          </div>
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-0 z-40 bg-black/50 opacity-0 transition-opacity duration-1000" id="scene-vignette" />
     </main>
   )
