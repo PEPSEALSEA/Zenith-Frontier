@@ -5,6 +5,7 @@ import { Suspense, useEffect } from 'react'
 import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
+import MapEditor from '@/components/ui/MapEditor'
 import { useGameStore } from '@/store/gameStore'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -46,6 +47,7 @@ export default function Home() {
             {/* Overlays */}
             <HUD />
             <Inventory />
+            <MapEditor />
           </motion.div>
         )}
       </AnimatePresence>

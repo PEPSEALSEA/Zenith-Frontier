@@ -5,6 +5,19 @@ import { useGameStore } from '@/store/gameStore'
 
 const WORLD_SIZE = 2000
 
+const getObjectColor = (type: string) => {
+    switch (type) {
+        case 'monster': return '#ef4444'
+        case 'boss': return '#9333ea'
+        case 'npc': return '#f59e0b'
+        case 'market': return '#10b981'
+        case 'town': return '#22c55e'
+        case 'safezone': return '#3b82f6'
+        case 'spawner': return '#64748b'
+        default: return '#fff'
+    }
+}
+
 const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, face: string) => {
     ctx.strokeStyle = 'white'
     ctx.lineWidth = 2.5
@@ -152,9 +165,8 @@ export default function GameScene2D() {
         // Update global state every few frames to save performance
         if (time % 100 < 20) {
             updatePosition(posRef.current.x, posRef.current.y)
+            updateWorldCycle(0.001) // Throttled update
         }
-
-        updateWorldCycle(0.0001 * deltaTime)
 
         // Render
         const { width, height } = canvas
@@ -195,9 +207,46 @@ export default function GameScene2D() {
             ctx.fill()
         }
 
+        // Draw World Objects
+        world.objects.forEach(obj => {
+            ctx.save()
+            ctx.translate(obj.x, obj.y)
+
+            // Background / Zone
+            if (obj.type === 'town' || obj.type === 'safezone') {
+                ctx.fillStyle = obj.type === 'town' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(59, 130, 246, 0.1)'
+                ctx.beginPath(); ctx.arc(0, 0, obj.radius, 0, Math.PI * 2); ctx.fill()
+                ctx.strokeStyle = obj.type === 'town' ? '#22c55e' : '#3b82f6'
+                ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([])
+            }
+
+            // Icon / Body
+            ctx.shadowBlur = 15
+            ctx.shadowColor = getObjectColor(obj.type)
+            ctx.fillStyle = getObjectColor(obj.type)
+
+            if (obj.type === 'monster' || obj.type === 'boss') {
+                ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(0, 15); ctx.closePath(); ctx.fill()
+            } else if (obj.type === 'npc' || obj.type === 'market') {
+                ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill()
+            } else if (obj.type === 'spawner') {
+                ctx.strokeRect(-15, -15, 30, 30)
+            }
+
+            // Name Tag
+            ctx.shadowBlur = 0
+            ctx.fillStyle = 'white'
+            ctx.font = 'bold 10px Inter'
+            ctx.textAlign = 'center'
+            ctx.fillText(obj.name.toUpperCase(), 0, -obj.radius - 5)
+
+            ctx.restore()
+        })
+
         // --- DRAW PLAYER ---
         const pX = posRef.current.x
         const pY = posRef.current.y
+        const pStats = player.stats // Fixed stats reference
         const radius = 35
 
         // Attack FX
@@ -241,7 +290,7 @@ export default function GameScene2D() {
         ctx.lineWidth = 2; ctx.stroke()
         ctx.fillStyle = '#fff'
         ctx.font = 'bold 10px Inter'
-        ctx.fillText(stats.level.toString(), pX - 45, pY - 41)
+        ctx.fillText(pStats.level.toString(), pX - 45, pY - 41)
 
         // Name (Now Cool and properly placed)
         ctx.font = 'black 12px Inter'

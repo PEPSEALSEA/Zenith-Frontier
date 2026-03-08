@@ -37,6 +37,18 @@ export interface AuthState {
     isAuthenticated: boolean
 }
 
+export type WorldObjectType = 'monster' | 'boss' | 'spawner' | 'town' | 'safezone' | 'npc' | 'market'
+
+export interface WorldObject {
+    id: string
+    type: WorldObjectType
+    x: number
+    y: number
+    name: string
+    radius: number
+    params?: any
+}
+
 export interface GameState {
     auth: AuthState
     isInitialized: boolean
@@ -62,11 +74,12 @@ export interface GameState {
         position: { x: number, y: number }
     }
     world: {
-        manaCycle: number // 0 to 1
-        moonPhase: number // 0 to 7
+        manaCycle: number
+        moonPhase: number
         activeScenario: string | null
         bossesDefeated: string[]
         lastAttack: { type: 'light' | 'hard' | null, time: number }
+        objects: WorldObject[]
     }
 
     // Actions
@@ -82,6 +95,10 @@ export interface GameState {
     updateWorldCycle: (delta: number) => void
     attack: (type: 'light' | 'hard') => void
     addMoney: (amount: number) => void
+    addWorldObject: (obj: WorldObject) => void
+    removeWorldObject: (id: string) => void
+    updateWorldObject: (id: string, updates: Partial<WorldObject>) => void
+    setWorldObjects: (objects: WorldObject[]) => void
 }
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
@@ -134,7 +151,8 @@ export const useGameStore = create<GameState>((set) => ({
         moonPhase: 0,
         activeScenario: null,
         bossesDefeated: [],
-        lastAttack: { type: null, time: 0 }
+        lastAttack: { type: null, time: 0 },
+        objects: []
     },
 
     login: (userData) => set((state) => ({
@@ -162,9 +180,8 @@ export const useGameStore = create<GameState>((set) => ({
             jobs: { ...state.player.jobs, main: job },
             stats: {
                 ...state.player.stats,
-                // Basic job bonuses could be applied here
-                atk: state.player.stats.atk + (job.id === 'warrior' ? 5 : 0),
-                mp: state.player.stats.mp + (job.id === 'mage' ? 20 : 0),
+                atk: state.player.stats.atk + (job.id === 'JOB_001' ? 5 : 0),
+                mp: state.player.stats.mp + (job.id === 'JOB_005' ? 20 : 0),
             }
         }
     })),
@@ -252,6 +269,34 @@ export const useGameStore = create<GameState>((set) => ({
                 ...state.player.stats,
                 money: state.player.stats.money + amount
             }
+        }
+    })),
+
+    addWorldObject: (obj) => set((state) => ({
+        world: {
+            ...state.world,
+            objects: [...state.world.objects, obj]
+        }
+    })),
+
+    removeWorldObject: (id) => set((state) => ({
+        world: {
+            ...state.world,
+            objects: state.world.objects.filter(o => o.id !== id)
+        }
+    })),
+
+    updateWorldObject: (id, updates) => set((state) => ({
+        world: {
+            ...state.world,
+            objects: state.world.objects.map(o => o.id === id ? { ...o, ...updates } : o)
+        }
+    })),
+
+    setWorldObjects: (objects) => set((state) => ({
+        world: {
+            ...state.world,
+            objects
         }
     }))
 }))
