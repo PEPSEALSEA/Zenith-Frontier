@@ -92,18 +92,58 @@ class GASService {
         const res = await this.get('get_all_monsters', {})
         return parseGASResponse(res).map(m => ({
             ...m,
-            hp: Number(m.hp), atk: Number(m.atk), def: Number(m.def), spd: Number(m.spd),
-            skills: m.skills ? m.skills.split(',') : [],
-            drops: m.drops ? JSON.parse(m.drops) : [],
-            appearance: m.appearance ? JSON.parse(m.appearance) : { color: '#ef4444', face: 'skull' }
+            hp: Number(m.hp),
+            atk: Number(m.atk),
+            def: Number(m.def),
+            spd: Number(m.spd),
+            skills: m.skills ? String(m.skills).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+            // Support both legacy JSON and plain text for drops
+            drops: (() => {
+                if (!m.drops) return []
+                try {
+                    const parsed = JSON.parse(m.drops)
+                    if (Array.isArray(parsed)) return parsed
+                } catch {
+                    // fall through to text parsing
+                }
+                return String(m.drops).split(',').map((s: string) => s.trim()).filter(Boolean)
+            })(),
+            // Support both legacy JSON and simple "color|face" text for appearance
+            appearance: (() => {
+                if (!m.appearance) return { color: '#ef4444', face: 'skull' }
+                const raw = String(m.appearance)
+                if (raw.trim().startsWith('{')) {
+                    try {
+                        return JSON.parse(raw)
+                    } catch {
+                        // fall through to text parsing
+                    }
+                }
+                const [color, face] = raw.split('|')
+                return {
+                    color: color || '#ef4444',
+                    face: face || 'skull'
+                }
+            })()
         }))
     }
 
     async upsertMonster(monster: any) {
+        const stats = monster.stats || {}
+        const appearance = monster.appearance || { color: '#ef4444', face: 'skull' }
+
         return await this.post('upsert_monster', {
-            ...monster,
-            drops: JSON.stringify(monster.drops),
-            appearance: JSON.stringify(monster.appearance)
+            monster_id: String(monster.monster_id || ''),
+            name: String(monster.name || ''),
+            hp: String(stats.hp ?? 100),
+            atk: String(stats.atk ?? 10),
+            def: String(stats.def ?? 5),
+            spd: String(stats.spd ?? 10),
+            // Store abilities and loot table as plain text
+            skills: (monster.abilities || []).join(','),
+            drops: String(monster.loot_table_id || ''),
+            // Encode appearance as simple "color|face" text
+            appearance: `${appearance.color || '#ef4444'}|${appearance.face || 'skull'}`
         })
     }
 
@@ -111,18 +151,57 @@ class GASService {
         const res = await this.get('get_all_npcs', {})
         return parseGASResponse(res).map(n => ({
             ...n,
-            is_merchant: n.is_merchant === 'true',
-            is_trader: n.is_trader === 'true',
-            appearance: n.appearance ? JSON.parse(n.appearance) : { color: '#3b82f6', face: 'ghost' },
-            trade_items: n.trade_items ? JSON.parse(n.trade_items) : []
+            // Accept both "true"/"false" and "1"/"0"
+            is_merchant: String(n.is_merchant) === 'true' || String(n.is_merchant) === '1',
+            is_trader: String(n.is_trader) === 'true' || String(n.is_trader) === '1',
+            // Support legacy JSON and "color|face" text
+            appearance: (() => {
+                if (!n.appearance) return { color: '#3b82f6', face: 'ghost' }
+                const raw = String(n.appearance)
+                if (raw.trim().startsWith('{')) {
+                    try {
+                        return JSON.parse(raw)
+                    } catch {
+                        // fall through
+                    }
+                }
+                const [color, face] = raw.split('|')
+                return {
+                    color: color || '#3b82f6',
+                    face: face || 'ghost'
+                }
+            })(),
+            // Support legacy JSON array and simple comma-separated IDs
+            trade_items: (() => {
+                if (!n.trade_items) return []
+                const raw = String(n.trade_items)
+                try {
+                    const parsed = JSON.parse(raw)
+                    if (Array.isArray(parsed)) return parsed
+                } catch {
+                    // fall through
+                }
+                return raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+            })()
         }))
     }
 
     async upsertNPC(npc: any) {
+        const appearance = npc.appearance || { color: '#3b82f6', face: 'ghost' }
+
         return await this.post('upsert_npc', {
-            ...npc,
-            appearance: JSON.stringify(npc.appearance),
-            trade_items: JSON.stringify(npc.trade_items)
+            npc_id: String(npc.npc_id || ''),
+            name: String(npc.name || ''),
+            appearance: `${appearance.color || '#3b82f6'}|${appearance.face || 'ghost'}`,
+            initial_dialogue_id: String(
+                npc.initial_dialogue_id ||
+                (npc.dialog_tree && npc.dialog_tree[0] && npc.dialog_tree[0].id) ||
+                ''
+            ),
+            quest_id: String(npc.quest_id || ''),
+            is_merchant: (npc.is_merchant ? '1' : '0'),
+            is_trader: (npc.is_trader ? '1' : '0'),
+            trade_items: (npc.trade_items || []).join(',')
         })
     }
 
@@ -131,15 +210,23 @@ class GASService {
         return parseGASResponse(res).map(q => ({
             ...q,
             target_count: Number(q.target_count),
-            is_hidden: q.is_hidden === 'true',
+            // Accept both "true"/"false" and "1"/"0"
+            is_hidden: String(q.is_hidden) === 'true' || String(q.is_hidden) === '1',
             rewards: q.rewards ? JSON.parse(q.rewards) : {}
         }))
     }
 
     async upsertQuest(quest: any) {
         return await this.post('upsert_quest', {
-            ...quest,
-            rewards: JSON.stringify(quest.rewards)
+            quest_id: String(quest.quest_id || ''),
+            name: String(quest.name || ''),
+            description: String(quest.description || ''),
+            type: String(quest.type || 'kill'),
+            target_id: String(quest.target_id || ''),
+            target_count: String(quest.target_count ?? 0),
+            rewards: JSON.stringify(quest.rewards || {}),
+            is_hidden: quest.is_hidden ? '1' : '0',
+            next_quest_id: String(quest.next_quest_id || '')
         })
     }
 
