@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useGameStore } from '@/store/gameStore'
 import { motion } from 'framer-motion'
+import ProfileDropdown from '@/components/ui/ProfileDropdown'
 import {
     Shield,
     Sword,
@@ -32,8 +33,9 @@ const FaceIcon = ({ faceKey, className }: { faceKey: string, className?: string 
 }
 
 const HUD = () => {
-    const { player, world } = useGameStore()
+    const { player, world, auth } = useGameStore()
     const { stats, jobs } = player
+    const [isProfileOpen, setIsProfileOpen] = useState(false)
 
     const hpPercent = (stats.hp / stats.maxHp) * 100
     const mpPercent = (stats.mp / stats.maxMp) * 100
@@ -48,10 +50,13 @@ const HUD = () => {
                     animate={{ x: 0, opacity: 1 }}
                     className="flex items-start gap-4 animate-in fade-in duration-700"
                 >
-                    <div className="relative group pointer-events-auto cursor-pointer">
+                    <div
+                        className="relative group pointer-events-auto cursor-pointer"
+                        onClick={() => setIsProfileOpen(prev => !prev)}
+                    >
                         <motion.div
                             style={{ backgroundColor: player.appearance.color }}
-                            className="h-20 w-20 rounded-full border-2 border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.15)] flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                            className="h-20 w-20 rounded-full border-2 border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.15)] flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:border-white/50"
                         >
                             <FaceIcon faceKey={player.appearance.face} className="h-10 w-10 text-white drop-shadow-sm" />
                             <div className="absolute inset-0 rounded-full border-2 border-white/5" />
@@ -59,6 +64,12 @@ const HUD = () => {
                         <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-xs font-black text-black border-2 border-black shadow-lg">
                             {stats.level}
                         </div>
+                        {/* Google profile photo badge */}
+                        {auth.user?.picture && (
+                            <div className="absolute -top-1 -right-1 h-6 w-6 rounded-full border-2 border-black overflow-hidden shadow-lg">
+                                <img src={auth.user.picture} alt="" className="w-full h-full object-cover" />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex flex-col drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] pt-1">
@@ -157,6 +168,8 @@ const HUD = () => {
                     border: 1px solid rgba(255, 255, 255, 0.1);
                 }
             `}</style>
+
+            <ProfileDropdown isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
         </div>
     )
 }

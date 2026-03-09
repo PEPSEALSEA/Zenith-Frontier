@@ -8,8 +8,10 @@ import CharacterCreator from '@/components/ui/CharacterCreator'
 import MapEditor from '@/components/ui/MapEditor'
 import AdminDashboard from '@/components/ui/AdminDashboard'
 import EntityCreator from '@/components/ui/EntityCreator'
+import QuestEditor from '@/components/ui/QuestEditor'
 import { useGameStore, ADMIN_EMAIL } from '@/store/gameStore'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useAuthPersistence } from '@/hooks/useAuthPersistence'
 
 const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
   ssr: false,
@@ -20,6 +22,9 @@ type AdminTool = 'map' | 'monster' | 'npc' | 'quest' | null
 export default function Home() {
   const { isInitialized, isEditorMode, auth, isAdminDashboard, exitAdminDashboard, enterForgeMode, initializeCharacter } = useGameStore()
   const [adminTool, setAdminTool] = useState<AdminTool>(null)
+
+  // Restore saved login from localStorage on mount
+  useAuthPersistence()
 
   const isAdmin = auth.user?.email === ADMIN_EMAIL
 
@@ -59,6 +64,8 @@ export default function Home() {
                 initialType={adminTool as 'monster' | 'npc'}
                 onBack={handleEntityCreatorBack}
               />
+            ) : adminTool === 'quest' ? (
+              <QuestEditor onBack={handleEntityCreatorBack} />
             ) : (
               <AdminDashboard onSelectTool={handleAdminToolSelect} />
             )}

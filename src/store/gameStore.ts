@@ -67,6 +67,20 @@ export interface WorldObject {
     params?: any
 }
 
+// --- Quest Reward ---
+export interface QuestReward {
+    money?: number
+    exp?: number
+    items?: { item_id: string; amount: number }[]
+    unlock_quest_id?: string  // chained quest to give the player on completion
+}
+
+// --- Quest Lifecycle Hooks ---
+export interface QuestHook {
+    type: 'give_item' | 'set_flag' | 'unlock_quest' | 'teleport'
+    value?: string | number
+}
+
 export interface Quest {
     quest_id: string
     name: string
@@ -74,9 +88,12 @@ export interface Quest {
     type: 'kill' | 'collect' | 'talk'
     target_id: string
     target_count: number
-    rewards: any
+    rewards: QuestReward
     is_hidden: boolean
-    next_quest_id?: string
+    prerequisite_quest_id?: string // must be completed before this is offered
+    next_quest_id?: string          // chained quest (used for display/logic)
+    on_start: QuestHook[]           // hooks fired when quest activates
+    on_complete: QuestHook[]        // hooks fired when quest completes
 }
 
 export interface PlayerQuest {
