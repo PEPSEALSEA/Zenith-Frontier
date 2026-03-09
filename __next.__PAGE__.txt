@@ -1,9 +1,9 @@
 1:"$Sreact.fragment"
 2:I[47257,["/Zenith-Frontier/_next/static/chunks/2f236954d6a65e12.js"],"ClientPageRoot"]
-3:I[52683,["/Zenith-Frontier/_next/static/chunks/d196f4844aa3ff1c.js","/Zenith-Frontier/_next/static/chunks/8c4c43cb29c6dac5.js","/Zenith-Frontier/_next/static/chunks/6292e0951036e0c4.js"],"default"]
+3:I[52683,["/Zenith-Frontier/_next/static/chunks/d196f4844aa3ff1c.js","/Zenith-Frontier/_next/static/chunks/e5e34d62776495d7.js","/Zenith-Frontier/_next/static/chunks/0e3a01aa65ec3f29.js"],"default"]
 6:I[97367,["/Zenith-Frontier/_next/static/chunks/2f236954d6a65e12.js"],"OutletBoundary"]
 7:"$Sreact.suspense"
-0:{"buildId":"E9HOgKu0zc3trPeZric-W","rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/Zenith-Frontier/_next/static/chunks/8c4c43cb29c6dac5.js","async":true}],["$","script","script-1",{"src":"/Zenith-Frontier/_next/static/chunks/6292e0951036e0c4.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"loading":null,"isPartial":false}
+0:{"buildId":"O_5OLuB45wW1OaEfkaVmQ","rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/Zenith-Frontier/_next/static/chunks/e5e34d62776495d7.js","async":true}],["$","script","script-1",{"src":"/Zenith-Frontier/_next/static/chunks/0e3a01aa65ec3f29.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"loading":null,"isPartial":false}
 4:{}
 5:"$0:rsc:props:children:0:props:serverProvidedParams:params"
 8:null
