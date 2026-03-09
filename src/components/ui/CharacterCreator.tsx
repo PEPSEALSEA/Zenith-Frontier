@@ -18,7 +18,8 @@ import {
     Heart,
     ChevronRight,
     LogOut,
-    Loader2
+    Loader2,
+    Ghost
 } from 'lucide-react'
 
 const FACES: FaceKey[] = ['ghost', 'skull', 'fire', 'bolt', 'star', 'crown', 'swords', 'target', 'shield', 'heart']

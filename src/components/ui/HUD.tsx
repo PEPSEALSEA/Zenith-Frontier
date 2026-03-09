@@ -24,7 +24,7 @@ import {
     Moon
 } from 'lucide-react'
 
-import { FACES_MAP, FaceKey } from './CharacterCreator'
+import { FACES_MAP, FaceKey } from '@/store/gameStore'
 
 const FaceIcon = ({ faceKey, className }: { faceKey: string, className?: string }) => {
     const Icon = FACES_MAP[faceKey as FaceKey] || Ghost
