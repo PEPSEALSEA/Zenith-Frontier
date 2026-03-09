@@ -111,17 +111,34 @@ export default function MapEditor() {
                         </div>
 
                         {/* Specific Selection Sub-menu */}
-                        {(forgeSelection?.type === 'monster' || forgeSelection?.type === 'spawner') && world.monsters.length > 0 && (
+                        {(forgeSelection?.type === 'monster' || forgeSelection?.type === 'spawner') && world.monsterTemplates.length > 0 && (
                             <div className="mb-6 space-y-2">
                                 <h4 className="text-[8px] font-black text-white/30 uppercase tracking-widest pl-1">Select {forgeSelection.type === 'spawner' ? 'Monster to Spawn' : 'Monster Template'}</h4>
                                 <div className="flex flex-wrap gap-2">
-                                    {world.monsters.map(m => (
+                                    {world.monsterTemplates.map(m => (
                                         <button
                                             key={m.monster_id}
                                             onClick={() => setForgeSelection({ type: forgeSelection.type, id: m.monster_id, name: m.name })}
                                             className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${forgeSelection.id === m.monster_id ? (forgeSelection.type === 'spawner' ? 'bg-cyan-500 border-cyan-400' : 'bg-red-500 border-red-400') + ' text-white' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
                                         >
                                             {m.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {forgeSelection?.type === 'npc' && world.npcTemplates.length > 0 && (
+                            <div className="mb-6 space-y-2">
+                                <h4 className="text-[8px] font-black text-white/30 uppercase tracking-widest pl-1">Select NPC Template</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {world.npcTemplates.map(n => (
+                                        <button
+                                            key={n.npc_id}
+                                            onClick={() => setForgeSelection({ type: 'npc', id: n.npc_id, name: n.name })}
+                                            className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${forgeSelection.id === n.npc_id ? 'bg-amber-500 border-amber-400 text-black' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
+                                        >
+                                            {n.name}
                                         </button>
                                     ))}
                                 </div>

@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html, Ring, Sphere } from '@react-three/drei'
 import * as THREE from 'three'
-import { Spawner, useGameStore, Monster } from '@/store/gameStore'
+import { Spawner, useGameStore, MonsterTemplate } from '@/store/gameStore'
 import MonsterEntity from './Monster'
 
 interface SpawnerProps {
@@ -13,7 +13,7 @@ interface SpawnerProps {
 
 interface MonsterInstance {
     id: string
-    monster: Monster
+    monster: MonsterTemplate
     position: [number, number, number]
 }
 
@@ -21,9 +21,10 @@ export default function SpawnerEntity({ data }: SpawnerProps) {
     const { world, isEditorMode } = useGameStore()
     const [monsters, setMonsters] = useState<MonsterInstance[]>([])
     const lastSpawnTime = useRef(0)
+    const lastCheckTime = useRef(0)
 
     // Find the monster definition
-    const monsterDef = world.monsters.find(m => m.monster_id === data.monster_id)
+    const monsterDef = world.monsterTemplates.find(m => m.monster_id === data.monster_id)
 
     useFrame((state) => {
         if (!monsterDef) return
@@ -47,9 +48,17 @@ export default function SpawnerEntity({ data }: SpawnerProps) {
             lastSpawnTime.current = now
         }
 
-        // Despawn / Range logic (Crucial requirement)
-        // In a real game, monsters would move, but for now we check if they are "Alive" 
-        // and within range of the spawner.
+        // Despawn / Range logic (Crucial requirement: 1 sec tick rate)
+        if (now - lastCheckTime.current > 1.0) {
+            setMonsters(prev => prev.filter(m => {
+                const distSq = Math.pow(m.position[0] - data.x, 2) + Math.pow(m.position[2] - data.z, 2)
+                if (distSq > data.range * data.range) {
+                    return false // Despawn
+                }
+                return true
+            }))
+            lastCheckTime.current = now
+        }
     })
 
     const killMonster = (id: string) => {

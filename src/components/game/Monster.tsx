@@ -4,10 +4,10 @@ import React, { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Float, Text, Html } from '@react-three/drei'
 import * as THREE from 'three'
-import { Monster, FACES_MAP, FaceKey } from '@/store/gameStore'
+import { MonsterTemplate, FACES_MAP, FaceKey } from '@/store/gameStore'
 
 interface MonsterProps {
-    data: Monster
+    data: MonsterTemplate
     position: [number, number, number]
     onHit?: () => void
 }

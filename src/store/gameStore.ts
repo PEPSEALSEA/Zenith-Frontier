@@ -85,15 +85,79 @@ export interface PlayerQuest {
     progress: number
 }
 
-export interface Monster {
+// --- Gameplay Ability System (GAS) ---
+export interface GameplayTag {
+    id: string
+    description?: string
+}
+
+export interface GameplayAttribute {
+    id: string
+    value: number
+    baseValue: number
+}
+
+export interface GameplayAbility {
+    ability_id: string
+    name: string
+    description: string
+    cooldown: number
+    cost: { type: 'mp' | 'hp' | 'sp', amount: number }
+    effects: any[] // visual or buff effects
+}
+
+// --- Dialog & Quests ---
+export interface DialogCondition {
+    type: 'item' | 'tag' | 'quest' | 'level'
+    target_id: string
+    value?: number // e.g., required amount or level
+}
+
+export interface DialogAction {
+    type: 'shop' | 'quest' | 'trade' | 'trigger_event'
+    target_id?: string
+}
+
+export interface DialogNode {
+    id: string
+    text: string
+    speaker: string
+    conditions: DialogCondition[]
+    action?: DialogAction
+    next_nodes: string[] // IDs of next dialog options
+}
+
+// --- Loot System ---
+export interface LootEntry {
+    item_id: string
+    chance: number // float 0.0 - 1.0
+    min_amount: number
+    max_amount: number
+}
+
+export interface LootTable {
+    table_id: string
+    name: string
+    entries: LootEntry[]
+}
+
+// --- Templates (Data Definitions) ---
+
+export interface NPCTemplate {
+    npc_id: string
+    name: string
+    appearance: PlayerAppearance
+    dialog_tree: DialogNode[] // Conditional dialogs
+    tags: string[] // Active Gameplay Tags
+}
+
+export interface MonsterTemplate {
     monster_id: string
     name: string
-    hp: number
-    atk: number
-    def: number
-    spd: number
-    skills: string[]
-    drops: any[]
+    stats: CharacterStats
+    abilities: string[] // List of GameplayAbility IDs
+    tags: string[] // List of GameplayTag IDs
+    loot_table_id: string
     appearance: PlayerAppearance
 }
 
@@ -140,11 +204,19 @@ export interface GameState {
         activeScenario: string | null
         bossesDefeated: string[]
         lastAttack: { type: 'light' | 'hard' | null, time: number }
+
+        // Instances
         objects: WorldObject[]
-        monsters: Monster[]
-        quests: Quest[]
         spawners: Spawner[]
         playerQuests: PlayerQuest[]
+
+        // Data Definitions (Templates)
+        npcTemplates: NPCTemplate[]
+        monsterTemplates: MonsterTemplate[]
+        quests: Quest[]
+        lootTables: LootTable[]
+        abilities: GameplayAbility[]
+        tags: GameplayTag[]
     }
     forgeSelection: { type: WorldObjectType, id?: string, name?: string } | null
 
@@ -173,12 +245,19 @@ export interface GameState {
     loadWorldFromGAS: () => Promise<void>
 
     // New Actions
-    setMonsters: (monsters: Monster[]) => void
+    setMonsterTemplates: (monsters: MonsterTemplate[]) => void
+    setNPCTemplates: (npcs: NPCTemplate[]) => void
     setQuests: (quests: Quest[]) => void
     setSpawners: (spawners: Spawner[]) => void
+    setLootTables: (tables: LootTable[]) => void
+    setAbilities: (abilities: GameplayAbility[]) => void
     setPlayerQuests: (pQuests: PlayerQuest[]) => void
     updateQuestProgress: (questId: string, progress: number) => void
     setForgeSelection: (selection: { type: WorldObjectType, id?: string, name?: string } | null) => void
+
+    // Logic Utilities
+    rollLootTable: (tableId: string) => { item_id: string, count: number }[]
+    evaluateDialogCondition: (condition: DialogCondition) => boolean
 }
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
@@ -217,10 +296,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         bossesDefeated: [],
         lastAttack: { type: null, time: 0 },
         objects: [],
-        monsters: [],
-        quests: [],
         spawners: [],
-        playerQuests: []
+        playerQuests: [],
+        npcTemplates: [],
+        monsterTemplates: [],
+        quests: [],
+        lootTables: [],
+        abilities: [],
+        tags: []
     },
     forgeSelection: null,
 
@@ -350,7 +433,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     },
 
-    setMonsters: (monsters) => set((state) => ({ world: { ...state.world, monsters } })),
+    setMonsterTemplates: (monsterTemplates) => set((state) => ({ world: { ...state.world, monsterTemplates } })),
+    setNPCTemplates: (npcTemplates) => set((state) => ({ world: { ...state.world, npcTemplates } })),
+    setLootTables: (lootTables) => set((state) => ({ world: { ...state.world, lootTables } })),
+    setAbilities: (abilities) => set((state) => ({ world: { ...state.world, abilities } })),
     setQuests: (quests) => set((state) => ({ world: { ...state.world, quests } })),
     setSpawners: (spawners) => set((state) => ({ world: { ...state.world, spawners } })),
     setPlayerQuests: (playerQuests) => set((state) => ({ world: { ...state.world, playerQuests } })),
@@ -363,5 +449,42 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     })),
 
-    setForgeSelection: (selection) => set({ forgeSelection: selection })
+    setForgeSelection: (selection) => set({ forgeSelection: selection }),
+
+    // Logic Utilities
+    rollLootTable: (tableId) => {
+        const { world } = get()
+        const table = world.lootTables.find(t => t.table_id === tableId)
+        if (!table) return []
+
+        const results: { item_id: string, count: number }[] = []
+        for (const entry of table.entries) {
+            if (Math.random() <= entry.chance) {
+                const count = Math.floor(Math.random() * (entry.max_amount - entry.min_amount + 1)) + entry.min_amount
+                if (count > 0) {
+                    results.push({ item_id: entry.item_id, count })
+                }
+            }
+        }
+        return results
+    },
+
+    evaluateDialogCondition: (condition) => {
+        const { player } = get()
+        switch (condition.type) {
+            case 'item':
+                const itemCount = player.inventory.filter(i => i === condition.target_id).length
+                return itemCount >= (condition.value || 1)
+            case 'tag':
+                // In a complete GAS build, tags would be checked on the player or target.
+                return true // Placeholder
+            case 'quest':
+                // Check if quest is active/complete etc based on value
+                return true
+            case 'level':
+                return player.stats.level >= (condition.value || 0)
+            default:
+                return true
+        }
+    }
 }))

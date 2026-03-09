@@ -20,19 +20,18 @@ import {
     RefreshCw
 } from 'lucide-react'
 import { gasService } from '@/services/gasService'
-import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey, Monster, Spawner, Quest } from '@/store/gameStore'
+import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey, MonsterTemplate, Spawner, Quest } from '@/store/gameStore'
 
 type AdminTab = 'MONSTERS' | 'NPCS' | 'QUESTS' | 'SPAWNERS'
 
 const AdminPortal = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>('MONSTERS')
-    const { world, setMonsters, setQuests, setSpawners } = useGameStore()
+    const { world, setMonsterTemplates, setQuests, setSpawners } = useGameStore()
     const [isLoading, setIsLoading] = useState(false)
 
     // Form States
-    const [monsterForm, setMonsterForm] = useState<Partial<Monster>>({
-        monster_id: '', name: '', hp: 100, atk: 10, def: 5, spd: 10,
-        skills: [], drops: [], appearance: { color: '#ef4444', face: 'skull' }
+    const [monsterForm, setMonsterForm] = useState<Partial<MonsterTemplate>>({
+        monster_id: '', name: '', appearance: { color: '#ef4444', face: 'skull' }
     })
 
     const [npcForm, setNpcForm] = useState<any>({
@@ -61,7 +60,7 @@ const AdminPortal = () => {
                 gasService.getAllQuests(),
                 gasService.getAllSpawners()
             ])
-            setMonsters(m)
+            setMonsterTemplates(m)
             setQuests(q)
             setSpawners(s)
         } catch (e) {
@@ -121,7 +120,7 @@ const AdminPortal = () => {
                             <div className="space-y-4">
                                 <SectionHeader title="Existing Monsters" />
                                 <div className="grid grid-cols-1 gap-2">
-                                    {world.monsters.map(m => (
+                                    {world.monsterTemplates.map(m => (
                                         <div
                                             key={m.monster_id}
                                             onClick={() => setMonsterForm(m)}
@@ -140,7 +139,7 @@ const AdminPortal = () => {
                                         </div>
                                     ))}
                                     <button
-                                        onClick={() => setMonsterForm({ monster_id: 'MOB_' + Date.now(), name: 'New Monster', hp: 100, atk: 10, def: 5, spd: 10, skills: [], drops: [], appearance: { color: '#ef4444', face: 'skull' } })}
+                                        onClick={() => setMonsterForm({ monster_id: 'MOB_' + Date.now(), name: 'New Monster', appearance: { color: '#ef4444', face: 'skull' }, stats: { hp: 100, maxHp: 100, mp: 50, maxMp: 50, level: 1, exp: 0, maxExp: 100, atk: 10, def: 5, spd: 12, luck: 8, money: 100 } })}
                                         className="p-4 rounded-xl border border-dashed border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-white/40 flex items-center justify-center gap-2"
                                     >
                                         <Plus className="h-4 w-4" />
@@ -157,10 +156,10 @@ const AdminPortal = () => {
                                     <InputBlock label="Name" value={monsterForm.name} onChange={v => setMonsterForm({ ...monsterForm, name: v })} />
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <InputBlock label="HP" type="number" value={monsterForm.hp} onChange={v => setMonsterForm({ ...monsterForm, hp: Number(v) })} />
-                                        <InputBlock label="ATK" type="number" value={monsterForm.atk} onChange={v => setMonsterForm({ ...monsterForm, atk: Number(v) })} />
-                                        <InputBlock label="DEF" type="number" value={monsterForm.def} onChange={v => setMonsterForm({ ...monsterForm, def: Number(v) })} />
-                                        <InputBlock label="SPD" type="number" value={monsterForm.spd} onChange={v => setMonsterForm({ ...monsterForm, spd: Number(v) })} />
+                                        <InputBlock label="HP" type="number" value={monsterForm.stats?.hp || 100} onChange={v => setMonsterForm({ ...monsterForm, stats: { ...monsterForm.stats!, hp: Number(v), maxHp: Number(v) } })} />
+                                        <InputBlock label="ATK" type="number" value={monsterForm.stats?.atk || 10} onChange={v => setMonsterForm({ ...monsterForm, stats: { ...monsterForm.stats!, atk: Number(v) } })} />
+                                        <InputBlock label="DEF" type="number" value={monsterForm.stats?.def || 5} onChange={v => setMonsterForm({ ...monsterForm, stats: { ...monsterForm.stats!, def: Number(v) } })} />
+                                        <InputBlock label="SPD" type="number" value={monsterForm.stats?.spd || 12} onChange={v => setMonsterForm({ ...monsterForm, stats: { ...monsterForm.stats!, spd: Number(v) } })} />
                                     </div>
 
                                     <div className="space-y-2">
@@ -185,6 +184,31 @@ const AdminPortal = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* GAS & Loot Table */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest">GAS Abilities (Comma separated)</label>
+                                            <input
+                                                type="text"
+                                                value={(monsterForm.abilities || []).join(', ')}
+                                                onChange={e => setMonsterForm({ ...monsterForm, abilities: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                                placeholder="e.g. ABI_FIREBALL, ABI_SLASH"
+                                                className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-white font-mono text-sm focus:outline-none focus:border-amber-500/50"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest">GAS Tags (Comma separated)</label>
+                                            <input
+                                                type="text"
+                                                value={(monsterForm.tags || []).join(', ')}
+                                                onChange={e => setMonsterForm({ ...monsterForm, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                                placeholder="e.g. MONSTER.TYPE.UNDEAD"
+                                                className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-white font-mono text-sm focus:outline-none focus:border-amber-500/50"
+                                            />
+                                        </div>
+                                    </div>
+                                    <InputBlock label="Loot Table ID" value={monsterForm.loot_table_id || ''} onChange={v => setMonsterForm({ ...monsterForm, loot_table_id: v })} placeholder="e.g. LOOT_GOBLIN" />
 
                                     <button
                                         onClick={saveMonster}
@@ -239,6 +263,30 @@ const AdminPortal = () => {
                                             <input type="checkbox" checked={npcForm.is_trader} onChange={e => setNpcForm({ ...npcForm, is_trader: e.target.checked })} />
                                             Trader
                                         </label>
+                                    </div>
+
+                                    {/* GAS & Dialog */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Dialogue Tree ID</label>
+                                            <input
+                                                type="text"
+                                                value={npcForm.dialog_tree?.[0]?.id || ''}
+                                                onChange={e => setNpcForm({ ...npcForm, dialog_tree: [{ id: e.target.value, text: 'Placeholder text', speaker: npcForm.name, conditions: [], next_nodes: [] }] })}
+                                                placeholder="e.g. DIL_VILLAGER_01"
+                                                className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-white font-mono text-sm focus:outline-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest">GAS Tags (Comma separated)</label>
+                                            <input
+                                                type="text"
+                                                value={(npcForm.tags || []).join(', ')}
+                                                onChange={e => setNpcForm({ ...npcForm, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                                placeholder="e.g. NPC.STATE.QUEST_GIVER"
+                                                className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-white font-mono text-sm focus:outline-none"
+                                            />
+                                        </div>
                                     </div>
 
                                     <button
@@ -361,7 +409,7 @@ const AdminPortal = () => {
                                             className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-white font-mono text-sm focus:outline-none focus:border-cyan-500"
                                         >
                                             <option value="">Select Monster Type</option>
-                                            {world.monsters.map(m => (
+                                            {world.monsterTemplates.map(m => (
                                                 <option key={m.monster_id} value={m.monster_id}>{m.name} ({m.monster_id})</option>
                                             ))}
                                         </select>

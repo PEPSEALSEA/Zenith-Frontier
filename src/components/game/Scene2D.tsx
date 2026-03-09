@@ -220,10 +220,10 @@ export default function GameScene2D() {
             ctx.save()
             ctx.translate(obj.x, obj.y)
 
-            if (obj.type === 'town' || obj.type === 'safezone') {
-                ctx.fillStyle = obj.type === 'town' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(59, 130, 246, 0.08)'
+            if (obj.type === 'town' || obj.type === 'safezone' || obj.type === 'spawner') {
+                ctx.fillStyle = obj.type === 'town' ? 'rgba(34, 197, 94, 0.08)' : obj.type === 'spawner' ? 'rgba(100, 116, 139, 0.08)' : 'rgba(59, 130, 246, 0.08)'
                 ctx.beginPath(); ctx.arc(0, 0, obj.radius, 0, Math.PI * 2); ctx.fill()
-                ctx.strokeStyle = obj.type === 'town' ? '#22c55e44' : '#3b82f644'
+                ctx.strokeStyle = obj.type === 'town' ? '#22c55e44' : obj.type === 'spawner' ? '#64748b88' : '#3b82f644'
                 ctx.setLineDash([10, 10]); ctx.stroke(); ctx.setLineDash([])
             }
 
