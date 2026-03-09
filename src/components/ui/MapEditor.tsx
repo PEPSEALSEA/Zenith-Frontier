@@ -16,7 +16,9 @@ import {
     Maximize2,
     Settings,
     Edit3,
-    CloudUpload
+    CloudUpload,
+    ChevronDown,
+    ChevronUp
 } from 'lucide-react'
 
 const OBJECT_TYPES: { type: WorldObjectType, icon: any, color: string }[] = [
@@ -33,8 +35,14 @@ export default function MapEditor() {
     const { auth, world, player, isEditorMode, isForgeMode, setEditorMode, addWorldObject, removeWorldObject, updateWorldObject, saveWorldToGAS, forgeSelection, setForgeSelection } = useGameStore()
     const [isOpen, setIsOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
 
     if (auth.user?.email !== ADMIN_EMAIL) return null
+
+    const toggleExpand = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }))
+    }
 
     const dropAtPlayer = () => {
         if (!forgeSelection) return
@@ -169,36 +177,72 @@ export default function MapEditor() {
                             </div>
 
                             <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                {world.objects.map(obj => (
-                                    <div key={obj.id} className="flex flex-col gap-1.5 p-3 rounded-xl bg-white/5 border border-white/5 group transition-all hover:bg-white/10">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-2 w-2 rounded-full shadow-[0_0_8px] shadow-current" style={{ color: OBJECT_TYPES.find(t => t.type === obj.type)?.color, backgroundColor: 'currentColor' }} />
-                                                <input
-                                                    className="bg-transparent text-[10px] font-black text-white/80 uppercase focus:outline-none focus:text-cyan-400 w-32"
-                                                    value={obj.name}
-                                                    onChange={(e) => updateWorldObject(obj.id, { name: e.target.value })}
-                                                />
+                                {world.objects.map(obj => {
+                                    const isExpanded = !!expandedIds[obj.id]
+                                    return (
+                                        <div key={obj.id} className="flex flex-col gap-1.5 p-3 rounded-xl bg-white/5 border border-white/5 group transition-all hover:bg-white/10">
+                                            <div className="flex items-center justify-between cursor-pointer" onClick={(e) => toggleExpand(obj.id, e)}>
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    <button className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+                                                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                                    </button>
+                                                    <div className="h-2 w-2 rounded-full shadow-[0_0_8px] shadow-current flex-shrink-0" style={{ color: OBJECT_TYPES.find(t => t.type === obj.type)?.color, backgroundColor: 'currentColor' }} />
+                                                    <input
+                                                        className="bg-transparent text-[10px] font-black text-white/80 uppercase focus:outline-none focus:text-cyan-400 flex-1 min-w-0"
+                                                        value={obj.name}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={(e) => updateWorldObject(obj.id, { name: e.target.value })}
+                                                    />
+                                                </div>
+                                                <button onClick={(e) => { e.stopPropagation(); removeWorldObject(obj.id) }} className="p-1.5 text-rose-500 hover:bg-rose-500/20 rounded-lg transition-all ml-2 flex-shrink-0">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
                                             </div>
-                                            <button onClick={() => removeWorldObject(obj.id)} className="p-1.5 text-rose-500 hover:bg-rose-500/20 rounded-lg transition-all">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
 
-                                        {(obj.type === 'town' || obj.type === 'safezone') && (
-                                            <div className="flex items-center gap-3 px-1 mt-1">
-                                                <span className="text-[8px] font-black text-white/20 tracking-widest">UNIT_SIZE</span>
-                                                <input
-                                                    type="range" min="50" max="500" step="10"
-                                                    value={obj.radius}
-                                                    onChange={(e) => updateWorldObject(obj.id, { radius: parseInt(e.target.value) })}
-                                                    className="flex-1 accent-indigo-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                                                />
-                                                <span className="text-[8px] font-mono text-indigo-400 w-6">{obj.radius}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            {isExpanded && (
+                                                <div className="pt-2 mt-2 border-t border-white/5 space-y-3">
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[8px] font-black text-white/30 tracking-widest w-4">X:</span>
+                                                            <input type="number" value={Math.round(obj.x)} onChange={(e) => updateWorldObject(obj.id, { x: Number(e.target.value) })} className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white font-mono" />
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[8px] font-black text-white/30 tracking-widest w-4">Y:</span>
+                                                            <input type="number" value={Math.round(obj.y)} onChange={(e) => updateWorldObject(obj.id, { y: Number(e.target.value) })} className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white font-mono" />
+                                                        </div>
+                                                    </div>
+
+                                                    {(obj.type === 'town' || obj.type === 'safezone' || obj.type === 'spawner') && (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[8px] font-black text-white/30 tracking-widest w-12">RADIUS:</span>
+                                                            <input
+                                                                type="range" min="10" max="500" step="10"
+                                                                value={obj.radius}
+                                                                onChange={(e) => updateWorldObject(obj.id, { radius: parseInt(e.target.value) })}
+                                                                className="flex-1 accent-indigo-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                                                            />
+                                                            <span className="text-[8px] font-mono text-indigo-400 w-6">{obj.radius}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-1">
+                                                        <span className="text-[8px] font-black text-white/30 tracking-widest block">PARAMS (JSON):</span>
+                                                        <textarea
+                                                            defaultValue={JSON.stringify(obj.params || {}, null, 2)}
+                                                            onBlur={(e) => {
+                                                                try {
+                                                                    const parsed = JSON.parse(e.target.value);
+                                                                    updateWorldObject(obj.id, { params: parsed });
+                                                                } catch (err) { }
+                                                            }}
+                                                            className="w-full h-16 bg-black/40 border border-white/10 rounded p-1.5 text-[8px] text-white/70 font-mono custom-scrollbar focus:outline-none focus:border-amber-500/50"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     </motion.div>
