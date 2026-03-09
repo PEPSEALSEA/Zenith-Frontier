@@ -69,7 +69,7 @@ function ManaCrystals() {
 }
 
 export default function GameScene() {
-    const { world, isEditorMode } = useGameStore()
+    const { world, isEditorMode, isForgeMode } = useGameStore()
 
     return (
         <div className="h-full w-full">

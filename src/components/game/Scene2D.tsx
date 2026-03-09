@@ -103,7 +103,7 @@ const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 
 export default function GameScene2D() {
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const { player, updatePosition, world, updateWorldCycle, attack, isEditorMode } = useGameStore()
+    const { player, updatePosition, world, updateWorldCycle, attack, isEditorMode, isForgeMode } = useGameStore()
     const [keys, setKeys] = useState<{ [key: string]: boolean }>({})
     const requestRef = useRef<number>(0)
     const posRef = useRef({ x: player.position.x, y: player.position.y })
@@ -146,7 +146,7 @@ export default function GameScene2D() {
         // --- MOVEMENT ---
         let dx = 0
         let dy = 0
-        const baseSpeed = isEditorMode ? player.stats.spd * 1.5 : player.stats.spd * 0.6 // Faster in editor
+        const baseSpeed = isForgeMode ? 15 : (isEditorMode ? player.stats.spd * 1.5 : player.stats.spd * 0.6)
         if (keys['KeyW'] || keys['ArrowUp']) dy -= baseSpeed
         if (keys['KeyS'] || keys['ArrowDown']) dy += baseSpeed
         if (keys['KeyA'] || keys['ArrowLeft']) dx -= baseSpeed
@@ -247,18 +247,22 @@ export default function GameScene2D() {
         }
 
         ctx.shadowBlur = 30
-        ctx.shadowColor = isEditorMode ? '#f59e0b' : player.appearance.color
-        ctx.fillStyle = isEditorMode ? '#f59e0b' : player.appearance.color
-        ctx.beginPath(); ctx.arc(pX, pY, radius, 0, Math.PI * 2); ctx.fill()
+        const playerColor = isForgeMode ? 'transparent' : (isEditorMode ? '#f59e0b' : player.appearance.color)
+        ctx.shadowColor = playerColor
+        ctx.fillStyle = playerColor
 
-        const pGrad = ctx.createRadialGradient(pX, pY, 0, pX, pY, radius)
-        pGrad.addColorStop(0, 'rgba(255,255,255,0.4)'); pGrad.addColorStop(1, 'transparent')
-        ctx.fillStyle = pGrad; ctx.fill()
-        ctx.shadowBlur = 0
+        if (!isForgeMode) {
+            ctx.beginPath(); ctx.arc(pX, pY, radius, 0, Math.PI * 2); ctx.fill()
 
-        drawFace(ctx, pX, pY, radius * 0.5, player.appearance.face)
+            const pGrad = ctx.createRadialGradient(pX, pY, 0, pX, pY, radius)
+            pGrad.addColorStop(0, 'rgba(255,255,255,0.4)'); pGrad.addColorStop(1, 'transparent')
+            ctx.fillStyle = pGrad; ctx.fill()
+            ctx.shadowBlur = 0
 
-        if (!isEditorMode) {
+            drawFace(ctx, pX, pY, radius * 0.5, player.appearance.face)
+        }
+
+        if (!isEditorMode && !isForgeMode) {
             ctx.textAlign = 'center'
             const badgeY = pY - radius - 25
             ctx.fillStyle = 'rgba(0,0,0,0.7)'

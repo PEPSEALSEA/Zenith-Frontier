@@ -112,6 +112,7 @@ export interface GameState {
     auth: AuthState
     isInitialized: boolean
     isEditorMode: boolean
+    isForgeMode: boolean
     player: {
         name: string
         appearance: PlayerAppearance
@@ -151,6 +152,7 @@ export interface GameState {
     logout: () => void
     setEditorMode: (enabled: boolean) => void
     initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job) => void
+    enterForgeMode: () => void
     gainExp: (amount: number) => void
     takeDamage: (amount: number) => void
     setMainJob: (job: Job) => void
@@ -187,6 +189,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
     isInitialized: false,
     isEditorMode: false,
+    isForgeMode: false,
     player: {
         name: 'Adventurer',
         appearance: {
@@ -243,6 +246,12 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         }
     })),
+
+    enterForgeMode: () => set({
+        isInitialized: true,
+        isEditorMode: true,
+        isForgeMode: true
+    }),
 
     gainExp: (amount) => set((state) => {
         let { exp, level, maxExp } = state.player.stats

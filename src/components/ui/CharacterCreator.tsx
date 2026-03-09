@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey } from '@/store/gameStore'
+import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey, ADMIN_EMAIL } from '@/store/gameStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GoogleLogin, googleLogout } from '@react-oauth/google'
 import { jwtDecode } from 'jwt-decode'
@@ -38,7 +38,7 @@ const JOBS: (Job & { icon: any })[] = [
 ]
 
 export default function CharacterCreator() {
-    const { auth, login, logout, initializeCharacter } = useGameStore()
+    const { auth, login, logout, initializeCharacter, enterForgeMode } = useGameStore()
     const [name, setName] = useState('')
     const [appearance, setAppearance] = useState<PlayerAppearance>({ color: COLORS[0], face: FACES[0] })
     const [selectedJob, setSelectedJob] = useState<Job>(JOBS[0])
@@ -185,9 +185,20 @@ export default function CharacterCreator() {
                                                     </div>
                                                 </button>
                                             ))}
-                                            <div className="flex gap-4 mt-4">
-                                                <button onClick={() => setStep(2)} className="px-6 border border-white/10 rounded-xl text-white/40">BACK</button>
-                                                <button onClick={handleStartGame} className="flex-1 h-14 bg-white text-black font-black tracking-[0.3em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all">ENTER FRONT</button>
+                                            <div className="flex flex-col gap-4 mt-4">
+                                                <div className="flex gap-4">
+                                                    <button onClick={() => setStep(2)} className="px-6 border border-white/10 rounded-xl text-white/40">BACK</button>
+                                                    <button onClick={handleStartGame} className="flex-1 h-14 bg-white text-black font-black tracking-[0.3em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all uppercase">Enter Frontier</button>
+                                                </div>
+
+                                                {auth.user?.email === ADMIN_EMAIL && (
+                                                    <button
+                                                        onClick={() => enterForgeMode()}
+                                                        className="w-full h-12 border-2 border-amber-500/50 bg-amber-500/10 text-amber-500 font-black tracking-[0.2em] rounded-xl hover:bg-amber-500 hover:text-black transition-all uppercase text-[10px]"
+                                                    >
+                                                        Initialize World Forge Mode
+                                                    </button>
+                                                )}
                                             </div>
                                         </motion.div>
                                     )}
