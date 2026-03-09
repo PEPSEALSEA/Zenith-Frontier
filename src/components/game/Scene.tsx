@@ -4,6 +4,9 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, PerspectiveCamera, Environment, Float, Sparkles, ContactShadows } from '@react-three/drei'
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
+import { useGameStore } from '@/store/gameStore'
+import SpawnerEntity from './Spawner'
+import MonsterEntity from './Monster'
 
 function Player() {
     const meshRef = useRef<THREE.Mesh>(null!)
@@ -66,6 +69,8 @@ function ManaCrystals() {
 }
 
 export default function GameScene() {
+    const { world, isEditorMode } = useGameStore()
+
     return (
         <div className="h-full w-full">
             <Canvas shadows dpr={[1, 2]}>
@@ -88,9 +93,15 @@ export default function GameScene() {
                 <spotLight position={[0, 10, 0]} intensity={1} angle={0.3} penumbra={1} castShadow color="#10b981" />
 
                 {/* Objects */}
-                <Player />
                 <Ground />
                 <ManaCrystals />
+
+                {/* Game Entities */}
+                {world.spawners.map(s => (
+                    <SpawnerEntity key={s.spawner_id} data={s} />
+                ))}
+
+                {/* Additional World Objects (NPCs, Bosses) could be mapped here */}
 
                 <Environment preset="city" />
                 <ContactShadows resolution={1024} scale={20} blur={2} opacity={0.5} far={10} color="#000000" />

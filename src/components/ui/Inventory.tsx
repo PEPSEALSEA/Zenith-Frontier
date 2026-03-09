@@ -17,13 +17,16 @@ import {
     X,
     Plus
 } from 'lucide-react'
+import AdminPortal from './AdminPortal'
 
 const Inventory = () => {
     const [isOpen, setIsOpen] = useState(false)
     const [activeTab, setActiveTab] = useState('EQUIPMENT')
-    const { player, gainExp, takeDamage, auth } = useGameStore()
+    const { player, gainExp, takeDamage, auth, isEditorMode, setEditorMode } = useGameStore()
+    const isAdmin = auth.user?.email === 'sealseapep@gmail.com'
 
     const tabs = ['EQUIPMENT', 'JOB SYSTEM', 'INVENTORY', 'WORLD BOOK', 'ARCANUM']
+    if (isAdmin) tabs.push('ADMIN')
 
     return (
         <>
@@ -58,6 +61,7 @@ const Inventory = () => {
                                 <NavIcon icon={Users} active={activeTab === 'JOB SYSTEM'} onClick={() => setActiveTab('JOB SYSTEM')} />
                                 <NavIcon icon={Scroll} active={activeTab === 'WORLD BOOK'} onClick={() => setActiveTab('WORLD BOOK')} />
                                 <NavIcon icon={Zap} active={activeTab === 'ARCANUM'} onClick={() => setActiveTab('ARCANUM')} />
+                                {isAdmin && <NavIcon icon={Settings} active={activeTab === 'ADMIN'} onClick={() => setActiveTab('ADMIN')} />}
                             </div>
 
                             {/* Main Content Area */}
@@ -101,6 +105,7 @@ const Inventory = () => {
                                             <ArcanumCard name="DEATH" description="Skills have a chance to inflict 'Oblivion'." reverse={false} />
                                         </div>
                                     )}
+                                    {activeTab === 'ADMIN' && <AdminPortal />}
                                 </div>
 
                                 {/* Footer Controls */}
@@ -120,6 +125,14 @@ const Inventory = () => {
                                                 Take DMG (DEBUG)
                                             </button>
                                         </>
+                                    )}
+                                    {isAdmin && (
+                                        <button
+                                            onClick={() => setEditorMode(!isEditorMode)}
+                                            className={`px-8 py-2 rounded border font-bold tracking-widest transition-all uppercase text-[10px] ${isEditorMode ? 'border-amber-500 bg-amber-500 text-black' : 'border-amber-500/50 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black'}`}
+                                        >
+                                            {isEditorMode ? 'EXIT EDITOR' : 'MAP EDITOR'}
+                                        </button>
                                     )}
                                     <button
                                         onClick={() => setIsOpen(false)}

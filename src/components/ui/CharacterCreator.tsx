@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useGameStore, Job, PlayerAppearance } from '@/store/gameStore'
+import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey } from '@/store/gameStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GoogleLogin, googleLogout } from '@react-oauth/google'
 import { jwtDecode } from 'jwt-decode'
@@ -18,32 +18,8 @@ import {
     Heart,
     ChevronRight,
     LogOut,
-    Loader2,
-    Ghost,
-    Skull,
-    Flame,
-    Star,
-    Crown,
-    Swords,
-    Target as TargetIcon,
-    Zap as BoltIcon,
-    Activity
+    Loader2
 } from 'lucide-react'
-
-export const FACES_MAP = {
-    'ghost': Ghost,
-    'skull': Skull,
-    'fire': Flame,
-    'bolt': BoltIcon,
-    'star': Star,
-    'crown': Crown,
-    'swords': Swords,
-    'target': TargetIcon,
-    'shield': Shield,
-    'heart': Activity,
-}
-
-export type FaceKey = keyof typeof FACES_MAP
 
 const FACES: FaceKey[] = ['ghost', 'skull', 'fire', 'bolt', 'star', 'crown', 'swords', 'target', 'shield', 'heart']
 const COLORS = [

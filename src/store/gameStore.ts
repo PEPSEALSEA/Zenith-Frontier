@@ -28,6 +28,23 @@ export interface PlayerAppearance {
     face: string
 }
 
+import { Ghost, Skull, Flame, Zap as BoltIcon, Star, Crown, Swords, Target as TargetIcon, Shield, Activity } from 'lucide-react'
+
+export const FACES_MAP = {
+    'ghost': Ghost,
+    'skull': Skull,
+    'fire': Flame,
+    'bolt': BoltIcon,
+    'star': Star,
+    'crown': Crown,
+    'swords': Swords,
+    'target': TargetIcon,
+    'shield': Shield,
+    'heart': Activity,
+}
+
+export type FaceKey = keyof typeof FACES_MAP
+
 export interface AuthState {
     user: {
         email: string
@@ -44,9 +61,51 @@ export interface WorldObject {
     type: WorldObjectType
     x: number
     y: number
+    z?: number
     name: string
     radius: number
     params?: any
+}
+
+export interface Quest {
+    quest_id: string
+    name: string
+    description: string
+    type: 'kill' | 'collect' | 'talk'
+    target_id: string
+    target_count: number
+    rewards: any
+    is_hidden: boolean
+    next_quest_id?: string
+}
+
+export interface PlayerQuest {
+    quest_id: string
+    status: 'active' | 'completed' | 'failed'
+    progress: number
+}
+
+export interface Monster {
+    monster_id: string
+    name: string
+    hp: number
+    atk: number
+    def: number
+    spd: number
+    skills: string[]
+    drops: any[]
+    appearance: PlayerAppearance
+}
+
+export interface Spawner {
+    spawner_id: string
+    monster_id: string
+    x: number
+    y: number
+    z: number
+    range: number
+    spawn_rate: number
+    max_monsters: number
 }
 
 export interface GameState {
@@ -81,6 +140,10 @@ export interface GameState {
         bossesDefeated: string[]
         lastAttack: { type: 'light' | 'hard' | null, time: number }
         objects: WorldObject[]
+        monsters: Monster[]
+        quests: Quest[]
+        spawners: Spawner[]
+        playerQuests: PlayerQuest[]
     }
 
     // Actions
@@ -105,6 +168,13 @@ export interface GameState {
     // Persistence
     saveWorldToGAS: () => Promise<void>
     loadWorldFromGAS: () => Promise<void>
+
+    // New Actions
+    setMonsters: (monsters: Monster[]) => void
+    setQuests: (quests: Quest[]) => void
+    setSpawners: (spawners: Spawner[]) => void
+    setPlayerQuests: (pQuests: PlayerQuest[]) => void
+    updateQuestProgress: (questId: string, progress: number) => void
 }
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
@@ -141,7 +211,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         activeScenario: null,
         bossesDefeated: [],
         lastAttack: { type: null, time: 0 },
-        objects: []
+        objects: [],
+        monsters: [],
+        quests: [],
+        spawners: [],
+        playerQuests: []
     },
 
     login: (userData) => {
@@ -262,5 +336,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         } catch (e) {
             console.error("Failed to load world:", e)
         }
-    }
+    },
+
+    setMonsters: (monsters) => set((state) => ({ world: { ...state.world, monsters } })),
+    setQuests: (quests) => set((state) => ({ world: { ...state.world, quests } })),
+    setSpawners: (spawners) => set((state) => ({ world: { ...state.world, spawners } })),
+    setPlayerQuests: (playerQuests) => set((state) => ({ world: { ...state.world, playerQuests } })),
+    updateQuestProgress: (questId, progress) => set((state) => ({
+        world: {
+            ...state.world,
+            playerQuests: state.world.playerQuests.map(pq =>
+                pq.quest_id === questId ? { ...pq, progress } : pq
+            )
+        }
+    }))
 }))

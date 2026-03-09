@@ -74,6 +74,24 @@ function setupAllSheets() {
         ],
         "MapObjects": [
             "id", "type", "x", "y", "name", "radius", "params"
+        ],
+        "Monsters": [
+            "monster_id", "name", "hp", "atk", "def", "spd", "skills", "drops", "appearance"
+        ],
+        "Quests": [
+            "quest_id", "name", "description", "type", "target_id", "target_count", "rewards", "is_hidden", "next_quest_id"
+        ],
+        "NPCs": [
+            "npc_id", "name", "appearance", "initial_dialogue_id", "quest_id", "is_merchant", "is_trader", "trade_items"
+        ],
+        "Dialogue": [
+            "dialogue_id", "text", "options_json"
+        ],
+        "Spawners": [
+            "spawner_id", "monster_id", "x", "y", "z", "range", "spawn_rate", "max_monsters"
+        ],
+        "PlayerQuests": [
+            "player_id", "quest_id", "status", "progress", "updated_at"
         ]
     };
 
@@ -343,6 +361,12 @@ function routeGet(action, p) {
     if (action === "get_all_titles") return getAllTitles();
     if (action === "get_moon_cycle") return getMoonCycle();
     if (action === "get_world_map") return getWorldMap();
+    if (action === "get_all_monsters") return rowsToText(sheetToRows("Monsters"));
+    if (action === "get_all_npcs") return rowsToText(sheetToRows("NPCs"));
+    if (action === "get_all_quests") return rowsToText(sheetToRows("Quests"));
+    if (action === "get_all_spawners") return rowsToText(sheetToRows("Spawners"));
+    if (action === "get_player_quests") return getPlayerQuests(p.player_id);
+    if (action === "get_dialogue") return getDialogue(p.dialogue_id);
     return "ERROR|UNKNOWN_GET_ACTION";
 }
 
@@ -373,7 +397,61 @@ function routePost(action, p) {
     if (action === "npc_permadeath") return npcPermadeath(p);
     if (action === "update_holder_title") return updateHolderTitle(p);
     if (action === "save_world_map") return saveWorldMap(p);
+    if (action === "upsert_monster") return upsertRow("Monsters", "monster_id", p);
+    if (action === "upsert_npc") return upsertRow("NPCs", "npc_id", p);
+    if (action === "upsert_quest") return upsertRow("Quests", "quest_id", p);
+    if (action === "upsert_spawner") return upsertRow("Spawners", "spawner_id", p);
+    if (action === "update_quest_progress") return updateQuestProgress(p);
     return "ERROR|UNKNOWN_POST_ACTION";
+}
+
+function upsertRow(sheetName, key, p) {
+    if (!p[key]) return "ERROR|MISSING_KEY_" + key;
+    var rowIdx = findRowIndex(sheetName, key, p[key]);
+    if (rowIdx === -1) {
+        appendRow(sheetName, p);
+        return "OK|ROW_CREATED|" + p[key];
+    } else {
+        updateRowCells(sheetName, rowIdx, p);
+        return "OK|ROW_UPDATED|" + p[key];
+    }
+}
+
+function getPlayerQuests(playerId) {
+    if (!playerId) return "ERROR|MISSING_PLAYER_ID";
+    var rows = sheetToRows("PlayerQuests");
+    var result = rows.filter(function (r) { return r.player_id === String(playerId); });
+    return rowsToText(result);
+}
+
+function getDialogue(dialogueId) {
+    if (!dialogueId) return "ERROR|MISSING_DIALOGUE_ID";
+    var rows = sheetToRows("Dialogue");
+    for (var i = 0; i < rows.length; i++) {
+        if (rows[i].dialogue_id === String(dialogueId)) return singleRowToText(rows[i]);
+    }
+    return "ERROR|DIALOGUE_NOT_FOUND";
+}
+
+function updateQuestProgress(p) {
+    if (!p.player_id || !p.quest_id) return "ERROR|MISSING_FIELDS";
+    var rowIdx = findRowIndexDouble("PlayerQuests", "player_id", p.player_id, "quest_id", p.quest_id);
+    if (rowIdx === -1) {
+        appendRow("PlayerQuests", {
+            player_id: p.player_id,
+            quest_id: p.quest_id,
+            status: "active",
+            progress: p.progress || "0",
+            updated_at: now()
+        });
+        return "OK|QUEST_STARTED|" + p.quest_id;
+    }
+    updateRowCells("PlayerQuests", rowIdx, {
+        progress: p.progress,
+        status: p.status || "active",
+        updated_at: now()
+    });
+    return "OK|QUEST_PROGRESS_UPDATED|" + p.quest_id;
 }
 
 function getPlayer(playerId) {
