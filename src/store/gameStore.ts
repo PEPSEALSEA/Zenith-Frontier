@@ -227,6 +227,7 @@ export interface GameState {
     setEditorMode: (enabled: boolean) => void
     initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job) => void
     enterForgeMode: () => void
+    exitForgeMode: () => void
     enterAdminDashboard: () => void
     exitAdminDashboard: () => void
     gainExp: (amount: number) => void
@@ -343,7 +344,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     enterForgeMode: () => set({
         isInitialized: true,
         isEditorMode: true,
-        isForgeMode: true
+        isForgeMode: true,
+        isAdminDashboard: false,
+    }),
+
+    exitForgeMode: () => set({
+        isInitialized: false,
+        isEditorMode: false,
+        isForgeMode: false,
+        isAdminDashboard: true,
     }),
 
     gainExp: (amount) => set((state) => {

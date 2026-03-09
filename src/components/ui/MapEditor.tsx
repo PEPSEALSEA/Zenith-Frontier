@@ -32,7 +32,7 @@ const OBJECT_TYPES: { type: WorldObjectType, icon: any, color: string }[] = [
 ]
 
 export default function MapEditor() {
-    const { auth, world, player, isEditorMode, isForgeMode, setEditorMode, addWorldObject, removeWorldObject, updateWorldObject, saveWorldToGAS, forgeSelection, setForgeSelection } = useGameStore()
+    const { auth, world, player, isEditorMode, isForgeMode, setEditorMode, exitForgeMode, addWorldObject, removeWorldObject, updateWorldObject, saveWorldToGAS, forgeSelection, setForgeSelection } = useGameStore()
     const [isOpen, setIsOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
@@ -67,11 +67,11 @@ export default function MapEditor() {
         <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3 pointer-events-auto">
             {/* Editor Toggle */}
             <button
-                onClick={() => setEditorMode(!isEditorMode)}
+                onClick={() => isForgeMode ? exitForgeMode() : setEditorMode(!isEditorMode)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 font-black text-[10px] tracking-widest transition-all shadow-xl ${isEditorMode ? 'bg-amber-500 border-amber-400 text-black' : 'bg-black/60 border-white/20 text-white hover:bg-white/10'}`}
             >
                 <Settings className={`h-3.5 w-3.5 ${isEditorMode ? 'animate-spin' : ''}`} />
-                {isEditorMode ? 'EXIT EDITOR' : 'ENTER EDITOR'}
+                {isEditorMode ? '← BACK TO DASHBOARD' : 'ENTER EDITOR'}
             </button>
 
             <button
