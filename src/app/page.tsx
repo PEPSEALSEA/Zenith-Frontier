@@ -1,11 +1,13 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Suspense, useEffect } from 'react'
+import { Suspense, useState } from 'react'
 import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
 import MapEditor from '@/components/ui/MapEditor'
+import AdminDashboard from '@/components/ui/AdminDashboard'
+import EntityCreator from '@/components/ui/EntityCreator'
 import { useGameStore, ADMIN_EMAIL } from '@/store/gameStore'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -13,13 +15,58 @@ const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
   ssr: false,
 })
 
+type AdminTool = 'map' | 'monster' | 'npc' | 'quest' | null
+
 export default function Home() {
-  const { isInitialized, isEditorMode, auth } = useGameStore()
+  const { isInitialized, isEditorMode, auth, isAdminDashboard, exitAdminDashboard, enterForgeMode, initializeCharacter } = useGameStore()
+  const [adminTool, setAdminTool] = useState<AdminTool>(null)
+
+  const isAdmin = auth.user?.email === ADMIN_EMAIL
+
+  const handleAdminToolSelect = (tool: AdminTool) => {
+    if (tool === 'map') {
+      // enterForgeMode is called inside AdminDashboard already
+      exitAdminDashboard()
+      setAdminTool(null)
+    } else if (tool === null) {
+      // "Play as Player" — exit dashboard, proceed to character creator
+      exitAdminDashboard()
+      setAdminTool(null)
+    } else {
+      setAdminTool(tool)
+    }
+  }
+
+  const handleEntityCreatorBack = () => {
+    setAdminTool(null)
+  }
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-black font-sans text-white select-none">
       <AnimatePresence mode="wait">
-        {!isInitialized ? (
+
+        {/* ── Admin Dashboard or Entity Creator ── */}
+        {isAdmin && isAdminDashboard && !isInitialized && (
+          <motion.div
+            key="admin"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 overflow-auto"
+          >
+            {adminTool === 'monster' || adminTool === 'npc' ? (
+              <EntityCreator
+                initialType={adminTool as 'monster' | 'npc'}
+                onBack={handleEntityCreatorBack}
+              />
+            ) : (
+              <AdminDashboard onSelectTool={handleAdminToolSelect} />
+            )}
+          </motion.div>
+        )}
+
+        {/* ── Character Creator (login / player setup) ── */}
+        {!isInitialized && !(isAdmin && isAdminDashboard) && (
           <motion.div
             key="creator"
             initial={{ opacity: 0 }}
@@ -29,7 +76,10 @@ export default function Home() {
           >
             <CharacterCreator />
           </motion.div>
-        ) : (
+        )}
+
+        {/* ── Game World ── */}
+        {isInitialized && (
           <motion.div
             key="game"
             initial={{ opacity: 0 }}
@@ -61,6 +111,7 @@ export default function Home() {
             <MapEditor />
           </motion.div>
         )}
+
       </AnimatePresence>
 
       {/* Editor Grid Overlay (Visual Only) */}

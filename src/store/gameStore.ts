@@ -177,6 +177,7 @@ export interface GameState {
     isInitialized: boolean
     isEditorMode: boolean
     isForgeMode: boolean
+    isAdminDashboard: boolean
     player: {
         name: string
         appearance: PlayerAppearance
@@ -226,6 +227,8 @@ export interface GameState {
     setEditorMode: (enabled: boolean) => void
     initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job) => void
     enterForgeMode: () => void
+    enterAdminDashboard: () => void
+    exitAdminDashboard: () => void
     gainExp: (amount: number) => void
     takeDamage: (amount: number) => void
     setMainJob: (job: Job) => void
@@ -271,6 +274,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     isInitialized: false,
     isEditorMode: false,
     isForgeMode: false,
+    isAdminDashboard: false,
     player: {
         name: 'Adventurer',
         appearance: {
@@ -315,9 +319,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().loadWorldFromGAS()
     },
 
-    logout: () => set({ auth: { user: null, isAuthenticated: false }, isInitialized: false, isEditorMode: false }),
+    logout: () => set({ auth: { user: null, isAuthenticated: false }, isInitialized: false, isEditorMode: false, isAdminDashboard: false }),
 
     setEditorMode: (enabled) => set({ isEditorMode: enabled }),
+
+    enterAdminDashboard: () => set({ isAdminDashboard: true }),
+    exitAdminDashboard: () => set({ isAdminDashboard: false }),
 
     initializeCharacter: (name, appearance, job) => set((state) => ({
         isInitialized: true,

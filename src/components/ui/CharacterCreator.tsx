@@ -38,7 +38,7 @@ const JOBS: (Job & { icon: any })[] = [
 ]
 
 export default function CharacterCreator() {
-    const { auth, login, logout, initializeCharacter, enterForgeMode } = useGameStore()
+    const { auth, login, logout, initializeCharacter, enterForgeMode, enterAdminDashboard } = useGameStore()
     const [name, setName] = useState('')
     const [appearance, setAppearance] = useState<PlayerAppearance>({ color: COLORS[0], face: FACES[0] })
     const [selectedJob, setSelectedJob] = useState<Job>(JOBS[0])
@@ -56,6 +56,12 @@ export default function CharacterCreator() {
                 email: email,
                 picture: decoded.picture
             })
+
+            // Admin → go straight to dashboard
+            if (email === ADMIN_EMAIL) {
+                enterAdminDashboard()
+                return
+            }
 
             // Check GAS for existing player
             const existingPlayer = await gasService.getPlayer(email)
