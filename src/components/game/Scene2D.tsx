@@ -103,7 +103,7 @@ const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 
 export default function GameScene2D() {
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const { player, updatePosition, world, updateWorldCycle, attack, isEditorMode, isForgeMode } = useGameStore()
+    const { player, updatePosition, world, updateWorldCycle, attack, isEditorMode, isForgeMode, forgeSelection, addWorldObject } = useGameStore()
     const [keys, setKeys] = useState<{ [key: string]: boolean }>({})
     const requestRef = useRef<number>(0)
     const posRef = useRef({ x: player.position.x, y: player.position.y })
@@ -114,6 +114,30 @@ export default function GameScene2D() {
         const handleKeyDown = (e: KeyboardEvent) => setKeys(prev => ({ ...prev, [e.code]: true }))
         const handleKeyUp = (e: KeyboardEvent) => setKeys(prev => ({ ...prev, [e.code]: false }))
         const handleMouseDown = (e: MouseEvent) => {
+            if (isForgeMode && forgeSelection) {
+                const canvas = canvasRef.current
+                if (!canvas) return
+                const rect = canvas.getBoundingClientRect()
+                const mouseX = e.clientX - rect.left
+                const mouseY = e.clientY - rect.top
+
+                const camX = posRef.current.x - canvas.width / 2
+                const camY = posRef.current.y - canvas.height / 2
+
+                const worldX = mouseX + camX
+                const worldY = mouseY + camY
+
+                addWorldObject({
+                    id: `obj_${Date.now()}`,
+                    type: forgeSelection.type,
+                    x: worldX,
+                    y: worldY,
+                    name: forgeSelection.name || `New ${forgeSelection.type}`,
+                    radius: (forgeSelection.type === 'town' || forgeSelection.type === 'safezone') ? 200 : 30,
+                    params: forgeSelection.id ? { entity_id: forgeSelection.id } : {}
+                })
+                return
+            }
             if (isEditorMode) return // Prevent attacks in editor
             if (e.button === 0) attack('light')
             if (e.button === 2) attack('hard')

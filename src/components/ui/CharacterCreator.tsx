@@ -133,14 +133,24 @@ export default function CharacterCreator() {
                             </div>
                         ) : (
                             <div className="flex h-full flex-col">
-                                <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center justify-between mb-8 overflow-x-auto">
                                     <div className="flex items-center gap-4">
                                         <img src={auth.user?.picture} className="h-10 w-10 rounded-full border border-emerald-500/50" />
                                         <span className="text-xs font-bold text-white uppercase">{auth.user?.name}</span>
                                     </div>
-                                    <button onClick={logout} className="p-2 text-white/20 hover:text-rose-500 transition-colors">
-                                        <LogOut className="h-5 w-5" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {auth.user?.email === ADMIN_EMAIL && (
+                                            <button
+                                                onClick={() => enterForgeMode()}
+                                                className="px-4 py-2 border border-amber-500/50 bg-amber-500/10 text-amber-500 font-black tracking-widest rounded-lg hover:bg-amber-500 hover:text-black transition-all uppercase text-[8px]"
+                                            >
+                                                Launch World Forge
+                                            </button>
+                                        )}
+                                        <button onClick={logout} className="p-2 text-white/20 hover:text-rose-500 transition-colors">
+                                            <LogOut className="h-5 w-5" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <AnimatePresence mode="wait">

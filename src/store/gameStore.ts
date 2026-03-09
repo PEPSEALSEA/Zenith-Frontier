@@ -146,6 +146,7 @@ export interface GameState {
         spawners: Spawner[]
         playerQuests: PlayerQuest[]
     }
+    forgeSelection: { type: WorldObjectType, id?: string, name?: string } | null
 
     // Actions
     login: (userData: any) => void
@@ -177,6 +178,7 @@ export interface GameState {
     setSpawners: (spawners: Spawner[]) => void
     setPlayerQuests: (pQuests: PlayerQuest[]) => void
     updateQuestProgress: (questId: string, progress: number) => void
+    setForgeSelection: (selection: { type: WorldObjectType, id?: string, name?: string } | null) => void
 }
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
@@ -220,6 +222,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         spawners: [],
         playerQuests: []
     },
+    forgeSelection: null,
 
     login: (userData) => {
         set((state) => ({
@@ -358,5 +361,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                 pq.quest_id === questId ? { ...pq, progress } : pq
             )
         }
-    }))
+    })),
+
+    setForgeSelection: (selection) => set({ forgeSelection: selection })
 }))

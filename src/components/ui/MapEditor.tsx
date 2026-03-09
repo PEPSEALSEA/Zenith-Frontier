@@ -30,24 +30,23 @@ const OBJECT_TYPES: { type: WorldObjectType, icon: any, color: string }[] = [
 ]
 
 export default function MapEditor() {
-    const { auth, world, player, isEditorMode, setEditorMode, addWorldObject, removeWorldObject, updateWorldObject, saveWorldToGAS } = useGameStore()
-    const [selectedType, setSelectedType] = useState<WorldObjectType | null>(null)
+    const { auth, world, player, isEditorMode, isForgeMode, setEditorMode, addWorldObject, removeWorldObject, updateWorldObject, saveWorldToGAS, forgeSelection, setForgeSelection } = useGameStore()
     const [isOpen, setIsOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
     if (auth.user?.email !== ADMIN_EMAIL) return null
 
     const dropAtPlayer = () => {
-        if (!selectedType) return
-        const obj: WorldObject = {
+        if (!forgeSelection) return
+        addWorldObject({
             id: `obj_${Date.now()}`,
-            type: selectedType,
+            type: forgeSelection.type,
             x: player.position.x,
             y: player.position.y,
-            name: `New ${selectedType}`,
-            radius: (selectedType === 'town' || selectedType === 'safezone') ? 200 : 30,
-        }
-        addWorldObject(obj)
+            name: forgeSelection.name || `New ${forgeSelection.type}`,
+            radius: (forgeSelection.type === 'town' || forgeSelection.type === 'safezone') ? 200 : 30,
+            params: forgeSelection.id ? { entity_id: forgeSelection.id } : {}
+        })
     }
 
     const handleSave = async () => {
@@ -98,12 +97,12 @@ export default function MapEditor() {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2 mb-6">
+                        <div className="grid grid-cols-4 gap-2 mb-4">
                             {OBJECT_TYPES.map(item => (
                                 <button
                                     key={item.type}
-                                    onClick={() => setSelectedType(item.type)}
-                                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${selectedType === item.type ? 'bg-white/10 border-white/40 scale-105' : 'bg-white/5 border-transparent opacity-40 hover:opacity-100'}`}
+                                    onClick={() => setForgeSelection({ type: item.type })}
+                                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${forgeSelection?.type === item.type ? 'bg-white/10 border-white/40 scale-105' : 'bg-white/5 border-transparent opacity-40 hover:opacity-100'}`}
                                 >
                                     <item.icon className="h-5 w-5" style={{ color: item.color }} />
                                     <span className="text-[7px] font-black uppercase tracking-tighter text-white">{item.type}</span>
@@ -111,10 +110,36 @@ export default function MapEditor() {
                             ))}
                         </div>
 
+                        {/* Specific Selection Sub-menu */}
+                        {(forgeSelection?.type === 'monster' || forgeSelection?.type === 'spawner') && world.monsters.length > 0 && (
+                            <div className="mb-6 space-y-2">
+                                <h4 className="text-[8px] font-black text-white/30 uppercase tracking-widest pl-1">Select {forgeSelection.type === 'spawner' ? 'Monster to Spawn' : 'Monster Template'}</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {world.monsters.map(m => (
+                                        <button
+                                            key={m.monster_id}
+                                            onClick={() => setForgeSelection({ type: forgeSelection.type, id: m.monster_id, name: m.name })}
+                                            className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${forgeSelection.id === m.monster_id ? (forgeSelection.type === 'spawner' ? 'bg-cyan-500 border-cyan-400' : 'bg-red-500 border-red-400') + ' text-white' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
+                                        >
+                                            {m.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {isForgeMode && forgeSelection && (
+                            <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+                                <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest animate-pulse">
+                                    CLICK ON MAP TO PLACE {forgeSelection.name || forgeSelection.type}
+                                </p>
+                            </div>
+                        )}
+
                         <div className="space-y-3">
                             <button
                                 onClick={dropAtPlayer}
-                                disabled={!selectedType}
+                                disabled={!forgeSelection}
                                 className="w-full h-12 bg-indigo-600 border border-indigo-400 text-white rounded-xl font-black text-xs tracking-[0.2em] uppercase disabled:opacity-20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg"
                             >
                                 <Plus className="h-4 w-4" /> Place at Player
