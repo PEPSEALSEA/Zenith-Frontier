@@ -1,0 +1,20 @@
+[Unit]
+Description=Zenith Frontier Pi game API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pepsealsea
+Group=pepsealsea
+WorkingDirectory=/home/pepsealsea/zenith-frontier-pi
+Environment=NODE_ENV=production
+EnvironmentFile=/home/pepsealsea/zenith-frontier-pi/.env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

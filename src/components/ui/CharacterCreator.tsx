@@ -3,11 +3,10 @@
 import React, { useState, useEffect } from 'react'
 import { useGameStore, Job, PlayerAppearance, FACES_MAP, FaceKey, ADMIN_EMAIL } from '@/store/gameStore'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GoogleLogin, googleLogout } from '@react-oauth/google'
+import { GoogleLogin } from '@react-oauth/google'
 import { jwtDecode } from 'jwt-decode'
 import { gasService } from '@/services/gasService'
 import {
-    UserCircle2,
     Palette,
     Smile,
     Shield,
@@ -16,7 +15,6 @@ import {
     Zap,
     DraftingCompass,
     Heart,
-    ChevronRight,
     LogOut,
     Loader2,
     Ghost
@@ -28,22 +26,54 @@ const COLORS = [
     '#8b5cf6', '#ec4899', '#ffffff', '#000000',
 ]
 
-const JOBS: (Job & { icon: any })[] = [
-    { id: 'JOB_001', name: 'Warrior', level: 1, type: 'main', skills: ['Slash'], icon: Sword },
-    { id: 'JOB_002', name: 'Archer', level: 1, type: 'main', skills: ['Double Shot'], icon: Target },
-    { id: 'JOB_003', name: 'Twin-Blade', level: 1, type: 'main', skills: ['Quick Step'], icon: Zap },
-    { id: 'JOB_004', name: 'Spearman', level: 1, type: 'main', skills: ['Pierce'], icon: DraftingCompass },
-    { id: 'JOB_005', name: 'Supporter', level: 1, type: 'main', skills: ['Heal'], icon: Heart },
-    { id: 'JOB_008', name: 'Mage', level: 1, type: 'main', skills: ['Arcane Bolt'], icon: Shield },
+const JOB_ICONS: Record<string, any> = {
+    JOB_001: Sword,
+    JOB_002: Target,
+    JOB_003: Zap,
+    JOB_004: DraftingCompass,
+    JOB_005: Heart,
+    JOB_008: Shield,
+}
+
+const FALLBACK_JOBS: (Job & { icon: any; stat_bonus?: string })[] = [
+    { id: 'JOB_001', name: 'Warrior', level: 1, type: 'main', skills: ['Slash'], icon: Sword, stat_bonus: 'atk+10,def+5' },
+    { id: 'JOB_002', name: 'Archer', level: 1, type: 'main', skills: ['Double Shot'], icon: Target, stat_bonus: 'spd+10,atk+5' },
+    { id: 'JOB_003', name: 'Twin-Blade', level: 1, type: 'main', skills: ['Quick Step'], icon: Zap, stat_bonus: 'spd+15,atk+3' },
+    { id: 'JOB_004', name: 'Spearman', level: 1, type: 'main', skills: ['Pierce'], icon: DraftingCompass, stat_bonus: 'atk+7,def+8' },
+    { id: 'JOB_005', name: 'Supporter', level: 1, type: 'main', skills: ['Heal'], icon: Heart, stat_bonus: 'mp+30,def+5' },
+    { id: 'JOB_008', name: 'Mage', level: 1, type: 'main', skills: ['Arcane Bolt'], icon: Shield, stat_bonus: 'mp+20,atk+5' },
 ]
 
 export default function CharacterCreator() {
-    const { auth, login, logout, initializeCharacter, enterForgeMode, enterAdminDashboard } = useGameStore()
+    const { auth, login, logout, initializeCharacter, hydrateFromServer, enterForgeMode, enterAdminDashboard } = useGameStore()
     const [name, setName] = useState('')
     const [appearance, setAppearance] = useState<PlayerAppearance>({ color: COLORS[0], face: FACES[0] })
-    const [selectedJob, setSelectedJob] = useState<Job>(JOBS[0])
+    const [jobs, setJobs] = useState<(Job & { icon: any; stat_bonus?: string })[]>(FALLBACK_JOBS)
+    const [selectedJob, setSelectedJob] = useState<Job>(FALLBACK_JOBS[0])
     const [step, setStep] = useState(1)
     const [isLoading, setIsLoading] = useState(false)
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            try {
+                const fromApi = await gasService.getAllJobs()
+                if (cancelled || !fromApi.length) return
+                const mapped = fromApi
+                    .filter((j: any) => !j.parent_job_id || j.parent_job_id === '')
+                    .map((j) => ({
+                        ...j,
+                        icon: JOB_ICONS[j.id] || Sword,
+                    }))
+                const starters = mapped.length ? mapped : FALLBACK_JOBS
+                setJobs(starters)
+                setSelectedJob(starters[0])
+            } catch {
+                /* keep fallback */
+            }
+        })()
+        return () => { cancelled = true }
+    }, [])
 
     const handleSuccess = async (credentialResponse: any) => {
         setIsLoading(true)
@@ -57,24 +87,16 @@ export default function CharacterCreator() {
                 picture: decoded.picture
             })
 
-            // Admin → go straight to dashboard
             if (email === ADMIN_EMAIL) {
                 enterAdminDashboard()
                 return
             }
 
-            // Check GAS for existing player
-            const existingPlayer = await gasService.getPlayer(email)
+            const ok = await hydrateFromServer(email)
+            if (ok) return
 
-            if (existingPlayer) {
-                // Already registered, sync and enter
-                const job = JOBS.find(j => j.id === existingPlayer.main_job_id) || JOBS[0]
-                initializeCharacter(existingPlayer.name, existingPlayer.appearance, job)
-            } else {
-                // New player, proceed to customisation
-                setName(decoded.name)
-                setStep(2)
-            }
+            setName(decoded.name)
+            setStep(2)
         } catch (e) {
             console.error(e)
         } finally {
@@ -87,13 +109,18 @@ export default function CharacterCreator() {
         setIsLoading(true)
 
         try {
-            // 1. Create in GAS
             await gasService.createPlayer(auth.user.email, name, appearance)
-            // 2. Set Job
             await gasService.setMainJob(auth.user.email, selectedJob.id)
-
-            // 3. Init locally
             initializeCharacter(name, appearance, selectedJob)
+            const stats = useGameStore.getState().player.stats
+            await gasService.updateStats(auth.user.email, {
+                atk: stats.atk,
+                def: stats.def,
+                spd: stats.spd,
+                hp: stats.hp,
+                mp: stats.mp,
+                money: stats.money,
+            })
         } catch (e) {
             console.error(e)
         } finally {
@@ -112,7 +139,6 @@ export default function CharacterCreator() {
             <div className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-2xl backdrop-blur-2xl">
                 <div className="relative grid h-full grid-cols-1 lg:grid-cols-2">
 
-                    {/* Preview */}
                     <div className="flex flex-col items-center justify-center border-b border-white/5 p-12 lg:border-b-0 lg:border-r bg-zinc-950/20">
                         <motion.div
                             style={{ backgroundColor: appearance.color }}
@@ -130,7 +156,6 @@ export default function CharacterCreator() {
                         </div>
                     </div>
 
-                    {/* Configuration */}
                     <div className="flex flex-col p-12">
                         {!auth.isAuthenticated ? (
                             <div className="flex h-full flex-col items-center justify-center text-center">
@@ -183,6 +208,14 @@ export default function CharacterCreator() {
                                                     )
                                                 })}
                                             </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-black tracking-widest text-white/40 uppercase">Name</label>
+                                                <input
+                                                    value={name}
+                                                    onChange={(e) => setName(e.target.value)}
+                                                    className="w-full h-12 rounded-xl bg-black/40 border border-white/10 px-4 text-white font-bold"
+                                                />
+                                            </div>
                                             <button onClick={() => setStep(3)} className="w-full h-14 bg-emerald-600 rounded-xl font-black tracking-widest text-white mt-4">NEXT SYSTEM</button>
                                         </motion.div>
                                     )}
@@ -190,14 +223,16 @@ export default function CharacterCreator() {
                                     {step === 3 && (
                                         <motion.div key="s3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                                             <SectionTitle icon={Sword} title="Select Job" />
-                                            {JOBS.map(job => (
+                                            {jobs.map(job => (
                                                 <button key={job.id} onClick={() => setSelectedJob(job)} className={`w-full p-4 rounded-xl border-2 text-left flex items-start gap-4 transition-all ${selectedJob.id === job.id ? 'border-emerald-500 bg-emerald-500/10 scale-[1.02]' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
                                                     <div className={`p-2 rounded-lg ${selectedJob.id === job.id ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40'}`}>
                                                         <job.icon className="h-6 w-6" />
                                                     </div>
                                                     <div>
                                                         <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
-                                                        <p className="text-[10px] text-emerald-500/60 uppercase font-black">Skills: {job.skills.join(', ')}</p>
+                                                        <p className="text-[10px] text-emerald-500/60 uppercase font-black">
+                                                            {(job as any).stat_bonus || (job.skills?.length ? `Skills: ${job.skills.join(', ')}` : job.id)}
+                                                        </p>
                                                     </div>
                                                 </button>
                                             ))}

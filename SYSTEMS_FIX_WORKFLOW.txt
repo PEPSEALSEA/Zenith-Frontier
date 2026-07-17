@@ -1,0 +1,359 @@
+================================================================================
+ZENITH FRONTIER — SYSTEMS FIX WORKFLOW (TUNNEL / PI ERA)
+Inspired by Shangri-La Frontier | Keep as checklist
+Updated for modern architecture: Frontend → Worker proxy → Tunnel → Pi SQLite
+================================================================================
+
+STATUS SNAPSHOT (current)
+-------------------------
+- LIVE game DB: Raspberry Pi SQLite (`pi-server/`, port 8788)
+  Install path (isolated): /home/pepsealsea/zenith-frontier-pi
+  systemd: zenith-frontier-pi
+- PUBLIC edge: Cloudflare Worker proxies to Pi when origin is registered
+  URL: https://zenith-frontier-worker.sealseapep.workers.dev
+  Frontend default: src/lib/config.ts → that Worker URL
+- TUNNEL: cloudflared on Pi
+  - Named tunnel: zenith-frontier-pi (ready for a custom domain later)
+  - Quick tunnel: zenith-frontier-quick-tunnel → trycloudflare.com
+    (auto POSTs URL to Worker /_pi/origin so workers.dev stays stable)
+- BACKUP: Google Sheets every 3 minutes from Pi (dirty sync). NOT hot path.
+- PLAY: Scene2D walk + attack VFX only — still not a real game loop.
+- ADMIN: Map forge can save MapObjects; EntityCreator/QuestEditor mostly local.
+
+
+ARCHITECTURE (source of truth)
+------------------------------
+
+  Browser / Next.js
+       |
+       |  NEXT_PUBLIC_API_URL
+       v
+  Cloudflare Worker  (public, CORS, /_pi/origin + proxy)
+       |
+       |  fetch → trycloudflare (or future custom hostname)
+       v
+  cloudflared on Pi
+       |
+       v
+  pi-server :8788  (Hono + SQLite)  === LIVE ===
+       |
+       |  every 180000 ms (dirty rows)
+       v
+  Google Sheets  === BACKUP / admin spreadsheet view ===
+
+LAN shortcut (home only): http://192.168.1.59:8788 → pi-server directly
+
+DO NOT: hit Sheets from the frontend or from Worker on every gameplay write.
+DO: all gameplay + admin CRUD → same ?action= API → Pi SQLite.
+
+
+================================================================================
+A. OPS / PIPELINE — what’s done vs remaining
+================================================================================
+
+DONE
+[x] A1. Pi folder isolated (~/zenith-frontier-pi), not merged with other apps
+[x] A2. pi-server SQLite + Sheets backup sync (SYNC_INTERVAL_MS=180000)
+[x] A3. SSH deploy key + gitignored pi-server/deploy/.pi-credentials
+[x] A4. systemd zenith-frontier-pi (API)
+[x] A5. cloudflared named tunnel + quick-tunnel publisher
+[x] A6. Worker proxy mode + KV PI_ORIGIN + /_pi/origin + /_pi/status
+[x] A7. Frontend default API → Worker public URL
+[x] A9. seed-catalogs script (Jobs/Skills/Equipment/Titles/ArcanumCards/WorldBoss)
+[x] A10. Google OAuth client ID aligned with kanban + README origins note
+[x] A11. Root README rewritten for Worker + Pi + tunnel
+[x] A12. Scene2D is MVP mount; R3F Scene orphan
+
+DEFERRED
+[ ] A8. Custom domain on named tunnel (no domain / budget yet — keep quick-tunnel)
+
+HEALTH CHECKS
+  curl https://zenith-frontier-worker.sealseapep.workers.dev/health
+  curl https://zenith-frontier-worker.sealseapep.workers.dev/_pi/status
+      → expect {"mode":"proxy-to-pi","hasOrigin":true,...}
+  curl http://192.168.1.59:8788/sync/status   (LAN)
+  ssh pepsealsea@192.168.1.59 'systemctl is-active zenith-frontier-pi cloudflared zenith-frontier-quick-tunnel'
+
+
+================================================================================
+B. ORDERED WORKFLOW — playable first (Pi API, not Sheets-direct)
+================================================================================
+All gasService / fetch(API_URL) calls go: Browser → Worker → Tunnel → Pi.
+Rename gasService → apiService when touching that file (see F3).
+
+PHASE 0 — Verify new pipe (do this before feature work)
+[ ] B0. From internet (phone data): GET Worker /health and /?action=get_player
+[ ] B0. Write test: create_player / update_player_stats → Pi SQLite → wait ≤3 min
+        → row appears/updates in Sheets backup
+[ ] B0. Confirm Worker /_pi/status hasOrigin=true after Pi reboot
+        (quick-tunnel republishes URL)
+
+PHASE 1 — Wire admin CRUD through the pipe
+[ ] B1. EntityCreator save → gasService.upsertMonster / upsertNPC (Pi)
+[ ] B1. EntityCreator open → getAllMonsters / getAllNPCs into store
+[ ] B1. QuestEditor save → upsertQuest; open → get_all_quests
+[ ] B1. AdminDashboard refresh counts from live API on open
+[ ] B1. One admin path only: AdminDashboard + EntityCreator + QuestEditor
+        (retire AdminPortal upsert duplicate)
+
+PHASE 2 — Map forge usable for play
+[ ] B2. Place monsters/NPCs/spawners with params.entity_id → templates
+[ ] B2. save_world_map / get_world_map via pipe (gameStore saveWorldToGAS names
+        are legacy — still hit API_URL → Pi MapObjects)
+[ ] B2. Single source of truth for spawners (map objects vs Spawners table)
+[ ] B2. Admin paints starter zone, saves, player login SEES objects on Scene2D
+
+PHASE 3 — Minimum play loop (Scene2D)  [ACTIVE PLAYABLE TRACK]
+[x] B3. Attack hit-test vs map monsters; runtime HP from Monsters template
+[x] B3. On kill: add_exp / add_money / add_item via Pi
+[x] B3. Death/respawn at town/safezone
+[x] B3. Contact damage (Inventory debug buttons remain for admin)
+
+PHASE 4 — Spawners in 2D
+[ ] B4. Port Spawner.tsx logic into Scene2D runtime from map spawner objects
+[ ] B4. Uses monster templates loaded from Pi
+
+PHASE 5 — NPC interact
+[ ] B5. E-key → get_dialogue + initial_dialogue_id
+[ ] B5. Accept quest / shop stubs from options_json
+[ ] B5. Fix evaluateDialogCondition placeholders
+
+PHASE 6 — Quests live
+[ ] B6. update_quest_progress on Pi; rewards; next_quest_id
+[ ] B6. Align Quests schema (SQLite + Sheets backup columns) with FE hooks
+        OR drop FE-only fields
+
+PHASE 7 — Inventory real
+[ ] B7. get_player_inventory + get_all_equipment on login
+[ ] B7. Equip → stats; add/remove/raise/ascend via Pi
+
+PHASE 8 — Jobs & skills from Pi (imported catalogs)
+[ ] B8. CharacterCreator: get_all_jobs (stop hardcoded JOBS)
+[ ] B8. unlock_job / set_sub_job / skills in combat
+
+PHASE 9 — World systems (SLF depth)
+[ ] B9. WorldState / moon / bosses / titles / karma / vorpal / Arcanum
+        all via Pi actions (Sheets only as backup mirror)
+
+PHASE 10 — Polish / engine
+[ ] B10. UI optional; audio optional; delete or rewire orphan R3F
+[ ] B10. Custom domain tunnel hostname (replace trycloudflare)
+
+
+================================================================================
+C. PER-SYSTEM CHECKLIST (SQLite live ↔ Tunnel ↔ FE)
+================================================================================
+Legend:
+  API  = pi-server route (same ?action= protocol; Worker only proxies)
+  FE   = frontend calls API_URL
+  PLAY = affects gameplay
+  BACKUP = mirrored to Sheets every ~3 min when dirty
+
+--------------------------------------------------------------------------------
+C1. AUTH / PLAYERS
+Table:   Players
+API:     get_player, create_player, update_player_stats, add_exp, add_money, cap_breakthrough
+FE:      CharacterCreator + hydrateFromServer
+PLAY:    Partial → playable loop wired
+FIX:
+  [x] Sync combat rewards (exp/money/hp) to Pi during/after play
+  [x] Load full player row on login / refresh
+  [ ] cap_breakthrough when ready
+
+--------------------------------------------------------------------------------
+C2. JOBS
+Tables:  Jobs, PlayerJobs
+API:     get_all_jobs, get_job, get_player_jobs, set_main_job, set_sub_job, unlock_job
+FE:      CharacterCreator loads get_all_jobs
+PLAY:    Yes (create + bonuses)
+FIX:
+  [x] Seed Jobs on Pi then fetch in CharacterCreator
+  [ ] Job tree UI + full unlock flow
+
+--------------------------------------------------------------------------------
+C3. SKILLS / COMBOS
+Tables:  Skills, PlayerSkills, SkillCombos
+API:     unlock/evolve/combo + getters
+FE:      None
+PLAY:    No
+FIX:
+  [ ] HUD skill bar; wire actions to Pi
+
+--------------------------------------------------------------------------------
+C4. EQUIPMENT / INVENTORY
+Tables:  Equipment, PlayerInventory
+API:     get_all_equipment, get_player_inventory, add/remove/raise/ascend
+FE:      Inventory shows real bag + money
+PLAY:    Loot on kill
+FIX:
+  [x] Real bag from Pi; money column on Players
+  [ ] Equip recalculation
+
+--------------------------------------------------------------------------------
+C5. MAP / WORLD FORGE
+Table:   MapObjects
+API:     get_world_map, save_world_map
+FE:      MapEditor / forge
+PLAY:    Draw only
+FIX:
+  [ ] Template links; town/safezone/market behavior
+
+--------------------------------------------------------------------------------
+C6. MONSTERS
+Table:   Monsters
+API:     get_all_monsters, upsert_monster
+FE:      Scene2D living instances + EntityCreator
+PLAY:    Combat hit/HP/chase/contact
+FIX:
+  [x] Load templates via pipe; combat instances
+  [ ] Spawner runtime (B4)
+
+--------------------------------------------------------------------------------
+C7. SPAWNERS
+Table:   Spawners (+ map type=spawner)
+API:     get_all_spawners, upsert_spawner
+FE:      Place only
+PLAY:    No
+FIX:
+  [ ] 2D runtime spawn/despawn
+
+--------------------------------------------------------------------------------
+C8. NPCS / DIALOGUE / SHOP
+Tables:  NPCs, Dialogue, NPCStatus
+API:     get_all_npcs, upsert_npc, get_dialogue, npc_permadeath
+FE:      No interact
+PLAY:    No
+FIX:
+  [ ] Dialogue UI; merchant trade_items
+
+--------------------------------------------------------------------------------
+C9. QUESTS
+Tables:  Quests, PlayerQuests
+API:     get_all_quests, upsert_quest, get_player_quests, update_quest_progress
+FE:      Editor local; progress local
+PLAY:    No
+FIX:
+  [ ] Persist via Pi; quest log; kill/collect/talk hooks
+
+--------------------------------------------------------------------------------
+C10. LOOT
+Tables:  none dedicated (Monsters.drops string)
+API:     none for loot tables
+FE:      local LootTable in Zustand
+PLAY:    No
+FIX:
+  [ ] Add LootTables to pi-server schema + Sheets backup headers
+      OR JSON in drops; roll on kill → add_item on Pi
+
+--------------------------------------------------------------------------------
+C11–C15. WorldBoss, Titles, HiddenParams, Arcanum, WorldState/Moon
+API:     exists on Pi (ported from old Worker)
+FE/PLAY: mostly none
+FIX:     wire after Phase 3–6; never call Sheets from FE
+
+
+================================================================================
+D. SCHEMA GAPS (Pi SQLite + Sheets backup must stay aligned)
+================================================================================
+
+[ ] D1. LootTables table missing in pi-server SHEET_HEADERS / schema.ts
+[ ] D2. Quest hooks/prerequisite not in Quests columns
+[ ] D3. Tags / abilities catalogs not first-class tables
+[ ] D4. Keep MapObjects z column consistent Pi ↔ Sheets
+[ ] D5. Use Dialogue table (not FE-only dialog_tree) as source of truth
+[ ] D6. drops vs loot_table_id naming — pick one and document in gasService/apiService
+
+
+================================================================================
+E. LIBRARIES / TECH
+================================================================================
+ALREADY IN USE
+  Frontend: next, react, zustand, framer-motion, lucide, google oauth
+  Pi:       hono, @hono/node-server, better-sqlite3, google-auth-library, dotenv, tsx
+  Edge:     Cloudflare Worker (proxy + KV), cloudflared
+  Orphan:   three / R3F / drei (not mounted)
+
+OPTIONAL LATER
+  [ ] Phaser / Pixi / collision libs — only if Scene2D becomes painful
+  [ ] howler — audio
+  [ ] zod — validate API payloads
+  [ ] Custom domain on Cloudflare — stable tunnel hostname
+
+NOT REQUIRED FOR MVP
+  Multiplayer websockets; fancy UI kits; Sheets as live DB
+
+
+================================================================================
+F. CLEANUP (modern names / dead paths)
+================================================================================
+
+[ ] F1. Delete or rewire unused R3F Scene/Monster/NPC/Spawner
+[ ] F2. Remove AdminPortal duplicate CRUD
+[ ] F3. Rename gasService.ts → apiService.ts (still points at API_URL / Worker)
+[ ] F4. Rename saveWorldToGAS / loadWorldFromGAS → saveWorldMap / loadWorldMap
+[ ] F5. Root README: document Worker proxy + Pi + tunnel + credentials gitignore  (DONE in A11)
+[ ] F6. worker/src/index.ts Sheets handlers = FALLBACK only when hasOrigin=false;
+        document “live path is Pi”
+[ ] F7. NotUse-google-apps-script.js = schema/seed reference only
+[ ] F8. When custom domain exists: disable zenith-frontier-quick-tunnel;
+        point named tunnel hostname; keep Worker proxy or CNAME to hostname
+
+
+================================================================================
+G. “IT’S PLAYABLE” (exit criteria) — modern pipe
+================================================================================
+
+  [ ] Login over public Worker URL creates/loads Players on Pi SQLite
+  [ ] Admin upserts monster + map save via Worker → Pi; player sees map
+  [ ] Kill monster → exp/item on Pi; survives refresh
+  [ ] Within ~3 minutes, Players/MapObjects visible in Sheets backup
+  [ ] NPC quest accept + progress via Pi
+  [ ] Death/respawn works
+  [ ] /_pi/status stays proxy-to-pi after Pi reboot
+
+
+================================================================================
+H. FILE MAP (where to fix)
+================================================================================
+
+  FRONTEND
+    src/lib/config.ts                 Public Worker API URL
+    src/lib/googleClientId.ts         Google OAuth Web Client (same as kanban)
+    src/services/gasService.ts        Client (rename → apiService)
+    src/store/gameStore.ts            State + map save/load
+    src/components/game/Scene2D.tsx   Live play/forge
+    src/components/ui/*               Admin / HUD / Inventory
+
+  EDGE
+    worker/src/index.ts               Proxy + /_pi/* + Sheets fallback
+    worker/wrangler.toml              KV PI_ORIGIN binding
+
+  PI LIVE
+    pi-server/src/index.ts            Boot, sync interval, listen :8788
+    pi-server/src/db.ts               SQLite
+    pi-server/src/routes.ts           All ?action= game logic
+    pi-server/src/sheets.ts           Backup pull/push
+    pi-server/deploy/.pi-credentials  gitignored (user/host/password/secrets)
+    pi-server/deploy/push-to-pi.ps1   Deploy script
+    pi-server/deploy/quick-tunnel-publish.sh
+    pi-server/deploy/zenith-frontier-pi.service
+    pi-server/deploy/zenith-frontier-quick-tunnel.service
+
+  REFERENCE
+    NotUse-google-apps-script.js      Old schema/seed
+    SYSTEMS_FIX_WORKFLOW.txt          This file
+
+
+================================================================================
+I. ONE-LINER RULES FOR FUTURE WORK
+================================================================================
+
+  1. Live writes → Pi only (through Worker public URL or LAN :8788).
+  2. Sheets → backup; never block gameplay on Sheets quota.
+  3. New tables → add to pi-server schema.ts AND Sheets headers (for backup).
+  4. Frontend never imports google-auth or Sheets SDKs.
+  5. Prefer fixing Scene2D play loop before Shangri-La depth systems.
+
+================================================================================
+END — Phase 0→3 first; then content systems. Tunnel is the public pipe.
+================================================================================

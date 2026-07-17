@@ -317,7 +317,11 @@ function doGet(e) {
     var p = e.parameter || {};
     var action = p.action || "";
     var out = routeGet(action, p);
-    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.TEXT);
+    var output = ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.TEXT);
+    output.setHeader("Access-Control-Allow-Origin", "*");
+    output.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    output.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    return output;
 }
 
 function doPost(e) {
@@ -325,7 +329,11 @@ function doPost(e) {
     var p = parseBody(body);
     var action = p.action || "";
     var out = routePost(action, p);
-    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.TEXT);
+    var output = ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.TEXT);
+    output.setHeader("Access-Control-Allow-Origin", "*");
+    output.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    output.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    return output;
 }
 
 function parseBody(body) {

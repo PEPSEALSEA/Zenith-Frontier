@@ -1,9 +1,12 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwwkfzr_IDPacSINQFIWHyVERoIS75BHLWarqvrbkkeBEyjfXkc-jBUe2PzP5b4Ib2u/exec'
+import { API_URL } from '@/lib/config'
+import type { Job, PlayerAppearance, CharacterStats } from '@/store/gameStore'
+
+const GAS_URL = API_URL
 
 /**
- * Custom parser for the "HEADERS|... \n ROW|..." format used in the provided GAS script.
+ * Custom parser for the "HEADERS|... \n ROW|..." format used by Pi / Worker API.
  */
-function parseGASResponse(text: string): any[] {
+function parseGASResponse(text: string): Record<string, string>[] {
     if (!text || text === 'EMPTY' || text.startsWith('ERROR')) return []
     const lines = text.split('\n')
     if (lines.length < 2) return []
@@ -16,12 +19,70 @@ function parseGASResponse(text: string): any[] {
 
     return dataRows.map(rowLine => {
         const values = rowLine.replace('ROW|', '').split('|')
-        const obj: any = {}
+        const obj: Record<string, string> = {}
         headers.forEach((h, i) => {
             obj[h] = values[i]
         })
         return obj
     })
+}
+
+function parseAppearance(raw: unknown, fallbackColor = '#10b981', fallbackFace = 'ghost'): PlayerAppearance {
+    if (!raw) return { color: fallbackColor, face: fallbackFace }
+    const s = String(raw)
+    if (s.trim().startsWith('{')) {
+        try {
+            const j = JSON.parse(s)
+            return { color: j.color || fallbackColor, face: j.face || fallbackFace }
+        } catch { /* fall through */ }
+    }
+    const [color, face] = s.split('|')
+    return { color: color || fallbackColor, face: face || fallbackFace }
+}
+
+export type HydratedPlayer = {
+    player_id: string
+    name: string
+    appearance: PlayerAppearance
+    main_job_id: string
+    stats: CharacterStats
+    inventory: { item_id: string; quantity: number; name?: string }[]
+}
+
+function maxExpForLevel(level: number): number {
+    let need = 100
+    for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
+    return need
+}
+
+export function hydratePlayerFromRow(
+    row: Record<string, any>,
+    inventory: { item_id: string; quantity: number; name?: string }[] = [],
+): HydratedPlayer {
+    const level = Number(row.level) || 1
+    const hp = Number(row.hp) || 100
+    const mp = Number(row.mp) || 50
+    return {
+        player_id: String(row.player_id || ''),
+        name: String(row.name || 'Adventurer'),
+        appearance: parseAppearance(row.appearance),
+        main_job_id: String(row.main_job_id || ''),
+        stats: {
+            hp,
+            maxHp: Math.max(hp, 100),
+            mp,
+            maxMp: Math.max(mp, 50),
+            level,
+            exp: Number(row.exp) || 0,
+            maxExp: maxExpForLevel(level),
+            atk: Number(row.atk) || 10,
+            def: Number(row.def) || 5,
+            spd: Number(row.spd) || 12,
+            luck: 8,
+            money: Number(row.money) || 100,
+        },
+        inventory,
+    }
 }
 
 class GASService {
@@ -57,74 +118,132 @@ class GASService {
         const res = await this.get('get_player', { player_id: playerId })
         const results = parseGASResponse(res)
         if (results.length > 0) {
-            const player = results[0]
-            if (player.appearance) {
-                try {
-                    player.appearance = JSON.parse(player.appearance)
-                } catch (e) {
-                    player.appearance = { color: '#10b981', face: '😎' }
-                }
-            }
+            const player = results[0] as any
+            player.appearance = parseAppearance(player.appearance)
             return player
         }
         return null
     }
 
     async createPlayer(playerId: string, name: string, appearance: any) {
+        const color = appearance?.color || '#10b981'
+        const face = appearance?.face || 'ghost'
         return await this.post('create_player', {
             player_id: playerId,
             name,
-            appearance: JSON.stringify(appearance)
+            appearance: `${color}|${face}`,
+            money: '100',
         })
     }
 
-    async updateStats(playerId: string, stats: any) {
-        if (stats.appearance) stats.appearance = JSON.stringify(stats.appearance)
-        return await this.post('update_player_stats', { player_id: playerId, ...stats })
+    async updateStats(playerId: string, stats: Record<string, any>) {
+        const payload: Record<string, string> = { player_id: playerId }
+        for (const [k, v] of Object.entries(stats)) {
+            if (v === undefined || v === null) continue
+            if (k === 'appearance') {
+                const color = v.color || '#10b981'
+                const face = v.face || 'ghost'
+                payload.appearance = `${color}|${face}`
+            } else {
+                payload[k] = String(v)
+            }
+        }
+        return await this.post('update_player_stats', payload)
+    }
+
+    async addExp(playerId: string, expAmount: number) {
+        return await this.post('add_exp', {
+            player_id: playerId,
+            exp_amount: String(expAmount),
+        })
+    }
+
+    async addMoney(playerId: string, amount: number) {
+        return await this.post('add_money', {
+            player_id: playerId,
+            amount: String(amount),
+        })
+    }
+
+    async addItem(playerId: string, itemId: string, quantity = 1) {
+        return await this.post('add_item', {
+            player_id: playerId,
+            item_id: itemId,
+            quantity: String(quantity),
+        })
+    }
+
+    async getAllJobs(): Promise<(Job & { stat_bonus?: string; description?: string; tier?: string; parent_job_id?: string })[]> {
+        const res = await this.get('get_all_jobs', {})
+        return parseGASResponse(res).map((j) => ({
+            id: String(j.job_id),
+            name: String(j.job_name || j.job_id),
+            level: 1,
+            type: (j.tier === 'high' ? 'sub' : 'main') as Job['type'],
+            skills: [],
+            stat_bonus: j.stat_bonus,
+            description: j.description,
+            tier: j.tier,
+            parent_job_id: j.parent_job_id || '',
+        }))
+    }
+
+    async getPlayerInventory(playerId: string) {
+        const res = await this.get('get_player_inventory', { player_id: playerId })
+        return parseGASResponse(res).map((r) => ({
+            item_id: String(r.item_id),
+            quantity: Number(r.quantity) || 1,
+            raise_level: Number(r.raise_level) || 0,
+            ascension_form: String(r.ascension_form || 'base'),
+        }))
+    }
+
+    async getAllEquipment() {
+        const res = await this.get('get_all_equipment', {})
+        return parseGASResponse(res)
+    }
+
+    async loadHydratedPlayer(playerId: string): Promise<HydratedPlayer | null> {
+        const row = await this.getPlayer(playerId)
+        if (!row) return null
+        const inv = await this.getPlayerInventory(playerId)
+        const equipment = await this.getAllEquipment()
+        const nameById = Object.fromEntries(equipment.map((e) => [e.item_id, e.item_name]))
+        return hydratePlayerFromRow(
+            row,
+            inv.map((i) => ({
+                ...i,
+                name: nameById[i.item_id] || i.item_id,
+            })),
+        )
     }
 
     async setMainJob(playerId: string, jobId: string) {
         return await this.post('set_main_job', { player_id: playerId, job_id: jobId })
     }
 
-    // New Entity Methods
     async getAllMonsters() {
         const res = await this.get('get_all_monsters', {})
         return parseGASResponse(res).map(m => ({
             ...m,
+            monster_id: String(m.monster_id),
+            name: String(m.name || m.monster_id),
             hp: Number(m.hp),
             atk: Number(m.atk),
             def: Number(m.def),
             spd: Number(m.spd),
             skills: m.skills ? String(m.skills).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
-            // Support both legacy JSON and plain text for drops
             drops: (() => {
-                if (!m.drops) return []
+                if (!m.drops) return [] as string[]
                 try {
                     const parsed = JSON.parse(m.drops)
-                    if (Array.isArray(parsed)) return parsed
+                    if (Array.isArray(parsed)) return parsed.map(String)
                 } catch {
-                    // fall through to text parsing
+                    // fall through
                 }
                 return String(m.drops).split(',').map((s: string) => s.trim()).filter(Boolean)
             })(),
-            // Support both legacy JSON and simple "color|face" text for appearance
-            appearance: (() => {
-                if (!m.appearance) return { color: '#ef4444', face: 'skull' }
-                const raw = String(m.appearance)
-                if (raw.trim().startsWith('{')) {
-                    try {
-                        return JSON.parse(raw)
-                    } catch {
-                        // fall through to text parsing
-                    }
-                }
-                const [color, face] = raw.split('|')
-                return {
-                    color: color || '#ef4444',
-                    face: face || 'skull'
-                }
-            })()
+            appearance: parseAppearance(m.appearance, '#ef4444', 'skull'),
         }))
     }
 
@@ -139,10 +258,8 @@ class GASService {
             atk: String(stats.atk ?? 10),
             def: String(stats.def ?? 5),
             spd: String(stats.spd ?? 10),
-            // Store abilities and loot table as plain text
             skills: (monster.abilities || []).join(','),
-            drops: String(monster.loot_table_id || ''),
-            // Encode appearance as simple "color|face" text
+            drops: String(monster.loot_table_id || monster.drops || ''),
             appearance: `${appearance.color || '#ef4444'}|${appearance.face || 'skull'}`
         })
     }
@@ -151,33 +268,15 @@ class GASService {
         const res = await this.get('get_all_npcs', {})
         return parseGASResponse(res).map(n => ({
             ...n,
-            // Accept both "true"/"false" and "1"/"0"
             is_merchant: String(n.is_merchant) === 'true' || String(n.is_merchant) === '1',
             is_trader: String(n.is_trader) === 'true' || String(n.is_trader) === '1',
-            // Support legacy JSON and "color|face" text
-            appearance: (() => {
-                if (!n.appearance) return { color: '#3b82f6', face: 'ghost' }
-                const raw = String(n.appearance)
-                if (raw.trim().startsWith('{')) {
-                    try {
-                        return JSON.parse(raw)
-                    } catch {
-                        // fall through
-                    }
-                }
-                const [color, face] = raw.split('|')
-                return {
-                    color: color || '#3b82f6',
-                    face: face || 'ghost'
-                }
-            })(),
-            // Support legacy JSON array and simple comma-separated IDs
+            appearance: parseAppearance(n.appearance, '#3b82f6', 'ghost'),
             trade_items: (() => {
-                if (!n.trade_items) return []
+                if (!n.trade_items) return [] as string[]
                 const raw = String(n.trade_items)
                 try {
                     const parsed = JSON.parse(raw)
-                    if (Array.isArray(parsed)) return parsed
+                    if (Array.isArray(parsed)) return parsed.map(String)
                 } catch {
                     // fall through
                 }
@@ -210,7 +309,6 @@ class GASService {
         return parseGASResponse(res).map(q => ({
             ...q,
             target_count: Number(q.target_count),
-            // Accept both "true"/"false" and "1"/"0"
             is_hidden: String(q.is_hidden) === 'true' || String(q.is_hidden) === '1',
             rewards: q.rewards ? JSON.parse(q.rewards) : {}
         }))
@@ -247,7 +345,7 @@ class GASService {
         const res = await this.get('get_dialogue', { dialogue_id: dialogueId })
         const results = parseGASResponse(res)
         if (results.length > 0) {
-            const d = results[0]
+            const d = results[0] as any
             d.options = d.options_json ? JSON.parse(d.options_json) : []
             return d
         }

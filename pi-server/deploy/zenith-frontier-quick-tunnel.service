@@ -1,0 +1,19 @@
+[Unit]
+Description=Zenith Frontier public quick tunnel (trycloudflare)
+After=network-online.target zenith-frontier-pi.service
+Wants=network-online.target
+Requires=zenith-frontier-pi.service
+
+[Service]
+Type=simple
+User=pepsealsea
+Group=pepsealsea
+WorkingDirectory=/home/pepsealsea/zenith-frontier-pi
+ExecStart=/bin/bash /home/pepsealsea/zenith-frontier-pi/deploy/quick-tunnel-publish.sh
+Restart=always
+RestartSec=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

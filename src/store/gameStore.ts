@@ -1,4 +1,11 @@
 import { create } from 'zustand'
+import { API_URL } from '@/lib/config'
+
+export interface InventoryItem {
+    item_id: string
+    quantity: number
+    name?: string
+}
 
 export interface CharacterStats {
     hp: number
@@ -208,7 +215,7 @@ export interface GameState {
             armor: string | null
             accessory: string | null
         }
-        inventory: string[]
+        inventory: InventoryItem[]
         titles: string[]
         hiddenParams: {
             vorpalSoul: number
@@ -242,20 +249,25 @@ export interface GameState {
     login: (userData: any) => void
     logout: () => void
     setEditorMode: (enabled: boolean) => void
-    initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job) => void
+    initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job, statsOverride?: Partial<CharacterStats>, inventory?: InventoryItem[]) => void
+    hydrateFromServer: (email: string) => Promise<boolean>
     enterForgeMode: () => void
     exitForgeMode: () => void
     enterAdminDashboard: () => void
     exitAdminDashboard: () => void
     gainExp: (amount: number) => void
     takeDamage: (amount: number) => void
+    healFull: () => void
     setMainJob: (job: Job) => void
     setSubJob: (job: Job) => void
     updatePosition: (x: number, y: number) => void
-    addInventoryItem: (item: string) => void
+    addInventoryItem: (item: InventoryItem | string) => void
+    setInventory: (items: InventoryItem[]) => void
     updateWorldCycle: (delta: number) => void
     attack: (type: 'light' | 'hard') => void
     addMoney: (amount: number) => void
+    applyKillRewards: (opts: { exp: number; money: number; items?: string[] }) => Promise<void>
+    syncHpToServer: () => Promise<void>
     addWorldObject: (obj: WorldObject) => void
     removeWorldObject: (id: string) => void
     updateWorldObject: (id: string, updates: Partial<WorldObject>) => void
@@ -282,7 +294,38 @@ export interface GameState {
 }
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzL-1iU_07i0C6z08C9H_O-m-0e0j0_0/exec" // Placeholder, user will need to update
+const GAS_URL = API_URL
+
+function applyJobStatBonus(base: CharacterStats, job: Job, statBonus?: string): CharacterStats {
+    const next = { ...base }
+    const raw = statBonus || ''
+    if (raw) {
+        for (const part of raw.split(',')) {
+            const m = part.trim().match(/^(atk|def|spd|hp|mp|luck)([+-]\d+)$/i)
+            if (!m) continue
+            const key = m[1].toLowerCase()
+            const delta = parseInt(m[2], 10)
+            if (key === 'atk') next.atk += delta
+            else if (key === 'def') next.def += delta
+            else if (key === 'spd') next.spd += delta
+            else if (key === 'luck') next.luck += delta
+            else if (key === 'hp') {
+                next.maxHp += delta
+                next.hp += delta
+            } else if (key === 'mp') {
+                next.maxMp += delta
+                next.mp += delta
+            }
+        }
+        return next
+    }
+    if (job.id === 'JOB_001') next.atk += 5
+    if (job.id === 'JOB_005') {
+        next.mp += 20
+        next.maxMp += 20
+    }
+    return next
+}
 
 export const useGameStore = create<GameState>((set, get) => ({
     auth: {
@@ -344,19 +387,48 @@ export const useGameStore = create<GameState>((set, get) => ({
     enterAdminDashboard: () => set({ isAdminDashboard: true }),
     exitAdminDashboard: () => set({ isAdminDashboard: false }),
 
-    initializeCharacter: (name, appearance, job) => set((state) => ({
-        isInitialized: true,
-        player: {
-            ...state.player,
-            name, appearance,
-            jobs: { ...state.player.jobs, main: job },
-            stats: {
-                ...state.player.stats,
-                atk: state.player.stats.atk + (job.id === 'JOB_001' ? 5 : 0),
-                mp: state.player.stats.mp + (job.id === 'JOB_005' ? 20 : 0),
-            }
+    initializeCharacter: (name, appearance, job, statsOverride, inventory) => set((state) => {
+        const base = { ...state.player.stats, ...(statsOverride || {}) }
+        const withJob = statsOverride ? base : applyJobStatBonus(base, job, (job as any).stat_bonus)
+        return {
+            isInitialized: true,
+            player: {
+                ...state.player,
+                name,
+                appearance,
+                jobs: { ...state.player.jobs, main: job },
+                stats: withJob,
+                inventory: inventory || state.player.inventory,
+            },
         }
-    })),
+    }),
+
+    hydrateFromServer: async (email) => {
+        const { gasService } = await import('@/services/gasService')
+        const hydrated = await gasService.loadHydratedPlayer(email)
+        if (!hydrated) return false
+        const jobs = await gasService.getAllJobs()
+        const jobRow = jobs.find((j) => j.id === hydrated.main_job_id)
+        const job: Job = jobRow || {
+            id: hydrated.main_job_id || 'JOB_001',
+            name: 'Adventurer',
+            level: 1,
+            type: 'main',
+            skills: [],
+        }
+        set((state) => ({
+            isInitialized: true,
+            player: {
+                ...state.player,
+                name: hydrated.name,
+                appearance: hydrated.appearance,
+                jobs: { ...state.player.jobs, main: job },
+                stats: hydrated.stats,
+                inventory: hydrated.inventory,
+            },
+        }))
+        return true
+    },
 
     enterForgeMode: () => set({
         isInitialized: true,
@@ -375,7 +447,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     gainExp: (amount) => set((state) => {
         let { exp, level, maxExp } = state.player.stats
         exp += amount
-        if (exp >= maxExp) {
+        while (exp >= maxExp && level < 99) {
             exp -= maxExp
             level++
             maxExp = Math.floor(maxExp * 1.5)
@@ -387,10 +459,45 @@ export const useGameStore = create<GameState>((set, get) => ({
         player: { ...state.player, stats: { ...state.player.stats, hp: Math.max(0, state.player.stats.hp - amount) } }
     })),
 
+    healFull: () => set((state) => ({
+        player: {
+            ...state.player,
+            stats: {
+                ...state.player.stats,
+                hp: state.player.stats.maxHp,
+                mp: state.player.stats.maxMp,
+            },
+        },
+    })),
+
     setMainJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, main: job } } })),
     setSubJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, sub: job } } })),
     updatePosition: (x, y) => set((state) => ({ player: { ...state.player, position: { x, y } } })),
-    addInventoryItem: (item) => set((state) => ({ player: { ...state.player, inventory: [...state.player.inventory, item] } })),
+    addInventoryItem: (item) => set((state) => {
+        const entry: InventoryItem = typeof item === 'string' ? { item_id: item, quantity: 1 } : item
+        const existing = state.player.inventory.find((i) => i.item_id === entry.item_id)
+        if (existing) {
+            return {
+                player: {
+                    ...state.player,
+                    inventory: state.player.inventory.map((i) =>
+                        i.item_id === entry.item_id
+                            ? { ...i, quantity: i.quantity + (entry.quantity || 1) }
+                            : i,
+                    ),
+                },
+            }
+        }
+        return {
+            player: {
+                ...state.player,
+                inventory: [...state.player.inventory, { ...entry, quantity: entry.quantity || 1 }],
+            },
+        }
+    }),
+    setInventory: (items) => set((state) => ({
+        player: { ...state.player, inventory: items },
+    })),
 
     updateWorldCycle: (delta) => set((state) => ({
         world: { ...state.world, manaCycle: (state.world.manaCycle + delta) % 1 }
@@ -403,6 +510,68 @@ export const useGameStore = create<GameState>((set, get) => ({
     addMoney: (amount) => set((state) => ({
         player: { ...state.player, stats: { ...state.player.stats, money: state.player.stats.money + amount } }
     })),
+
+    applyKillRewards: async ({ exp, money, items }) => {
+        const { auth, gainExp, addMoney, addInventoryItem } = get()
+        const email = auth.user?.email
+        gainExp(exp)
+        if (money) addMoney(money)
+        for (const id of items || []) addInventoryItem({ item_id: id, quantity: 1 })
+        if (!email) return
+        const { gasService } = await import('@/services/gasService')
+        const expRes = await gasService.addExp(email, exp)
+        if (expRes.startsWith('OK|EXP_ADDED|')) {
+            const parts = expRes.split('|')
+            const level = Number(parts[2])
+            const serverExp = Number(parts[3])
+            const leveled = Number(parts[4]) || 0
+            if (!Number.isNaN(level)) {
+                set((state) => ({
+                    player: {
+                        ...state.player,
+                        stats: {
+                            ...state.player.stats,
+                            level,
+                            exp: serverExp,
+                            maxExp: (() => {
+                                let need = 100
+                                for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
+                                return need
+                            })(),
+                        },
+                    },
+                }))
+            }
+            if (leveled > 0) {
+                const { sfx } = await import('@/lib/sfx')
+                sfx.levelUp()
+            }
+        }
+        if (money) {
+            const moneyRes = await gasService.addMoney(email, money)
+            if (moneyRes.startsWith('OK|MONEY_UPDATED|')) {
+                const m = Number(moneyRes.split('|')[2])
+                if (!Number.isNaN(m)) {
+                    set((state) => ({
+                        player: { ...state.player, stats: { ...state.player.stats, money: m } },
+                    }))
+                }
+            }
+            const { sfx } = await import('@/lib/sfx')
+            sfx.coin()
+        }
+        for (const id of items || []) {
+            await gasService.addItem(email, id, 1)
+        }
+    },
+
+    syncHpToServer: async () => {
+        const { auth, player } = get()
+        const email = auth.user?.email
+        if (!email) return
+        const { gasService } = await import('@/services/gasService')
+        await gasService.updateStats(email, { hp: player.stats.hp, mp: player.stats.mp })
+    },
 
     addWorldObject: (obj) => set((state) => ({
         world: { ...state.world, objects: [...state.world.objects, obj] }
@@ -425,15 +594,29 @@ export const useGameStore = create<GameState>((set, get) => ({
         try {
             const formData = new URLSearchParams()
             formData.append('action', 'save_world_map')
-            formData.append('objects_json', JSON.stringify(world.objects))
+            // Store world objects as plain text rows "id|type|x|y|z|name|radius|params"
+            const lines: string[] = []
+            for (const obj of world.objects) {
+                const id = String(obj.id || '')
+                const type = String(obj.type || '')
+                const x = String(obj.x ?? 0)
+                const y = String(obj.y ?? 0)
+                const z = String(obj.z ?? 0)
+                const name = String(obj.name || '')
+                const radius = String(obj.radius ?? 0)
+                const params = Object.entries(obj.params || {})
+                    .map(([k, v]) => `${k}=${String(v)}`)
+                    .join(';')
+                lines.push([id, type, x, y, z, name, radius, params].join('|'))
+            }
+            formData.append('objects_text', lines.join('\n'))
 
             await fetch(GAS_URL, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData.toString()
             })
-            console.log("World saved trigger sent to GAS")
+            console.log("World saved to GAS as text")
         } catch (e) {
             console.error("Failed to save world:", e)
         }
@@ -454,8 +637,16 @@ export const useGameStore = create<GameState>((set, get) => ({
                 const obj: any = {}
                 headers.forEach((h, idx) => {
                     let val: any = vals[idx]
-                    if (h === 'x' || h === 'y' || h === 'radius') val = Number(val)
-                    if (h === 'params' && val) try { val = JSON.parse(val) } catch (e) { }
+                    if (h === 'x' || h === 'y' || h === 'z' || h === 'radius') val = Number(val)
+                    if (h === 'params' && val) {
+                        const params: any = {}
+                        String(val).split(';').forEach(pair => {
+                            if (!pair) return
+                            const [k, v] = pair.split('=')
+                            if (k) params[k] = v
+                        })
+                        val = params
+                    }
                     obj[h] = val
                 })
                 objects.push(obj as WorldObject)
@@ -505,9 +696,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     evaluateDialogCondition: (condition) => {
         const { player } = get()
         switch (condition.type) {
-            case 'item':
-                const itemCount = player.inventory.filter(i => i === condition.target_id).length
-                return itemCount >= (condition.value || 1)
+            case 'item': {
+                const item = player.inventory.find((i) => i.item_id === condition.target_id)
+                return (item?.quantity || 0) >= (condition.value || 1)
+            }
             case 'tag':
                 // In a complete GAS build, tags would be checked on the player or target.
                 return true // Placeholder

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { GOOGLE_CLIENT_ID } from '@/lib/googleClientId';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zenith Frontier | God-Tier Web RPG",
-  description: "A premium 3D web RPG experience built with Next.js and React Three Fiber. Forge your path, collect Arcanum, and face the Seven Colossi.",
+  title: "Zenith Frontier | Web RPG",
+  description: "Scene2D web RPG — Browser → Cloudflare Worker → Pi SQLite. Forge maps, fight, collect Arcanum.",
 };
 
 export default function RootLayout({
@@ -28,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <GoogleOAuthProvider clientId="787988651964-gf258mnif89bu6g0jao2mpdsm72j96da.apps.googleusercontent.com">
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
           {children}
         </GoogleOAuthProvider>
       </body>

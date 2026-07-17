@@ -60,9 +60,9 @@ const AdminPortal = () => {
                 gasService.getAllQuests(),
                 gasService.getAllSpawners()
             ])
-            setMonsterTemplates(m)
-            setQuests(q)
-            setSpawners(s)
+            setMonsterTemplates(m as any)
+            setQuests(q as any)
+            setSpawners(s as any)
         } catch (e) {
             console.error(e)
         } finally {

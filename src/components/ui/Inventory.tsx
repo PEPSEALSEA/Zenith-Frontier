@@ -86,18 +86,9 @@ const Inventory = () => {
 
                                 {/* Content Render Grid */}
                                 <div className="flex-1 overflow-y-auto p-8 overflow-hidden">
-                                    {activeTab === 'EQUIPMENT' && <EquipmentGrid />}
+                                    {activeTab === 'INVENTORY' && <InventoryGrid />}
                                     {activeTab === 'JOB SYSTEM' && <JobSystemView />}
-                                    {activeTab === 'INVENTORY' && (
-                                        <div className="grid grid-cols-6 gap-4">
-                                            {[...Array(24)].map((_, i) => (
-                                                <div key={i} className="aspect-square rounded-lg bg-black/40 border border-white/5 transition-all duration-300 hover:border-emerald-500/40 hover:bg-emerald-500/5 cursor-pointer group flex items-center justify-center p-2 relative overflow-hidden group">
-                                                    <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                    {i === 0 ? <Zap className="h-6 w-6 text-amber-500/60 transition-transform group-hover:scale-110" /> : <Plus className="h-4 w-4 text-white/10 group-hover:text-white/40" />}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    {activeTab === 'EQUIPMENT' && <EquipmentGrid />}
                                     {activeTab === 'ARCANUM' && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             <ArcanumCard name="THE FOOL" description="Increased luck and unpredictable skill activation." reverse={false} />
@@ -159,6 +150,45 @@ const NavIcon = ({ icon: Icon, active, onClick }: { icon: any, active: boolean, 
         {active && <motion.div layoutId="nav-glow" className="absolute inset-0 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.3)]" />}
     </button>
 )
+
+const InventoryGrid = () => {
+    const { player } = useGameStore()
+    const items = player.inventory
+    const slots = Math.max(24, items.length)
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-6 py-4">
+                <span className="text-[10px] font-black tracking-[0.3em] text-amber-400 uppercase">Purse</span>
+                <span className="text-2xl font-black italic text-amber-300">{player.stats.money} G</span>
+            </div>
+            <div className="grid grid-cols-6 gap-4">
+                {[...Array(slots)].map((_, i) => {
+                    const item = items[i]
+                    return (
+                        <div
+                            key={item ? `${item.item_id}-${i}` : `empty-${i}`}
+                            className="aspect-square rounded-lg bg-black/40 border border-white/5 transition-all duration-300 hover:border-emerald-500/40 hover:bg-emerald-500/5 cursor-pointer group flex flex-col items-center justify-center p-2 relative overflow-hidden"
+                            title={item?.name || item?.item_id}
+                        >
+                            {item ? (
+                                <>
+                                    <Zap className="h-6 w-6 text-amber-500/80 transition-transform group-hover:scale-110 mb-1" />
+                                    <span className="text-[8px] font-bold text-white/70 text-center leading-tight uppercase tracking-wide truncate w-full px-1">
+                                        {item.name || item.item_id}
+                                    </span>
+                                    <span className="absolute bottom-1 right-1 text-[9px] font-mono text-emerald-400">x{item.quantity}</span>
+                                </>
+                            ) : (
+                                <Plus className="h-4 w-4 text-white/10 group-hover:text-white/40" />
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
 
 const EquipmentGrid = () => (
     <div className="grid grid-cols-4 gap-8">

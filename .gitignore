@@ -33,9 +33,29 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Cloudflare Worker
+worker/.dev.vars
+worker/.wrangler/
+worker/node_modules/
+worker/dist/
+
+# Pi live API (separate from worker)
+pi-server/.env
+pi-server/data/
+pi-server/node_modules/
+pi-server/dist/
+pi-server/deploy/.pi-credentials
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Pi live API
+pi-server/.env
+pi-server/data/
+pi-server/node_modules/
+pi-server/dist/
+

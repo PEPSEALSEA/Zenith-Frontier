@@ -1,5 +1,9 @@
 'use client'
 
+/**
+ * ORPHAN (A12): Not mounted. Live play uses Scene2D via src/app/page.tsx.
+ * Keep for later R3F port; do not wire into the MVP play path.
+ */
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, PerspectiveCamera, Environment, Float, Sparkles, ContactShadows } from '@react-three/drei'
 import { useRef, useMemo } from 'react'

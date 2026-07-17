@@ -1,0 +1,154 @@
+import 'dotenv/config';
+import path from 'node:path';
+import { appendRow, findRowIndex, openDb, type Db } from './db.js';
+import type { Params } from './schema.js';
+
+/**
+ * Seed starter catalog rows when tables are empty.
+ * Source of truth for sample content: NotUse-google-apps-script.js seedSampleData().
+ * Does not wipe existing rows — insert-if-missing by primary key.
+ */
+
+const JOBS: Params[] = [
+  { job_id: 'JOB_001', job_name: 'Warrior', tier: 'low', parent_job_id: '', branch: 'base_warrior', is_hidden: '0', unlock_condition: '', stat_bonus: 'atk+10,def+5', description: 'นักรบเริ่มต้น' },
+  { job_id: 'JOB_002', job_name: 'Archer', tier: 'low', parent_job_id: '', branch: 'base_archer', is_hidden: '0', unlock_condition: '', stat_bonus: 'spd+10,atk+5', description: 'นักธนูเริ่มต้น' },
+  { job_id: 'JOB_003', job_name: 'Twin-Blade', tier: 'low', parent_job_id: '', branch: 'base_assassin', is_hidden: '0', unlock_condition: '', stat_bonus: 'spd+15,atk+3', description: 'นักดาบคู่ผู้รวดเร็ว' },
+  { job_id: 'JOB_004', job_name: 'Spearman', tier: 'low', parent_job_id: '', branch: 'base_spear', is_hidden: '0', unlock_condition: '', stat_bonus: 'atk+7,def+8', description: 'พลหอกระยะกลาง' },
+  { job_id: 'JOB_005', job_name: 'Supporter', tier: 'low', parent_job_id: '', branch: 'base_support', is_hidden: '0', unlock_condition: '', stat_bonus: 'mp+30,def+5', description: 'สายสนับสนุนทีม' },
+  { job_id: 'JOB_006', job_name: 'Knight', tier: 'high', parent_job_id: 'JOB_001', branch: 'tank', is_hidden: '0', unlock_condition: '', stat_bonus: 'def+20,hp+50', description: 'อัศวินนักป้องกัน' },
+  { job_id: 'JOB_007', job_name: 'Berserker', tier: 'high', parent_job_id: 'JOB_001', branch: 'dps', is_hidden: '0', unlock_condition: '', stat_bonus: 'atk+30,def-10', description: 'นักรบคลั่ง' },
+  { job_id: 'JOB_008', job_name: 'Mage', tier: 'low', parent_job_id: '', branch: 'base_mage', is_hidden: '0', unlock_condition: '', stat_bonus: 'mp+20,atk+5', description: 'นักเวทย์เริ่มต้น' },
+];
+
+const SKILLS: Params[] = [
+  { skill_id: 'SKL_001', skill_name: 'Slash', job_id: 'JOB_001', tier: '1', parent_skill_id: '', evolution_branches: 'power,speed', is_locked_by: '', description: 'ฟันด้วยดาบ' },
+  { skill_id: 'SKL_002', skill_name: 'Heavy Blow', job_id: 'JOB_001', tier: '2', parent_skill_id: 'SKL_001', evolution_branches: 'crush,stun', is_locked_by: '', description: 'ฟันหนักทำให้มึนงง' },
+  { skill_id: 'SKL_003', skill_name: 'Blade Storm', job_id: 'JOB_001', tier: '3', parent_skill_id: 'SKL_002', evolution_branches: 'wide,single', is_locked_by: 'SKL_004', description: 'พายุดาบ - เลือก wide หรือ single target' },
+  { skill_id: 'SKL_004', skill_name: 'Double Shot', job_id: 'JOB_002', tier: '1', parent_skill_id: '', evolution_branches: '', is_locked_by: '', description: 'ยิงธนูสองดอก' },
+  { skill_id: 'SKL_005', skill_name: 'Arcane Bolt', job_id: 'JOB_008', tier: '1', parent_skill_id: '', evolution_branches: 'rapid,heavy', is_locked_by: '', description: 'ลูกศรเวทย์' },
+  { skill_id: 'SKL_006', skill_name: 'Quick Step', job_id: 'JOB_003', tier: '1', parent_skill_id: '', evolution_branches: '', is_locked_by: '', description: 'ก้าวหลบเร็ว' },
+  { skill_id: 'SKL_007', skill_name: 'Pierce', job_id: 'JOB_004', tier: '1', parent_skill_id: '', evolution_branches: '', is_locked_by: '', description: 'แทงทะลุ' },
+  { skill_id: 'SKL_008', skill_name: 'Heal', job_id: 'JOB_005', tier: '1', parent_skill_id: '', evolution_branches: '', is_locked_by: '', description: 'รักษา HP' },
+];
+
+const EQUIPMENT: Params[] = [
+  { item_id: 'EQ_001', item_name: 'Rusty Sword', item_type: 'weapon', rarity: 'common', tier: '1', base_stats: 'atk+5', is_hero_weapon: '0', is_legacy: '0', max_quantity: '1', ascension_table: '', description: 'ดาบสนิมสำหรับมือใหม่' },
+  { item_id: 'EQ_002', item_name: 'Wooden Bow', item_type: 'weapon', rarity: 'common', tier: '1', base_stats: 'atk+4,spd+2', is_hero_weapon: '0', is_legacy: '0', max_quantity: '1', ascension_table: '', description: 'ธนูไม้เบา' },
+  { item_id: 'EQ_003', item_name: 'Cloth Tunic', item_type: 'armor', rarity: 'common', tier: '1', base_stats: 'def+3,hp+10', is_hero_weapon: '0', is_legacy: '0', max_quantity: '1', ascension_table: '', description: 'เสื้อผ้านุ่ม' },
+  { item_id: 'EQ_004', item_name: 'Health Potion', item_type: 'consumable', rarity: 'common', tier: '1', base_stats: 'heal+50', is_hero_weapon: '0', is_legacy: '0', max_quantity: '99', ascension_table: '', description: 'ฟื้น HP เล็กน้อย' },
+];
+
+const TITLES: Params[] = [
+  { title_id: 'TTL_001', title_name: 'Attack Holder', title_type: 'holder', effect: 'atk_bonus+20%_to_all_attacks', condition: 'highest_atk_in_server', description: 'ผู้มีพลังโจมตีสูงสุดในเซิร์ฟเวอร์' },
+  { title_id: 'TTL_002', title_name: 'Cursed by Lycagon', title_type: 'environmental', effect: 'monsters_below_50_flee', condition: 'survive_lycagon_curse_attack', description: 'รอยคำสาปของ Lycagon' },
+  { title_id: 'TTL_003', title_name: 'Colossi Slayer', title_type: 'achievement', effect: 'all_boss_dmg+15%', condition: 'kill_all_seven_colossi', description: 'ผู้กำจัดสัตว์ประหลาดทั้งเจ็ด' },
+  { title_id: 'TTL_004', title_name: 'Vorpal Champion', title_type: 'hidden', effect: 'vorpal_race_trust_max', condition: 'vorpal_soul>=100', description: 'ผู้ที่ได้รับความไว้วางใจจากเผ่า Vorpal' },
+];
+
+const ARCANUM_CARDS: Params[] = [
+  { card_id: 'ARC_001', card_name: 'The Tower', positive_effect: 'atk+100%', negative_effect: 'def-50%', description: 'ไพ่หอคอย พลังโจมตีพุ่ง แต่รับดาเมจมากขึ้น' },
+  { card_id: 'ARC_002', card_name: 'The Moon', positive_effect: 'mp+200%', negative_effect: 'vision_range-30%', description: 'ไพ่จันทรา มานาล้นเหลือ แต่สายตาสั้นลง' },
+  { card_id: 'ARC_003', card_name: 'The Star', positive_effect: 'all_regen+50%', negative_effect: 'max_hp-30%', description: 'ไพ่ดาว ฟื้นฟูเร็วขึ้น แต่ HP สูงสุดลดลง' },
+  { card_id: 'ARC_004', card_name: 'Death', positive_effect: 'instant_kill_chance+5%', negative_effect: 'can_be_oneshot=true', description: 'ไพ่มัจจุราช โอกาสสังหารทันที แต่ตัวเองก็โดนได้' },
+];
+
+const WORLD_BOSSES: Params[] = [
+  { boss_id: 'BOSS_001', boss_name: 'Lycagon the Cursed', colossus_rank: '1', is_alive: '1', required_scenario_key: 'SCENARIO_LYCAGON', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'Lycagon คือจอมอสูรผู้สาปแช่งดินแดนตะวันตก...' },
+  { boss_id: 'BOSS_002', boss_name: 'Thalvros of the Deep', colossus_rank: '2', is_alive: '1', required_scenario_key: 'SCENARIO_THALVROS', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'Thalvros หลับใหลอยู่ใต้มหาสมุทร...' },
+  { boss_id: 'BOSS_003', boss_name: 'The Iron Colossus', colossus_rank: '3', is_alive: '1', required_scenario_key: 'SCENARIO_IRON', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'หุ่นยักษ์จากยุค Magitek...' },
+  { boss_id: 'BOSS_004', boss_name: 'Wraithweave', colossus_rank: '4', is_alive: '1', required_scenario_key: 'SCENARIO_WRAITH', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'ผ้าแห่งเงามืด...' },
+  { boss_id: 'BOSS_005', boss_name: 'Ashenveil', colossus_rank: '5', is_alive: '1', required_scenario_key: 'SCENARIO_ASH', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'เถ้าถ่านแห่งการทำลายล้าง...' },
+  { boss_id: 'BOSS_006', boss_name: 'Chronolith', colossus_rank: '6', is_alive: '1', required_scenario_key: 'SCENARIO_CHRONO', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'เสาหินที่บิดเบือนกาลเวลา...' },
+  { boss_id: 'BOSS_007', boss_name: 'Nullborn', colossus_rank: '7', is_alive: '1', required_scenario_key: 'SCENARIO_NULL', killer_player_id: '', killed_at: '', lore_unlocked: '0', lore_text: 'สิ่งที่เกิดจากความว่างเปล่า...' },
+];
+
+const MONSTERS: Params[] = [
+  {
+    monster_id: 'MON_001',
+    name: 'Slime',
+    hp: '40',
+    atk: '6',
+    def: '1',
+    spd: '6',
+    skills: '',
+    drops: 'EQ_004',
+    appearance: '#22c55e|ghost',
+  },
+  {
+    monster_id: 'MON_002',
+    name: 'Forest Wolf',
+    hp: '70',
+    atk: '12',
+    def: '4',
+    spd: '14',
+    skills: '',
+    drops: 'EQ_001',
+    appearance: '#a3a3a3|skull',
+  },
+];
+
+const STARTER_MAP: Params[] = [
+  {
+    id: 'spawn_slime_1',
+    type: 'monster',
+    x: '520',
+    y: '340',
+    z: '0',
+    name: 'Slime',
+    radius: '30',
+    params: 'entity_id=MON_001',
+  },
+  {
+    id: 'town_start',
+    type: 'town',
+    x: '400',
+    y: '300',
+    z: '0',
+    name: 'Starter Town',
+    radius: '200',
+    params: '',
+  },
+];
+
+type Catalog = { sheet: string; pk: string; rows: Params[] };
+
+const CATALOGS: Catalog[] = [
+  { sheet: 'Jobs', pk: 'job_id', rows: JOBS },
+  { sheet: 'Skills', pk: 'skill_id', rows: SKILLS },
+  { sheet: 'Equipment', pk: 'item_id', rows: EQUIPMENT },
+  { sheet: 'Titles', pk: 'title_id', rows: TITLES },
+  { sheet: 'ArcanumCards', pk: 'card_id', rows: ARCANUM_CARDS },
+  { sheet: 'WorldBoss', pk: 'boss_id', rows: WORLD_BOSSES },
+  { sheet: 'Monsters', pk: 'monster_id', rows: MONSTERS },
+  { sheet: 'MapObjects', pk: 'id', rows: STARTER_MAP },
+];
+
+function seedSheet(db: Db, sheet: string, pk: string, rows: Params[]): { inserted: number; skipped: number } {
+  let inserted = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    const key = row[pk];
+    if (!key) continue;
+    if (findRowIndex(db, sheet, pk, key) !== -1) {
+      skipped += 1;
+      continue;
+    }
+    appendRow(db, sheet, row);
+    inserted += 1;
+  }
+  return { inserted, skipped };
+}
+
+function main() {
+  const dataDir = path.resolve(process.env.DATA_DIR || './data');
+  const db = openDb(dataDir);
+  console.log(`Seeding catalogs into ${dataDir}/zenith.db …`);
+  for (const cat of CATALOGS) {
+    const { inserted, skipped } = seedSheet(db, cat.sheet, cat.pk, cat.rows);
+    console.log(`  ${cat.sheet}: +${inserted} inserted, ${skipped} already present`);
+  }
+  console.log('Done.');
+  db.close();
+}
+
+main();

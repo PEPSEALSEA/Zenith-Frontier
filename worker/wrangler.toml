@@ -1,0 +1,16 @@
+name = "zenith-frontier-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[vars]
+SPREADSHEET_ID = "1UCa0n4_0cbH8ZaifYPSLpGDYPzLGI9XZG5ah5Yixg_Y"
+GOOGLE_CLIENT_ID = "787988651964-gf258mnif89bu6g0jao2mpdsm72j96da.apps.googleusercontent.com"
+
+# Secrets: GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY, PI_ORIGIN_SECRET
+
+[[kv_namespaces]]
+binding = "PI_ORIGIN"
+id = "765a173da3724ca09b6b5900d59007be"
+preview_id = "3a7a48bc3cdb4568bab24674629a42f0"
