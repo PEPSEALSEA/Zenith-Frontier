@@ -630,11 +630,22 @@ export function drawForestDecor(
   width: number,
   height: number,
 ) {
-  const trees = [
-    [780, 190], [860, 440], [940, 180], [1000, 360], [840, 300],
-    [1060, 240], [780, 480], [980, 470], [1080, 400], [900, 520],
-  ]
+  const cx = 1330
+  const cy = 430
+  const trees: [number, number][] = []
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 - Math.PI / 2
+    const rx = 270 + (i % 2 === 0 ? 18 : -12)
+    const ry = 250 + (i % 2 === 0 ? 10 : -16)
+    trees.push([Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry)])
+  }
+  trees.push([1200, 300], [1460, 300], [1200, 560], [1460, 560])
+  const pathClearY0 = 370
+  const pathClearY1 = 430
+  const pathClearX1 = 1120
   for (const [tx, ty] of trees) {
+    if (tx < pathClearX1 && ty >= pathClearY0 && ty <= pathClearY1) continue
+    if (tx < 1050) continue
     if (tx < camX - 50 || tx > camX + width + 50 || ty < camY - 60 || ty > camY + height + 50) continue
     ctx.save()
     ctx.translate(tx, ty)
