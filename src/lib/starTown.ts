@@ -1,7 +1,7 @@
 import type { WorldObject, WorldObjectType } from '@/store/gameStore'
 import { drawSprite } from '@/lib/sprites'
 
-export const STAR_TOWN_SPAWN = { x: 370, y: 300 }
+export const STAR_TOWN_SPAWN = { x: 500, y: 400 }
 
 export type InteractKind = 'talk' | 'shop' | 'rest' | 'heal' | 'golf'
 
@@ -168,25 +168,25 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'town_start',
     type: 'town',
-    x: 370,
-    y: 300,
+    x: 500,
+    y: 400,
     z: 0,
     name: 'Star Town',
-    radius: 260,
+    radius: 420,
     params: {
       shape: 'poly',
-      w: '420',
-      h: '340',
+      w: '800',
+      h: '600',
       safe: '1',
       map_id: 'town1',
-      pts: '180,130|560,130|580,160|580,440|560,470|180,470|160,440|160,160',
+      pts: '120,100|840,100|880,150|880,650|840,700|120,700|80,650|80,150',
     },
   },
   {
     id: 'player_home',
     type: 'landmark',
-    x: 370,
-    y: 175,
+    x: 500,
+    y: 180,
     z: 2,
     name: 'Your House',
     radius: 42,
@@ -200,8 +200,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'npc_stella',
     type: 'npc',
-    x: 300,
-    y: 240,
+    x: 380,
+    y: 320,
     z: 2,
     name: 'Stella',
     radius: 28,
@@ -217,7 +217,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
     id: 'star_mart',
     type: 'market',
     x: 220,
-    y: 300,
+    y: 400,
     z: 2,
     name: 'Star Mart',
     radius: 36,
@@ -226,8 +226,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_scrolls',
     type: 'market',
-    x: 250,
-    y: 400,
+    x: 260,
+    y: 560,
     z: 2,
     name: 'Scroll Stall',
     radius: 32,
@@ -236,8 +236,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_inn',
     type: 'hotel',
-    x: 500,
-    y: 210,
+    x: 720,
+    y: 240,
     z: 2,
     name: 'Softcloud Inn',
     radius: 36,
@@ -246,8 +246,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_heal',
     type: 'landmark',
-    x: 370,
-    y: 420,
+    x: 500,
+    y: 600,
     z: 2,
     name: 'Star Spring',
     radius: 34,
@@ -256,8 +256,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_golf',
     type: 'landmark',
-    x: 500,
-    y: 400,
+    x: 720,
+    y: 580,
     z: 2,
     name: 'Star Golf',
     radius: 40,
@@ -266,8 +266,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'gate_town_exit',
     type: 'landmark',
-    x: 580,
-    y: 300,
+    x: 880,
+    y: 400,
     z: 1,
     name: 'East Gate',
     radius: 28,
@@ -276,26 +276,26 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'exit',
       to: 'park1',
       sibling: 'gate_park_enter',
-      spawn_x: '780',
-      spawn_y: '300',
+      spawn_x: '1080',
+      spawn_y: '400',
       color: '#facc15',
     },
   },
   {
     id: 'whisperwood',
     type: 'forest',
-    x: 920,
-    y: 330,
+    x: 1330,
+    y: 430,
     z: 0,
     name: 'Whisperwood Park',
-    radius: 200,
+    radius: 320,
     params: { map_id: 'park1' },
   },
   {
     id: 'gate_park_enter',
     type: 'landmark',
-    x: 740,
-    y: 300,
+    x: 1020,
+    y: 400,
     z: 1,
     name: 'Town Gate',
     radius: 28,
@@ -304,16 +304,16 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'entrance',
       to: 'town1',
       sibling: 'gate_town_exit',
-      spawn_x: '540',
-      spawn_y: '300',
+      spawn_x: '800',
+      spawn_y: '400',
       color: '#facc15',
     },
   },
   {
     id: 'forest_rabbit_1',
     type: 'monster',
-    x: 820,
-    y: 220,
+    x: 1150,
+    y: 250,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -322,8 +322,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_2',
     type: 'monster',
-    x: 980,
-    y: 400,
+    x: 1450,
+    y: 550,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -332,8 +332,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_bunny_3',
     type: 'monster',
-    x: 900,
-    y: 300,
+    x: 1300,
+    y: 400,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -342,8 +342,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_sloth_1',
     type: 'monster',
-    x: 1020,
-    y: 280,
+    x: 1500,
+    y: 350,
     z: 1,
     name: 'Sleepy Sloth',
     radius: 34,
@@ -673,7 +673,7 @@ export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObjec
       ctx.moveTo(pts[0].x, pts[0].y)
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
       ctx.closePath()
-      const g = ctx.createRadialGradient(obj.x, obj.y, 20, obj.x, obj.y, 320)
+      const g = ctx.createRadialGradient(obj.x, obj.y, 40, obj.x, obj.y, 520)
       g.addColorStop(0, 'rgba(232, 199, 138, 0.5)')
       g.addColorStop(0.55, 'rgba(196, 168, 112, 0.42)')
       g.addColorStop(1, 'rgba(120, 148, 96, 0.3)')

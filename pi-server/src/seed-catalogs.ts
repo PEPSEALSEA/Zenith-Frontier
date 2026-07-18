@@ -356,35 +356,35 @@ const NPCS: Params[] = [
 
 const STAR_TOWN_MAP: Params[] = [
   {
-    id: 'town_start', type: 'town', x: '370', y: '300', z: '0', name: 'Star Town', radius: '260',
-    params: 'shape=poly;w=420;h=340;safe=1;map_id=town1;pts=180,130|560,130|580,160|580,440|560,470|180,470|160,440|160,160',
+    id: 'town_start', type: 'town', x: '500', y: '400', z: '0', name: 'Star Town', radius: '420',
+    params: 'shape=poly;w=800;h=600;safe=1;map_id=town1;pts=120,100|840,100|880,150|880,650|840,700|120,700|80,650|80,150',
   },
   {
-    id: 'player_home', type: 'landmark', x: '370', y: '175', z: '2', name: 'Your House', radius: '42',
+    id: 'player_home', type: 'landmark', x: '500', y: '180', z: '2', name: 'Your House', radius: '42',
     params: 'interact=talk;kind=house;color=#f59e0b;line=Home sweet home. Safe walls of Town 1.',
   },
   {
-    id: 'npc_stella', type: 'npc', x: '300', y: '240', z: '0', name: 'Stella', radius: '28',
+    id: 'npc_stella', type: 'npc', x: '380', y: '320', z: '0', name: 'Stella', radius: '28',
     params: 'interact=talk;entity_id=NPC_STELLA;color=#fbbf24;face=star;line=Hi! This is Star Town — Town 1. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. East gate leads to Whisperwood Park!',
   },
-  { id: 'star_mart', type: 'market', x: '220', y: '300', z: '2', name: 'Star Mart', radius: '36', params: 'interact=shop;price=25;item_id=EQ_004;color=#34d399' },
-  { id: 'star_scrolls', type: 'market', x: '250', y: '400', z: '2', name: 'Scroll Stall', radius: '32', params: 'interact=shop;price=200;item_id=EQ_SCR_001;color=#c084fc' },
-  { id: 'star_inn', type: 'hotel', x: '500', y: '210', z: '2', name: 'Softcloud Inn', radius: '36', params: 'interact=rest;price=10;color=#60a5fa' },
-  { id: 'star_heal', type: 'landmark', x: '370', y: '420', z: '2', name: 'Star Spring', radius: '34', params: 'interact=heal;kind=heal;color=#2dd4bf' },
-  { id: 'star_golf', type: 'landmark', x: '500', y: '400', z: '2', name: 'Star Golf', radius: '40', params: 'interact=golf;kind=golf;color=#86efac' },
+  { id: 'star_mart', type: 'market', x: '220', y: '400', z: '2', name: 'Star Mart', radius: '36', params: 'interact=shop;price=25;item_id=EQ_004;color=#34d399' },
+  { id: 'star_scrolls', type: 'market', x: '260', y: '560', z: '2', name: 'Scroll Stall', radius: '32', params: 'interact=shop;price=200;item_id=EQ_SCR_001;color=#c084fc' },
+  { id: 'star_inn', type: 'hotel', x: '720', y: '240', z: '2', name: 'Softcloud Inn', radius: '36', params: 'interact=rest;price=10;color=#60a5fa' },
+  { id: 'star_heal', type: 'landmark', x: '500', y: '600', z: '2', name: 'Star Spring', radius: '34', params: 'interact=heal;kind=heal;color=#2dd4bf' },
+  { id: 'star_golf', type: 'landmark', x: '720', y: '580', z: '2', name: 'Star Golf', radius: '40', params: 'interact=golf;kind=golf;color=#86efac' },
   {
-    id: 'gate_town_exit', type: 'landmark', x: '580', y: '300', z: '1', name: 'East Gate', radius: '28',
-    params: 'kind=gate;gate=exit;to=park1;sibling=gate_park_enter;spawn_x=780;spawn_y=300;color=#facc15',
+    id: 'gate_town_exit', type: 'landmark', x: '880', y: '400', z: '1', name: 'East Gate', radius: '28',
+    params: 'kind=gate;gate=exit;to=park1;sibling=gate_park_enter;spawn_x=1080;spawn_y=400;color=#facc15',
   },
-  { id: 'whisperwood', type: 'forest', x: '920', y: '330', z: '0', name: 'Whisperwood Park', radius: '200', params: 'map_id=park1' },
+  { id: 'whisperwood', type: 'forest', x: '1330', y: '430', z: '0', name: 'Whisperwood Park', radius: '320', params: 'map_id=park1' },
   {
-    id: 'gate_park_enter', type: 'landmark', x: '740', y: '300', z: '1', name: 'Town Gate', radius: '28',
-    params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=540;spawn_y=300;color=#facc15',
+    id: 'gate_park_enter', type: 'landmark', x: '1020', y: '400', z: '1', name: 'Town Gate', radius: '28',
+    params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=800;spawn_y=400;color=#facc15',
   },
-  { id: 'forest_rabbit_1', type: 'monster', x: '820', y: '220', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_rabbit_2', type: 'monster', x: '980', y: '400', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_bunny_3', type: 'monster', x: '900', y: '300', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_sloth_1', type: 'monster', x: '1020', y: '280', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
+  { id: 'forest_rabbit_1', type: 'monster', x: '1150', y: '250', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_rabbit_2', type: 'monster', x: '1450', y: '550', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_bunny_3', type: 'monster', x: '1300', y: '400', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_sloth_1', type: 'monster', x: '1500', y: '350', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
 ];
 
 type Catalog = { sheet: string; pk: string; rows: Params[]; mode: 'insert' | 'upsert' };

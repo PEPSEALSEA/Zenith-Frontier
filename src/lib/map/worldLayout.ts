@@ -1,26 +1,31 @@
 import type { WorldObject } from '@/store/gameStore'
 
-/** Star Town outer wall polygon (clockwise). East wall is flat for the gate. */
+/** East flat wall X — gate opens here. */
+export const TOWN_EAST_WALL_X = 880
+
+/** Star Town outer wall polygon (clockwise). */
 export const TOWN_WALL_PTS: { x: number; y: number }[] = [
-  { x: 180, y: 130 },
-  { x: 560, y: 130 },
-  { x: 580, y: 160 },
-  { x: 580, y: 440 },
-  { x: 560, y: 470 },
-  { x: 180, y: 470 },
-  { x: 160, y: 440 },
-  { x: 160, y: 160 },
+  { x: 120, y: 100 },
+  { x: 840, y: 100 },
+  { x: TOWN_EAST_WALL_X, y: 150 },
+  { x: TOWN_EAST_WALL_X, y: 650 },
+  { x: 840, y: 700 },
+  { x: 120, y: 700 },
+  { x: 80, y: 650 },
+  { x: 80, y: 150 },
 ]
 
-export const TOWN_WALL_THICKNESS = 18
+export const TOWN_WALL_THICKNESS = 22
 
 /** Walkable corridor through the east wall — only way in/out of town. */
-export const TOWN_GATE_ZONE = { x: 562, y: 268, w: 56, h: 64 }
+export const TOWN_GATE_ZONE = { x: 848, y: 360, w: 72, h: 80 }
 
 /** Whisperwood Park — fully east of town, no overlap. */
-export const PARK_BOUNDS = { x: 740, y: 150, w: 380, h: 380 }
+export const PARK_BOUNDS = { x: 1020, y: 120, w: 620, h: 620 }
 
-export const TOWN_BOUNDS = { x: 150, y: 110, w: 450, h: 380 }
+export const TOWN_BOUNDS = { x: 70, y: 80, w: 830, h: 640 }
+
+export const GATE_PATH = { fromX: 860, toX: 1040, y: 400 }
 
 function distPointSeg(
   px: number,
@@ -60,7 +65,6 @@ export function isBlockedByTownWall(px: number, py: number): boolean {
   return distToTownWall(px, py) <= TOWN_WALL_THICKNESS * 0.55
 }
 
-/** Slide along axes if the diagonal move hits a wall. */
 export function resolveWalk(
   fromX: number,
   fromY: number,
@@ -84,18 +88,19 @@ export function drawTownWalls(ctx: CanvasRenderingContext2D) {
   ctx.lineJoin = 'round'
   ctx.lineCap = 'butt'
 
+  const eastX = TOWN_EAST_WALL_X
   const segments: { x: number; y: number }[][] = []
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i]
     const b = pts[(i + 1) % pts.length]
-    const isEastWall = Math.abs(a.x - 580) < 1 && Math.abs(b.x - 580) < 1
+    const isEastWall = Math.abs(a.x - eastX) < 1 && Math.abs(b.x - eastX) < 1
     if (isEastWall) {
       const y0 = Math.min(a.y, b.y)
       const y1 = Math.max(a.y, b.y)
       const gateTop = TOWN_GATE_ZONE.y
       const gateBot = TOWN_GATE_ZONE.y + TOWN_GATE_ZONE.h
-      if (y0 < gateTop) segments.push([{ x: 580, y: y0 }, { x: 580, y: gateTop }])
-      if (gateBot < y1) segments.push([{ x: 580, y: gateBot }, { x: 580, y: y1 }])
+      if (y0 < gateTop) segments.push([{ x: eastX, y: y0 }, { x: eastX, y: gateTop }])
+      if (gateBot < y1) segments.push([{ x: eastX, y: gateBot }, { x: eastX, y: y1 }])
     } else {
       segments.push([a, b])
     }
@@ -127,11 +132,10 @@ export function drawTownWalls(ctx: CanvasRenderingContext2D) {
   ctx.restore()
 }
 
-/** Seamless park meadow + trail toward the west gate (no tile grid). */
 export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) {
   const b = PARK_BOUNDS
   ctx.save()
-  const g = ctx.createRadialGradient(obj.x, obj.y, 40, obj.x, obj.y, Math.max(b.w, b.h) * 0.55)
+  const g = ctx.createRadialGradient(obj.x, obj.y, 60, obj.x, obj.y, Math.max(b.w, b.h) * 0.55)
   g.addColorStop(0, 'rgba(110, 170, 90, 0.55)')
   g.addColorStop(0.55, 'rgba(70, 130, 70, 0.42)')
   g.addColorStop(1, 'rgba(40, 90, 55, 0.22)')
@@ -140,27 +144,28 @@ export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) 
   ctx.ellipse(obj.x, obj.y, b.w * 0.48, b.h * 0.46, 0, 0, Math.PI * 2)
   ctx.fill()
   ctx.strokeStyle = 'rgba(50, 110, 60, 0.45)'
-  ctx.lineWidth = 3
+  ctx.lineWidth = 4
   ctx.stroke()
 
+  const pathY = GATE_PATH.y
   ctx.strokeStyle = 'rgba(180, 150, 100, 0.55)'
-  ctx.lineWidth = 22
+  ctx.lineWidth = 28
   ctx.lineCap = 'round'
   ctx.beginPath()
-  ctx.moveTo(580, 300)
-  ctx.quadraticCurveTo(660, 300, 740, 300)
+  ctx.moveTo(GATE_PATH.fromX, pathY)
+  ctx.quadraticCurveTo((GATE_PATH.fromX + GATE_PATH.toX) / 2, pathY, GATE_PATH.toX, pathY)
   ctx.stroke()
   ctx.strokeStyle = 'rgba(210, 180, 130, 0.4)'
-  ctx.lineWidth = 12
+  ctx.lineWidth = 14
   ctx.stroke()
 
   ctx.fillStyle = 'rgba(80, 160, 210, 0.45)'
   ctx.beginPath()
-  ctx.ellipse(920, 470, 48, 28, 0, 0, Math.PI * 2)
+  ctx.ellipse(obj.x + 40, obj.y + 180, 70, 40, 0, 0, Math.PI * 2)
   ctx.fill()
   ctx.fillStyle = 'rgba(160, 220, 245, 0.35)'
   ctx.beginPath()
-  ctx.ellipse(908, 462, 16, 8, 0, 0, Math.PI * 2)
+  ctx.ellipse(obj.x + 20, obj.y + 168, 22, 12, 0, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
 }
@@ -168,14 +173,14 @@ export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) 
 export function drawGatePath(ctx: CanvasRenderingContext2D) {
   ctx.save()
   ctx.strokeStyle = 'rgba(180, 150, 100, 0.5)'
-  ctx.lineWidth = 20
+  ctx.lineWidth = 26
   ctx.lineCap = 'round'
   ctx.beginPath()
-  ctx.moveTo(560, 300)
-  ctx.lineTo(750, 300)
+  ctx.moveTo(GATE_PATH.fromX, GATE_PATH.y)
+  ctx.lineTo(GATE_PATH.toX, GATE_PATH.y)
   ctx.stroke()
   ctx.strokeStyle = 'rgba(210, 180, 130, 0.35)'
-  ctx.lineWidth = 10
+  ctx.lineWidth = 12
   ctx.stroke()
   ctx.restore()
 }
