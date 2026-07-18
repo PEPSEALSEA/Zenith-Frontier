@@ -18,6 +18,11 @@ import {
   STAR_TOWN_SPAWN,
 } from '@/lib/starTown'
 import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
+import { preloadSheets, updateFx, drawFx } from '@/lib/combat/particles'
+import { updateProjectiles, drawProjectiles } from '@/lib/combat/projectiles'
+import { cycleLock, clearLock, getLocked, type LockState } from '@/lib/combat/targeting'
+import { isStunned, tickDots, clearDeadStatus } from '@/lib/combat/status'
+import { resolveBasicAttack, resolveSkillCast, applyProjectileDamage, type MutableMonster } from '@/lib/combat/resolve'
 
 const WORLD_SIZE = 2000
 const CONTACT_RANGE = 36
@@ -225,8 +230,14 @@ export default function GameScene2D() {
   const hintRef = useRef('')
   const safeRef = useRef(true)
   const facingRef = useRef(1)
-  const buffRef = useRef({ atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 })
+  const buffRef = useRef({ atkMul: 1, defMul: 1, rangeAdd: 0, until: 0, stealthUntil: 0 })
   const skillKeyLatch = useRef<Set<string>>(new Set())
+  const lockRef = useRef<LockState>({ targetId: null })
+  const lastDotTick = useRef(0)
+
+  useEffect(() => {
+    preloadSheets()
+  }, [])
 
   useEffect(() => {
     playerStatsRef.current = player.stats
@@ -421,6 +432,11 @@ export default function GameScene2D() {
         void runInteract()
       }
       if (e.code === 'Escape') setPanel(null)
+      if (e.code === 'Tab' && !isEditorMode && !isForgeMode) {
+        e.preventDefault()
+        cycleLock(lockRef.current, monstersRef.current, posRef.current, Date.now())
+        return
+      }
       if (!isEditorMode && !isForgeMode) {
         const slotMap: Record<string, 1 | 2 | 3 | 4> = {
           Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4,
@@ -491,6 +507,13 @@ export default function GameScene2D() {
       if (isEditorMode) return
       if (deadUntilRef.current > Date.now()) return
       if (isInSafeZone(posRef.current.x, posRef.current.y, world.objects)) return
+      if (e.button === 0 && !e.shiftKey) {
+        // click empty: soft-clear lock if far from any monster
+        const near = monstersRef.current.find(
+          (m) => m.deadUntil <= Date.now() && dist(posRef.current.x, posRef.current.y, m.x, m.y) < 40,
+        )
+        if (!near && e.detail === 2) clearLock(lockRef.current)
+      }
       const profile = profileRef.current
       const now = Date.now()
       if (e.button === 0) {
@@ -565,26 +588,32 @@ export default function GameScene2D() {
 
     const playerSafe = isInSafeZone(posRef.current.x, posRef.current.y, objects)
     if (buffRef.current.until > 0 && now > buffRef.current.until) {
-      buffRef.current = { atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 }
+      buffRef.current = { ...buffRef.current, atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 }
     }
-    const buff = buffRef.current.until > now ? buffRef.current : { atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 }
+    const buff = buffRef.current.until > now
+      ? buffRef.current
+      : { atkMul: 1, defMul: 1, rangeAdd: 0, until: 0, stealthUntil: buffRef.current.stealthUntil }
+    const stealthed = buffRef.current.stealthUntil > now
     const atkNow = playerStatsRef.current.atk * buff.atkMul
     const defNow = playerStatsRef.current.def * buff.defMul
+    const luckNow = playerStatsRef.current.luck || 5
 
-    if (time % 50 < 16) {
-      updatePosition(posRef.current.x, posRef.current.y)
-      if (!isEditorMode) updateWorldCycle(0.0005 * deltaTime)
-      const near = findNearbyInteractable(posRef.current.x, posRef.current.y, objects)
-      const nextHint = near && !panelRef.current ? `Press E — ${near.name}` : ''
-      if (nextHint !== hintRef.current) {
-        hintRef.current = nextHint
-        setHint(nextHint)
-      }
-      if (playerSafe !== safeRef.current) {
-        safeRef.current = playerSafe
-        setSafeBanner(playerSafe)
-      }
+    const onKillMonster = (m: MutableMonster) => {
+      const live = m as LivingMonster
+      live.hp = 0
+      live.deadUntil = now + RESPAWN_MS
+      clearDeadStatus(live.id)
+      if (lockRef.current.targetId === live.id) lockRef.current.targetId = null
+      const expGain = Math.max(10, Math.floor(live.maxHp / 3))
+      const moneyGain = Math.max(4, Math.floor(live.atk * 2 + 6))
+      const dropItems = live.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
+      pushFloat(live.x, live.y - 40, `+${expGain} EXP`, '#34d399')
+      pushFloat(live.x, live.y - 55, `+${moneyGain} G`, '#fbbf24')
+      sfx.kill()
+      void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
     }
+
+    const locked = getLocked(lockRef.current, monstersRef.current, now)
 
     const lastAtk = world.lastAttack
     const profile = profileRef.current
@@ -592,34 +621,23 @@ export default function GameScene2D() {
     if (
       !isEditorMode && !isForgeMode && !isDead && !playerSafe &&
       lastAtk.time && lastAtk.time !== lastAttackHandled.current &&
-      now - lastAtk.time < atkCd + 50
+      now - lastAtk.time < atkCd + 50 && lastAtk.type
     ) {
       lastAttackHandled.current = lastAtk.time
-      const range = (lastAtk.type === 'hard' ? profile.hard_range : profile.light_range) + buff.rangeAdd
-      const mult = lastAtk.type === 'hard' ? profile.hard_mult : profile.light_mult
-      const hits = Math.max(1, profile.hits || 1)
-      for (const m of monstersRef.current) {
-        if (m.deadUntil > now) continue
-        if (dist(posRef.current.x, posRef.current.y, m.x, m.y) > range) continue
-        for (let h = 0; h < hits; h++) {
-          const dmg = Math.max(1, Math.floor(atkNow * mult - m.def * 0.5))
-          m.hp -= dmg
-          m.flashUntil = now + 120
-          pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#fbbf24')
-        }
-        sfx.hit()
-        if (m.hp <= 0) {
-          m.hp = 0
-          m.deadUntil = now + RESPAWN_MS
-          const expGain = Math.max(10, Math.floor(m.maxHp / 3))
-          const moneyGain = Math.max(4, Math.floor(m.atk * 2 + 6))
-          const dropItems = m.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
-          pushFloat(m.x, m.y - 40, `+${expGain} EXP`, '#34d399')
-          pushFloat(m.x, m.y - 55, `+${moneyGain} G`, '#fbbf24')
-          sfx.kill()
-          void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
-        }
-      }
+      resolveBasicAttack({
+        profile,
+        type: lastAtk.type,
+        origin: posRef.current,
+        facing: facingRef.current,
+        locked,
+        atk: atkNow,
+        luck: luckNow,
+        rangeAdd: buff.rangeAdd,
+        monsters: monstersRef.current,
+        now,
+        pushFloat,
+        onKill: onKillMonster,
+      })
     }
 
     const lastSkill = world.lastSkillCast
@@ -629,69 +647,110 @@ export default function GameScene2D() {
       now - lastSkill.time < 400
     ) {
       lastSkillHandled.current = lastSkill.time
-      const skill = useGameStore.getState().player.skillCatalog.find((s) => s.skill_id === lastSkill.skillId)
-      if (skill) {
-        if (skill.skill_type === 'heal') {
-          const healAmt = Math.floor(skill.power)
-          useGameStore.setState((s) => ({
-            player: {
-              ...s.player,
-              stats: {
-                ...s.player.stats,
-                hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + healAmt),
-                mp: skill.effect === 'mp_heal'
-                  ? Math.min(s.player.stats.maxMp, s.player.stats.mp + healAmt)
-                  : s.player.stats.mp,
-              },
-            },
-          }))
-          pushFloat(posRef.current.x, posRef.current.y - 40, `+${healAmt}`, '#34d399')
-          sfx.levelUp()
-        } else if (skill.skill_type === 'dash') {
-          const facing = facingRef.current
-          posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + facing * (skill.range || 90)))
-          pushFloat(posRef.current.x, posRef.current.y - 30, 'DASH', '#a78bfa')
-        } else if (skill.skill_type === 'buff') {
-          const duration = 8000
-          const mul = Math.max(1.1, skill.power || 1.2)
-          if (skill.effect.includes('atk')) {
-            buffRef.current = { ...buffRef.current, atkMul: mul, until: now + duration }
-          } else if (skill.effect.includes('def')) {
-            buffRef.current = { ...buffRef.current, defMul: mul, until: now + duration }
-          } else if (skill.effect.includes('range')) {
-            buffRef.current = { ...buffRef.current, rangeAdd: 40, until: now + duration }
-          } else {
-            buffRef.current = { ...buffRef.current, atkMul: mul, until: now + duration }
-          }
-          pushFloat(posRef.current.x, posRef.current.y - 40, skill.effect.toUpperCase() || 'BUFF', '#60a5fa')
-        } else if (!playerSafe) {
-          const aoe = skill.effect.includes('aoe')
-          const multi = /hits:(\d+)/.exec(skill.effect)
-          const hitCount = multi ? parseInt(multi[1]) : 1
-          const skillRange = skill.range + buff.rangeAdd
-          for (const m of monstersRef.current) {
-            if (m.deadUntil > now) continue
-            const d = dist(posRef.current.x, posRef.current.y, m.x, m.y)
-            if (d > skillRange) continue
-            for (let h = 0; h < hitCount; h++) {
-              const dmg = Math.max(1, Math.floor(atkNow * skill.power - m.def * 0.4))
-              m.hp -= dmg
-              m.flashUntil = now + 140
-              pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#c084fc')
-            }
-            sfx.hit()
-            if (m.hp <= 0) {
-              m.hp = 0
-              m.deadUntil = now + RESPAWN_MS
-              const expGain = Math.max(10, Math.floor(m.maxHp / 3))
-              const moneyGain = Math.max(4, Math.floor(m.atk * 2 + 6))
-              const dropItems = m.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
-              pushFloat(m.x, m.y - 40, `+${expGain} EXP`, '#34d399')
-              sfx.kill()
-              void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
-            }
-          }
+      const raw = useGameStore.getState().player.skillCatalog.find((s) => s.skill_id === lastSkill.skillId)
+      if (raw) {
+        const skill = {
+          skill_id: raw.skill_id,
+          skill_name: raw.skill_name,
+          skill_type: raw.skill_type,
+          power: Number(raw.power) || 1,
+          range: Number(raw.range) || 80,
+          effect: String(raw.effect || ''),
         }
+        if (!(playerSafe && skill.skill_type === 'damage')) {
+          resolveSkillCast({
+            skill,
+            origin: { ...posRef.current },
+            facing: facingRef.current,
+            locked,
+            atk: atkNow,
+            luck: luckNow,
+            rangeAdd: buff.rangeAdd,
+            monsters: monstersRef.current,
+            now,
+            pushFloat,
+            onKill: onKillMonster,
+            applyHeal: (hp, mp) => {
+              useGameStore.setState((s) => ({
+                player: {
+                  ...s.player,
+                  stats: {
+                    ...s.player.stats,
+                    hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + hp),
+                    mp: Math.min(s.player.stats.maxMp, s.player.stats.mp + mp),
+                  },
+                },
+              }))
+            },
+            applyBuff: (kind, power, duration) => {
+              if (kind === 'stealth') {
+                buffRef.current.stealthUntil = now + duration
+                return
+              }
+              if (kind === 'atk') buffRef.current = { ...buffRef.current, atkMul: power, until: now + duration }
+              else if (kind === 'def') buffRef.current = { ...buffRef.current, defMul: power, until: now + duration }
+              else if (kind === 'range') buffRef.current = { ...buffRef.current, rangeAdd: 50, until: now + duration }
+            },
+            applyDash: (d) => {
+              const facing = facingRef.current
+              posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + facing * d))
+            },
+          })
+        }
+      }
+    }
+
+    // projectiles
+    if (!isEditorMode && !isForgeMode) {
+      const projHits = updateProjectiles(now, deltaTime, monstersRef.current, (id) => {
+        const m = monstersRef.current.find((x) => x.id === id)
+        return m && m.deadUntil <= now ? { x: m.x, y: m.y } : null
+      })
+      for (const h of projHits) {
+        applyProjectileDamage(
+          monstersRef.current,
+          h.targetId,
+          h.damage,
+          now,
+          luckNow,
+          h.status,
+          h.aoe,
+          h.x,
+          h.y,
+          pushFloat,
+          onKillMonster,
+          h.onHitSfx,
+        )
+      }
+      updateFx(now, deltaTime)
+      if (now - lastDotTick.current > 400) {
+        lastDotTick.current = now
+        tickDots(now, 400, (id, dmg) => {
+          const m = monstersRef.current.find((x) => x.id === id)
+          if (!m || m.deadUntil > now) return
+          m.hp -= dmg
+          m.flashUntil = now + 80
+          pushFloat(m.x, m.y - 18, `-${dmg}`, '#a855f7')
+          if (m.hp <= 0) onKillMonster(m)
+        })
+      }
+    }
+
+    if (time % 50 < 16) {
+      updatePosition(posRef.current.x, posRef.current.y)
+      if (!isEditorMode) updateWorldCycle(0.0005 * deltaTime)
+      const near = findNearbyInteractable(posRef.current.x, posRef.current.y, objects)
+      const lockHint = locked ? ` · Lock: ${locked.id.slice(0, 8)}` : ''
+      const nextHint = near && !panelRef.current
+        ? `Press E — ${near.name}`
+        : (!playerSafe && !isEditorMode ? `Tab lock target${lockHint}` : '')
+      if (nextHint !== hintRef.current) {
+        hintRef.current = nextHint
+        setHint(nextHint)
+      }
+      if (playerSafe !== safeRef.current) {
+        safeRef.current = playerSafe
+        setSafeBanner(playerSafe)
       }
     }
 
@@ -706,36 +765,44 @@ export default function GameScene2D() {
           continue
         }
         if (isInSafeZone(m.homeX, m.homeY, objects)) continue
+        if (isStunned(m.id, now)) continue
+        if (stealthed) continue
 
-        const d = dist(posRef.current.x, posRef.current.y, m.x, m.y)
-        if (!playerSafe && d < CHASE_RANGE && d > 4) {
-          const speed = (m.spd * 0.32) * deltaTime
-          const nx = m.x + ((posRef.current.x - m.x) / d) * speed
-          const ny = m.y + ((posRef.current.y - m.y) / d) * speed
-          if (!isInSafeZone(nx, ny, objects)) {
-            m.x = nx
-            m.y = ny
+        const dPlayer = dist(posRef.current.x, posRef.current.y, m.x, m.y)
+        if (dPlayer < CHASE_RANGE && !playerSafe) {
+          const ang = Math.atan2(posRef.current.y - m.y, posRef.current.x - m.x)
+          const step = (m.spd * 0.15) * deltaTime
+          m.x += Math.cos(ang) * step
+          m.y += Math.sin(ang) * step
+        } else {
+          const homeD = dist(m.x, m.y, m.homeX, m.homeY)
+          if (homeD > 8) {
+            const ang = Math.atan2(m.homeY - m.y, m.homeX - m.x)
+            m.x += Math.cos(ang) * 0.8 * deltaTime
+            m.y += Math.sin(ang) * 0.8 * deltaTime
           }
         }
-        if (!playerSafe && d < CONTACT_RANGE && now - lastContactHit.current > 700) {
+
+        if (
+          !playerSafe && !stealthed &&
+          dist(posRef.current.x, posRef.current.y, m.x, m.y) < CONTACT_RANGE &&
+          now - lastContactHit.current > 700
+        ) {
           lastContactHit.current = now
-          const dmg = Math.max(1, m.atk - Math.floor(defNow * 0.3))
+          const dmg = Math.max(1, Math.floor(m.atk - defNow * 0.3))
           takeDamage(dmg)
           pushFloat(posRef.current.x, posRef.current.y - 30, `-${dmg}`, '#f87171')
           sfx.hit()
-          const hpLeft = useGameStore.getState().player.stats.hp
-          if (hpLeft <= 0) {
-            deadUntilRef.current = now + 1600
+          const hp = useGameStore.getState().player.stats.hp
+          if (hp <= 0) {
+            deadUntilRef.current = now + 2500
             sfx.death()
             const spawn = findRespawn()
             setTimeout(() => {
               posRef.current = { ...spawn }
               healFull()
               void syncHpToServer()
-              pushFloat(spawn.x, spawn.y - 40, 'RESPAWN', '#60a5fa')
-            }, 800)
-          } else {
-            void syncHpToServer()
+            }, 2000)
           }
         }
       }
@@ -881,20 +948,42 @@ export default function GameScene2D() {
     }
 
     const attackAge = Date.now() - world.lastAttack.time
-    if (attackAge < 350 && !playerSafe) {
-      const progress = attackAge / 350
-      const ringRadius = (world.lastAttack.type === 'hard' ? profileRef.current.hard_range : profileRef.current.light_range) * (0.35 + progress * 0.65)
+    if (attackAge < 280 && !playerSafe && world.lastAttack.type) {
+      const progress = attackAge / 280
+      const ang = locked
+        ? Math.atan2(locked.y - posRef.current.y, locked.x - posRef.current.x)
+        : (facingRef.current >= 0 ? 0 : Math.PI)
+      const r = (world.lastAttack.type === 'hard' ? profileRef.current.hard_range : profileRef.current.light_range) * 0.55
       ctx.beginPath()
-      ctx.arc(posRef.current.x, posRef.current.y, ringRadius, 0, Math.PI * 2)
-      ctx.strokeStyle = world.lastAttack.type === 'hard' ? `rgba(239, 68, 68, ${1 - progress})` : `rgba(255, 255, 255, ${1 - progress})`
-      ctx.lineWidth = 3 * (1 - progress); ctx.stroke()
+      ctx.moveTo(posRef.current.x, posRef.current.y)
+      ctx.arc(posRef.current.x, posRef.current.y, r * (0.5 + progress * 0.5), ang - 0.9, ang + 0.9)
+      ctx.closePath()
+      ctx.strokeStyle = world.lastAttack.type === 'hard'
+        ? `rgba(239, 68, 68, ${1 - progress})`
+        : `rgba(255, 255, 255, ${1 - progress})`
+      ctx.lineWidth = 2
+      ctx.stroke()
     }
-    if (world.lastSkillCast && Date.now() - world.lastSkillCast.time < 400 && !playerSafe) {
-      const progress = (Date.now() - world.lastSkillCast.time) / 400
+
+    drawProjectiles(ctx, now)
+    drawFx(ctx, now)
+
+    if (locked && locked.deadUntil <= now) {
+      const pulse = 0.55 + Math.sin(time * 0.012) * 0.2
       ctx.beginPath()
-      ctx.arc(posRef.current.x, posRef.current.y, 40 + progress * 80, 0, Math.PI * 2)
-      ctx.strokeStyle = `rgba(192, 132, 252, ${1 - progress})`
-      ctx.lineWidth = 4
+      ctx.arc(locked.x, locked.y, 22, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(251, 191, 36, ${pulse})`
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(locked.x - 28, locked.y)
+      ctx.lineTo(locked.x - 16, locked.y)
+      ctx.moveTo(locked.x + 16, locked.y)
+      ctx.lineTo(locked.x + 28, locked.y)
+      ctx.moveTo(locked.x, locked.y - 28)
+      ctx.lineTo(locked.x, locked.y - 16)
+      ctx.moveTo(locked.x, locked.y + 16)
+      ctx.lineTo(locked.x, locked.y + 28)
       ctx.stroke()
     }
 
@@ -910,7 +999,7 @@ export default function GameScene2D() {
       )
 
       ctx.save()
-      ctx.globalAlpha = isDead ? 0.35 : 1
+      ctx.globalAlpha = isDead ? 0.35 : (stealthed ? 0.4 : 1)
       ctx.fillStyle = playerColor
       ctx.beginPath()
       ctx.arc(pX, pY, radius, 0, Math.PI * 2)

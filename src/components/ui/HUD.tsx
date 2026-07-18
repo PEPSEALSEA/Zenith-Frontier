@@ -179,7 +179,10 @@ const HUD = () => {
                     </div>
                 )}
 
-                <div className="rpg-panel rpg-panel-gold flex items-end gap-1.5 rounded-2xl px-3 py-2.5">
+                <div className="relative rpg-panel rpg-panel-gold flex items-end gap-1.5 rounded-2xl px-3 py-2.5">
+                    <p className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] uppercase tracking-wider text-white/40">
+                        1–4 skills · Tab lock · L/R attack
+                    </p>
                     {([1, 2, 3, 4] as const).map((slot) => {
                         const id = skillSlots[slot - 1]
                         const sk = skillCatalog.find((s) => s.skill_id === id)
@@ -193,6 +196,7 @@ const HUD = () => {
                             <div
                                 key={slot}
                                 className="relative flex h-12 w-12 flex-col items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-black/45"
+                                title={sk ? `${sk.skill_name} — ${sk.description || sk.effect}` : 'Empty'}
                             >
                                 {onCd && (
                                     <>
