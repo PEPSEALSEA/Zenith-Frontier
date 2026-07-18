@@ -70,6 +70,7 @@ export type HydratedPlayer = {
     name: string
     appearance: PlayerAppearance
     main_job_id: string
+    sub_job_id: string
     stats: CharacterStats
     inventory: { item_id: string; quantity: number; name?: string }[]
     str: number
@@ -106,6 +107,7 @@ export function hydratePlayerFromRow(
         name: String(row.name || 'Adventurer'),
         appearance: parseAppearance(row.appearance),
         main_job_id: String(row.main_job_id || ''),
+        sub_job_id: String(row.sub_job_id || ''),
         stats: {
             hp,
             maxHp: Math.max(hp, Number(row.max_hp) || 80 + vit * 8),
@@ -238,21 +240,35 @@ class GASService {
         parent_job_id?: string
         potential?: string
         attack_profile?: string
+        is_hidden?: boolean
+        unlock_condition?: string
+        branch?: string
     })[]> {
         const res = await this.get('get_all_jobs', {})
-        return parseGASResponse(res).map((j) => ({
-            id: String(j.job_id),
-            name: String(j.job_name || j.job_id),
-            level: 1,
-            type: (j.tier === 'high' ? 'sub' : 'main') as Job['type'],
-            skills: [],
-            stat_bonus: j.stat_bonus,
-            description: j.description,
-            tier: j.tier,
-            parent_job_id: j.parent_job_id || '',
-            potential: j.potential || '',
-            attack_profile: j.attack_profile || '',
-        }))
+        return parseGASResponse(res).map((j) => {
+            const hidden = String(j.is_hidden || '0') === '1'
+            return {
+                id: String(j.job_id),
+                name: String(j.job_name || j.job_id),
+                level: 1,
+                type: (hidden ? 'hidden' : 'main') as Job['type'],
+                skills: [],
+                stat_bonus: j.stat_bonus,
+                description: j.description,
+                tier: j.tier,
+                parent_job_id: j.parent_job_id || '',
+                potential: j.potential || '',
+                attack_profile: j.attack_profile || '',
+                is_hidden: hidden,
+                unlock_condition: String(j.unlock_condition || ''),
+                branch: String(j.branch || ''),
+            }
+        })
+    }
+
+    async getPlayerJobs(playerId: string) {
+        const res = await this.get('get_player_jobs', { player_id: playerId })
+        return parseGASResponse(res).map((r) => String(r.job_id)).filter(Boolean)
     }
 
     async getAllSkills() {
@@ -287,6 +303,18 @@ class GASService {
 
     async promoteJob(playerId: string, jobId: string) {
         return await this.post('promote_job', { player_id: playerId, job_id: jobId })
+    }
+
+    async setSubJob(playerId: string, jobId: string) {
+        return await this.post('set_sub_job', { player_id: playerId, job_id: jobId })
+    }
+
+    async unlockJob(playerId: string, jobId: string, unlockCondition = '') {
+        return await this.post('unlock_job', {
+            player_id: playerId,
+            job_id: jobId,
+            unlock_condition: unlockCondition,
+        })
     }
 
     async getPlayerInventory(playerId: string) {

@@ -60,7 +60,7 @@ export default function CharacterCreator() {
                 const fromApi = await gasService.getAllJobs()
                 if (cancelled || !fromApi.length) return
                 const mapped = fromApi
-                    .filter((j: any) => !j.parent_job_id || j.parent_job_id === '')
+                    .filter((j: any) => !j.is_hidden && (!j.parent_job_id || j.parent_job_id === ''))
                     .map((j) => ({
                         ...j,
                         icon: JOB_ICONS[j.id] || Sword,

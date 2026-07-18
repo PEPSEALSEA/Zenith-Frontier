@@ -286,11 +286,29 @@ function unlockJob(db: Db, p: Params) {
   return `OK|JOB_UNLOCKED|${p.job_id}`;
 }
 
+function unlockBaseJobs(db: Db, playerId: string) {
+  const bases = sheetToRows(db, 'Jobs').filter(
+    (j) => j.tier === 'low' && j.is_hidden !== '1' && !j.parent_job_id,
+  );
+  for (const job of bases) {
+    if (findRowIndexDouble(db, 'PlayerJobs', 'player_id', playerId, 'job_id', job.job_id) !== -1) continue;
+    appendRow(db, 'PlayerJobs', {
+      player_id: playerId,
+      job_id: job.job_id,
+      unlocked_at: now(),
+    });
+  }
+}
+
 function setMainJob(db: Db, p: Params) {
   if (!p.player_id || !p.job_id) return 'ERROR|MISSING_FIELDS';
   const job = sheetToRows(db, 'Jobs').find((r) => r.job_id === String(p.job_id));
   if (!job) return 'ERROR|JOB_NOT_FOUND';
-  if (findRowIndexDouble(db, 'PlayerJobs', 'player_id', p.player_id, 'job_id', p.job_id) === -1) {
+  if (job.is_hidden === '1') {
+    if (findRowIndexDouble(db, 'PlayerJobs', 'player_id', p.player_id, 'job_id', p.job_id) === -1) {
+      return 'ERROR|HIDDEN_JOB_NOT_UNLOCKED';
+    }
+  } else if (findRowIndexDouble(db, 'PlayerJobs', 'player_id', p.player_id, 'job_id', p.job_id) === -1) {
     appendRow(db, 'PlayerJobs', {
       player_id: p.player_id,
       job_id: p.job_id,
@@ -307,6 +325,7 @@ function setMainJob(db: Db, p: Params) {
     main_job_id: p.job_id,
     ...(switching ? { job_mastery: '1', job_mastery_exp: '0' } : {}),
   });
+  unlockBaseJobs(db, String(p.player_id));
   const updated = getRowByIndex(db, 'Players', rowIdx);
   if (updated) recomputeCombatStats(db, rowIdx, updated);
   grantStarterSkills(db, p.player_id, p.job_id);
@@ -324,6 +343,7 @@ function setSubJob(db: Db, p: Params) {
   if (!row) return 'ERROR|PLAYER_NOT_FOUND';
   if (row.main_job_id === String(p.job_id)) return 'ERROR|JOB_ALREADY_SET_AS_MAIN';
   updateCell(db, 'Players', rowIdx, 'sub_job_id', p.job_id);
+  grantStarterSkills(db, p.player_id, p.job_id);
   return `OK|SUB_JOB_SET|${p.job_id}`;
 }
 

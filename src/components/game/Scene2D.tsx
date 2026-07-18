@@ -231,7 +231,7 @@ export default function GameScene2D() {
   useEffect(() => {
     playerStatsRef.current = player.stats
     profileRef.current = parseAttackProfile(player.jobs.main?.attack_profile)
-  }, [player.stats])
+  }, [player.stats, player.jobs.main?.attack_profile, player.jobs.main?.id])
 
   useEffect(() => {
     panelRef.current = panel

@@ -44,6 +44,9 @@ export interface Job {
     tier?: string
     parent_job_id?: string
     description?: string
+    is_hidden?: boolean
+    unlock_condition?: string
+    branch?: string
 }
 
 export interface SkillInfo {
@@ -340,6 +343,7 @@ export interface GameState {
     buyItem: (opts: { itemId: string; price: number; name?: string }) => Promise<boolean>
     setMainJob: (job: Job) => void
     setSubJob: (job: Job) => void
+    equipSubJob: (jobId: string) => Promise<boolean>
     updatePosition: (x: number, y: number) => void
     addInventoryItem: (item: InventoryItem | string) => void
     setInventory: (items: InventoryItem[]) => void
@@ -575,6 +579,12 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'main',
             skills: [],
         }
+        const subRow = hydrated.sub_job_id
+            ? jobs.find((j) => j.id === hydrated.sub_job_id) || null
+            : null
+        const subJob: Job | null = subRow
+            ? { ...subRow, type: 'sub' }
+            : null
         const ownedRows = await gasService.getPlayerSkills(email)
         let ownedIds = ownedRows.map((r) => String(r.skill_id)).filter(Boolean)
         let skillSlots = hydrated.skill_slots
@@ -605,7 +615,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                 ...state.player,
                 name: hydrated.name,
                 appearance: hydrated.appearance,
-                jobs: { ...state.player.jobs, main: job },
+                jobs: { ...state.player.jobs, main: job, sub: subJob },
                 stats: {
                     ...hydrated.stats,
                     maxHp: Math.max(hydrated.stats.hp, combat.maxHp),
@@ -795,6 +805,30 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     setMainJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, main: job } } })),
     setSubJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, sub: job } } })),
+    equipSubJob: async (jobId) => {
+        const { auth, pushToast } = get()
+        const email = auth.user?.email
+        if (!email) return false
+        const { gasService } = await import('@/services/gasService')
+        const res = await gasService.setSubJob(email, jobId)
+        if (!res.startsWith('OK|')) {
+            pushToast({ kind: 'info', title: 'Sub job', detail: res.replace(/^ERROR\|/, '') || 'Failed' })
+            return false
+        }
+        const jobs = await gasService.getAllJobs()
+        const job = jobs.find((j) => j.id === jobId)
+        if (job) {
+            set((state) => ({
+                player: {
+                    ...state.player,
+                    jobs: { ...state.player.jobs, sub: { ...job, type: 'sub' } },
+                },
+            }))
+            pushToast({ kind: 'info', title: job.name, detail: 'Equipped as sub job' })
+        }
+        await get().refreshSkills()
+        return true
+    },
     updatePosition: (x, y) => set((state) => ({ player: { ...state.player, position: { x, y } } })),
     addInventoryItem: (item) => set((state) => {
         const entry: InventoryItem = typeof item === 'string' ? { item_id: item, quantity: 1 } : item

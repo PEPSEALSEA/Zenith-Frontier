@@ -93,6 +93,90 @@ const JOBS: Params[] = [
     potential: 'str:20,dex:35,int:90,vit:40,luk:40',
     attack_profile: atk('bolt', 0.95, 1.65, 140, 180, 340, 750, 1, 5),
   },
+  {
+    job_id: 'JOB_009', job_name: 'Ranger', tier: 'high', parent_job_id: 'JOB_002', branch: 'scout',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'spd+20,atk+10', description: 'นักล่าที่คล่องตัว ยิงเร็วหลายดอก',
+    potential: 'str:50,dex:95,int:30,vit:45,luk:55',
+    attack_profile: atk('volley', 0.75, 1.35, 170, 210, 260, 620, 3, 0),
+  },
+  {
+    job_id: 'JOB_010', job_name: 'Sniper', tier: 'high', parent_job_id: 'JOB_002', branch: 'marksman',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'atk+18,spd+5', description: 'มือปืนระยะไกล พลังต่อนัดสูง',
+    potential: 'str:40,dex:100,int:35,vit:35,luk:50',
+    attack_profile: atk('pierce_shot', 1.1, 2.2, 220, 280, 450, 1100, 1, 0),
+  },
+  {
+    job_id: 'JOB_011', job_name: 'Assassin', tier: 'high', parent_job_id: 'JOB_003', branch: 'shadow',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'spd+25,atk+12', description: 'เงามืด สังหารจากจุดบอด',
+    potential: 'str:50,dex:100,int:25,vit:30,luk:70',
+    attack_profile: atk('shadow', 0.65, 1.9, 55, 70, 150, 500, 2, 0),
+  },
+  {
+    job_id: 'JOB_012', job_name: 'Duelist', tier: 'high', parent_job_id: 'JOB_003', branch: 'blade',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'atk+16,spd+10', description: 'นักดาบเดี่ยว แม่นและฉับไว',
+    potential: 'str:70,dex:85,int:20,vit:45,luk:45',
+    attack_profile: atk('riposte', 0.9, 1.75, 68, 82, 200, 520, 2, 0),
+  },
+  {
+    job_id: 'JOB_013', job_name: 'Lancer', tier: 'high', parent_job_id: 'JOB_004', branch: 'charge',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'atk+22,spd+8', description: 'พลหอกพุ่งทะลุแนว',
+    potential: 'str:80,dex:60,int:20,vit:55,luk:40',
+    attack_profile: atk('charge', 1.05, 1.9, 120, 160, 300, 750, 1, 0),
+  },
+  {
+    job_id: 'JOB_014', job_name: 'Vanguard', tier: 'high', parent_job_id: 'JOB_004', branch: 'phalanx',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'def+18,hp+40', description: 'แนวหน้าหอกตั้งรับ',
+    potential: 'str:55,dex:45,int:25,vit:90,luk:30',
+    attack_profile: atk('phalanx', 0.9, 1.45, 95, 120, 340, 680, 1, 0),
+  },
+  {
+    job_id: 'JOB_015', job_name: 'Priest', tier: 'high', parent_job_id: 'JOB_005', branch: 'holy',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'mp+50,def+10', description: 'นักบวชผู้รักษา',
+    potential: 'str:20,dex:35,int:85,vit:75,luk:45',
+    attack_profile: atk('holy', 0.55, 1.0, 70, 95, 360, 700, 1, 4),
+  },
+  {
+    job_id: 'JOB_016', job_name: 'Bard', tier: 'high', parent_job_id: 'JOB_005', branch: 'song',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'mp+35,spd+10', description: 'นักเพลงเสริมพลังทีม',
+    potential: 'str:25,dex:55,int:80,vit:50,luk:60',
+    attack_profile: atk('song', 0.5, 1.05, 80, 110, 380, 720, 1, 3),
+  },
+  {
+    job_id: 'JOB_017', job_name: 'Elementalist', tier: 'high', parent_job_id: 'JOB_008', branch: 'element',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'mp+40,atk+12', description: 'จอมเวทย์ธาตุ ระเบิดวงกว้าง',
+    potential: 'str:15,dex:40,int:100,vit:40,luk:45',
+    attack_profile: atk('beam', 1.0, 1.85, 150, 200, 320, 800, 1, 8),
+  },
+  {
+    job_id: 'JOB_018', job_name: 'Warlock', tier: 'high', parent_job_id: 'JOB_008', branch: 'curse',
+    is_hidden: '0', unlock_condition: 'level:20,mastery:5',
+    stat_bonus: 'mp+30,atk+18', description: 'นักสาป ดาเมจต่อเนื่อง',
+    potential: 'str:25,dex:35,int:95,vit:45,luk:55',
+    attack_profile: atk('hex', 0.85, 1.7, 130, 170, 360, 850, 1, 6),
+  },
+  {
+    job_id: 'JOB_019', job_name: 'Vorpal Striker', tier: 'high', parent_job_id: '', branch: 'vorpal',
+    is_hidden: '1', unlock_condition: 'vorpal_soul:100',
+    stat_bonus: 'atk+35,spd+15', description: 'อาชีพลับแห่งเผ่า Vorpal — ปลดเมื่อได้รับความไว้วางใจ',
+    potential: 'str:85,dex:85,int:40,vit:50,luk:80',
+    attack_profile: atk('vorpal', 1.2, 2.4, 85, 110, 250, 700, 2, 0),
+  },
+  {
+    job_id: 'JOB_020', job_name: 'Cursed Blade', tier: 'high', parent_job_id: '', branch: 'lycagon',
+    is_hidden: '1', unlock_condition: 'survive_lycagon_curse_attack',
+    stat_bonus: 'atk+28,def+10', description: 'อาชีพลับผู้รอดจากคำสาป Lycagon',
+    potential: 'str:90,dex:60,int:30,vit:70,luk:40',
+    attack_profile: atk('curse_blade', 1.1, 2.1, 80, 100, 300, 750, 1, 0),
+  },
 ];
 
 const SKILLS: Params[] = [
@@ -127,6 +211,42 @@ const SKILLS: Params[] = [
 
   skl({ skill_id: 'SKL_023', skill_name: 'Blood Rage', job_id: 'JOB_007', tier: '1', description: 'คลั่งเลือด', unlock_type: 'starter', skill_type: 'buff', mp_cost: '12', cooldown_ms: '10000', power: '1.3', range: '0', effect: 'atk_up' }),
   skl({ skill_id: 'SKL_024', skill_name: 'Rampage', job_id: 'JOB_007', tier: '2', description: 'พุ่งคลั่ง', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '20', cooldown_ms: '4500', power: '2.6', range: '95', effect: 'aoe' }),
+
+  skl({ skill_id: 'SKL_025', skill_name: 'Hawk Volley', job_id: 'JOB_009', tier: '1', description: 'ยิงรัวสามดอก', unlock_type: 'starter', skill_type: 'damage', mp_cost: '12', cooldown_ms: '2200', power: '1.3', range: '200', effect: 'hits:3' }),
+  skl({ skill_id: 'SKL_026', skill_name: 'Trail Mark', job_id: 'JOB_009', tier: '2', description: 'มาร์คเป้าหมายเพิ่มดาเมจ', unlock_type: 'mastery', unlock_value: '3', skill_type: 'buff', mp_cost: '14', cooldown_ms: '9000', power: '1.2', range: '220', effect: 'mark' }),
+
+  skl({ skill_id: 'SKL_027', skill_name: 'Deadeye', job_id: 'JOB_010', tier: '1', description: 'ยิงหัวแม่นยำ', unlock_type: 'starter', skill_type: 'damage', mp_cost: '16', cooldown_ms: '3200', power: '2.5', range: '260' }),
+  skl({ skill_id: 'SKL_028', skill_name: 'Piercing Round', job_id: 'JOB_010', tier: '2', description: 'ลูกธนูทะลุแนว', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '22', cooldown_ms: '5000', power: '2.8', range: '280', effect: 'line' }),
+
+  skl({ skill_id: 'SKL_029', skill_name: 'Backstab', job_id: 'JOB_011', tier: '1', description: 'แทงจากเงา', unlock_type: 'starter', skill_type: 'damage', mp_cost: '14', cooldown_ms: '2600', power: '2.4', range: '65', effect: 'crit' }),
+  skl({ skill_id: 'SKL_030', skill_name: 'Smoke Bomb', job_id: 'JOB_011', tier: '2', description: 'ควันพรางตัว', unlock_type: 'mastery', unlock_value: '3', skill_type: 'buff', mp_cost: '16', cooldown_ms: '11000', power: '1.0', range: '0', effect: 'stealth' }),
+
+  skl({ skill_id: 'SKL_031', skill_name: 'Flourish', job_id: 'JOB_012', tier: '1', description: 'ฟันต่อเนื่องสองครั้ง', unlock_type: 'starter', skill_type: 'damage', mp_cost: '12', cooldown_ms: '2400', power: '1.7', range: '75', effect: 'hits:2' }),
+  skl({ skill_id: 'SKL_032', skill_name: 'Parry Strike', job_id: 'JOB_012', tier: '2', description: 'ปัดแล้วสวนกลับ', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '18', cooldown_ms: '4000', power: '2.3', range: '70', effect: 'stun' }),
+
+  skl({ skill_id: 'SKL_033', skill_name: 'Javelin Rush', job_id: 'JOB_013', tier: '1', description: 'พุ่งแทงระยะไกล', unlock_type: 'starter', skill_type: 'dash', mp_cost: '14', cooldown_ms: '3000', power: '2.0', range: '150', effect: 'dash' }),
+  skl({ skill_id: 'SKL_034', skill_name: 'Skyfall Spear', job_id: 'JOB_013', tier: '2', description: 'หอกลงจากฟ้า', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '24', cooldown_ms: '5500', power: '2.7', range: '140', effect: 'aoe' }),
+
+  skl({ skill_id: 'SKL_035', skill_name: 'Phalanx Guard', job_id: 'JOB_014', tier: '1', description: 'ตั้งแนวป้องกัน', unlock_type: 'starter', skill_type: 'buff', mp_cost: '12', cooldown_ms: '10000', power: '1.0', range: '0', effect: 'def_up' }),
+  skl({ skill_id: 'SKL_036', skill_name: 'Hold the Line', job_id: 'JOB_014', tier: '2', description: 'แทงสวนเป็นแนว', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '18', cooldown_ms: '4200', power: '2.0', range: '130', effect: 'line' }),
+
+  skl({ skill_id: 'SKL_037', skill_name: 'Greater Heal', job_id: 'JOB_015', tier: '1', description: 'รักษาแรง', unlock_type: 'starter', skill_type: 'heal', mp_cost: '22', cooldown_ms: '3500', power: '80', range: '0', effect: 'heal' }),
+  skl({ skill_id: 'SKL_038', skill_name: 'Sanctuary', job_id: 'JOB_015', tier: '2', description: 'โล่ศักดิ์สิทธิ์', unlock_type: 'mastery', unlock_value: '3', skill_type: 'buff', mp_cost: '20', cooldown_ms: '12000', power: '1.0', range: '0', effect: 'def_up' }),
+
+  skl({ skill_id: 'SKL_039', skill_name: 'Battle Hymn', job_id: 'JOB_016', tier: '1', description: 'เพลงเสริมพลังโจมตี', unlock_type: 'starter', skill_type: 'buff', mp_cost: '16', cooldown_ms: '9000', power: '1.25', range: '0', effect: 'atk_up' }),
+  skl({ skill_id: 'SKL_040', skill_name: 'Resonance', job_id: 'JOB_016', tier: '2', description: 'คลื่นเสียงวงกว้าง', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '20', cooldown_ms: '5000', power: '1.9', range: '120', effect: 'aoe' }),
+
+  skl({ skill_id: 'SKL_041', skill_name: 'Storm Bolt', job_id: 'JOB_017', tier: '1', description: 'สายฟ้าธาตุ', unlock_type: 'starter', skill_type: 'damage', mp_cost: '18', cooldown_ms: '2400', power: '2.2', range: '190', effect: 'stun' }),
+  skl({ skill_id: 'SKL_042', skill_name: 'Elemental Burst', job_id: 'JOB_017', tier: '2', description: 'ระเบิดธาตุรวม', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '30', cooldown_ms: '6500', power: '3.0', range: '180', effect: 'aoe' }),
+
+  skl({ skill_id: 'SKL_043', skill_name: 'Hex Bolt', job_id: 'JOB_018', tier: '1', description: 'ลูกศรคำสาป', unlock_type: 'starter', skill_type: 'damage', mp_cost: '16', cooldown_ms: '2600', power: '2.0', range: '175', effect: 'dot' }),
+  skl({ skill_id: 'SKL_044', skill_name: 'Soul Drain', job_id: 'JOB_018', tier: '2', description: 'ดูดพลังฟื้น MP', unlock_type: 'mastery', unlock_value: '3', skill_type: 'heal', mp_cost: '10', cooldown_ms: '8000', power: '35', range: '150', effect: 'mp_heal' }),
+
+  skl({ skill_id: 'SKL_045', skill_name: 'Vorpal Edge', job_id: 'JOB_019', tier: '1', description: 'คมดาบ Vorpal', unlock_type: 'starter', skill_type: 'damage', mp_cost: '15', cooldown_ms: '2200', power: '2.6', range: '90', effect: 'crit' }),
+  skl({ skill_id: 'SKL_046', skill_name: 'Soul Flash', job_id: 'JOB_019', tier: '2', description: 'แสงวิญญาณพุ่งทะลุ', unlock_type: 'mastery', unlock_value: '3', skill_type: 'damage', mp_cost: '28', cooldown_ms: '5500', power: '3.1', range: '130', effect: 'aoe' }),
+
+  skl({ skill_id: 'SKL_047', skill_name: 'Curse Slash', job_id: 'JOB_020', tier: '1', description: 'ฟันด้วยคำสาป', unlock_type: 'starter', skill_type: 'damage', mp_cost: '14', cooldown_ms: '2400', power: '2.3', range: '85', effect: 'dot' }),
+  skl({ skill_id: 'SKL_048', skill_name: 'Howl of Lycagon', job_id: 'JOB_020', tier: '2', description: 'คำรามแห่งคำสาป', unlock_type: 'mastery', unlock_value: '3', skill_type: 'buff', mp_cost: '18', cooldown_ms: '11000', power: '1.35', range: '0', effect: 'atk_up' }),
 ];
 
 const EQUIPMENT: Params[] = [

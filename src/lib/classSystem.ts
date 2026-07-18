@@ -62,6 +62,21 @@ export function parsePotential(raw?: string): Potential {
   return out
 }
 
+export function parseUnlockCondition(raw?: string): { level: number; mastery: number; extra: string[] } {
+  let level = 20
+  let mastery = 5
+  const extra: string[] = []
+  if (!raw) return { level, mastery, extra }
+  for (const part of raw.split(',')) {
+    const [k, v] = part.split(':').map((s) => s.trim())
+    if (!k) continue
+    if (k === 'level') level = parseInt(v, 10) || 20
+    else if (k === 'mastery') mastery = parseInt(v, 10) || 5
+    else extra.push(part.trim())
+  }
+  return { level, mastery, extra }
+}
+
 export function parseAttackProfile(raw?: string): AttackProfile {
   if (!raw) return { ...DEFAULT_ATTACK }
   try {

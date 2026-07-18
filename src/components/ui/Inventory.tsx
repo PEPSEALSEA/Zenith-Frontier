@@ -17,11 +17,12 @@ import {
 } from 'lucide-react'
 import AdminPortal from './AdminPortal'
 import RadarChart from './RadarChart'
-import { ALLOC_STATS, masteryExpToNext, parsePotential } from '@/lib/classSystem'
-import type { AllocatedStats } from '@/store/gameStore'
+import { ALLOC_STATS, masteryExpToNext, parsePotential, parseUnlockCondition } from '@/lib/classSystem'
+import type { AllocatedStats, Job } from '@/store/gameStore'
 import { FACES_MAP, FaceKey } from '@/store/gameStore'
 import { Ghost } from 'lucide-react'
 import { isConsumableType, isSkillScrollType } from '@/lib/items'
+import { gasService } from '@/services/gasService'
 
 type TabId = 'character' | 'bag' | 'skills' | 'job' | 'arcanum' | 'admin'
 
@@ -574,10 +575,68 @@ function SkillsPanel() {
 }
 
 function JobPanel() {
-    const { player, promoteJob } = useGameStore()
+    const { player, promoteJob, equipSubJob, auth } = useGameStore()
+    const [catalog, setCatalog] = useState<Job[]>([])
+    const [unlockedIds, setUnlockedIds] = useState<string[]>([])
+    const [busyId, setBusyId] = useState<string | null>(null)
     const potential = parsePotential(player.jobs.main?.potential)
     const masteryNeed = masteryExpToNext(player.jobMastery)
     const masteryPct = Math.min(100, (player.jobMasteryExp / masteryNeed) * 100)
+    const mainId = player.jobs.main?.id || ''
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            try {
+                const jobs = await gasService.getAllJobs()
+                if (cancelled) return
+                setCatalog(jobs)
+                const email = auth.user?.email
+                if (email) {
+                    const unlocked = await gasService.getPlayerJobs(email)
+                    if (!cancelled) setUnlockedIds(unlocked)
+                }
+            } catch {
+                /* keep empty */
+            }
+        })()
+        return () => { cancelled = true }
+    }, [auth.user?.email, mainId, player.jobs.sub?.id])
+
+    const promotions = catalog.filter(
+        (j) => !j.is_hidden && j.parent_job_id === mainId && j.tier === 'high',
+    )
+    const starters = catalog.filter(
+        (j) => !j.is_hidden && j.tier === 'low' && !j.parent_job_id,
+    )
+    const hiddenJobs = catalog.filter((j) => j.is_hidden)
+    const subCandidates = catalog.filter(
+        (j) => unlockedIds.includes(j.id) && j.id !== mainId,
+    )
+    const treeRoots = starters.map((root) => ({
+        root,
+        children: catalog.filter((j) => !j.is_hidden && j.parent_job_id === root.id),
+    }))
+
+    const canPromote = (job: Job) => {
+        const cond = parseUnlockCondition(job.unlock_condition)
+        return player.stats.level >= cond.level && player.jobMastery >= cond.mastery
+    }
+
+    const onPromote = async (jobId: string) => {
+        setBusyId(jobId)
+        await promoteJob(jobId)
+        setBusyId(null)
+        if (auth.user?.email) {
+            setUnlockedIds(await gasService.getPlayerJobs(auth.user.email))
+        }
+    }
+
+    const onSub = async (jobId: string) => {
+        setBusyId(jobId)
+        await equipSubJob(jobId)
+        setBusyId(null)
+    }
 
     return (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -587,7 +646,15 @@ function JobPanel() {
                     <h3 className="mt-1 font-display text-2xl font-bold text-white">
                         {player.jobs.main?.name || 'Trainee'}
                     </h3>
-                    <p className="mt-1 text-sm text-white/45">Character level {player.stats.level}</p>
+                    <p className="mt-1 text-sm text-white/45">
+                        Character level {player.stats.level}
+                        {player.jobs.sub?.name ? (
+                            <span className="text-sky-300/80"> · Sub: {player.jobs.sub.name}</span>
+                        ) : null}
+                    </p>
+                    {player.jobs.main?.description ? (
+                        <p className="mt-2 text-xs leading-relaxed text-white/40">{player.jobs.main.description}</p>
+                    ) : null}
                 </div>
                 <div>
                     <div className="mb-1 flex justify-between text-xs text-white/45">
@@ -600,35 +667,134 @@ function JobPanel() {
                         <div className="h-full rounded-full bg-emerald-400" style={{ width: `${masteryPct}%` }} />
                     </div>
                 </div>
-                <div className="rounded-lg border border-white/8 bg-black/25 p-3 text-xs leading-relaxed text-white/50">
-                    Promotions need Warrior + Level 20 + Mastery 5.
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                    <button
-                        type="button"
-                        onClick={() => void promoteJob('JOB_006')}
-                        className="rounded-xl border border-sky-400/25 bg-sky-500/10 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20"
-                    >
-                        → Knight
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void promoteJob('JOB_007')}
-                        className="rounded-xl border border-rose-400/25 bg-rose-500/10 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/20"
-                    >
-                        → Berserker
-                    </button>
-                </div>
+
+                {promotions.length > 0 ? (
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">Promotions</p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {promotions.map((job) => {
+                                const cond = parseUnlockCondition(job.unlock_condition)
+                                const ready = canPromote(job)
+                                return (
+                                    <button
+                                        key={job.id}
+                                        type="button"
+                                        disabled={!ready || busyId === job.id}
+                                        onClick={() => void onPromote(job.id)}
+                                        className={`rounded-xl border px-3 py-3 text-left transition ${
+                                            ready
+                                                ? 'border-emerald-400/30 bg-emerald-500/10 hover:bg-emerald-500/20'
+                                                : 'cursor-not-allowed border-white/10 bg-black/20 opacity-55'
+                                        }`}
+                                    >
+                                        <span className="block text-sm font-semibold text-white">→ {job.name}</span>
+                                        <span className="mt-1 block text-[11px] text-white/45">
+                                            Lv {cond.level} · Mastery {cond.mastery}
+                                            {job.branch ? ` · ${job.branch}` : ''}
+                                        </span>
+                                        {job.description ? (
+                                            <span className="mt-1 block text-[11px] leading-snug text-white/35">{job.description}</span>
+                                        ) : null}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-lg border border-white/8 bg-black/25 p-3 text-xs leading-relaxed text-white/50">
+                        {player.jobs.main?.tier === 'high'
+                            ? 'This job is already a promotion branch. Equip a different unlocked job as sub for hybrid skills.'
+                            : 'No promotion paths for this job yet.'}
+                    </div>
+                )}
+
+                {subCandidates.length > 0 ? (
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">Sub job</p>
+                        <p className="text-[11px] text-white/35">Sub skills unlock up to tier 2. Starters unlock automatically after picking a main job.</p>
+                        <div className="flex flex-wrap gap-2">
+                            {subCandidates.map((job) => {
+                                const active = player.jobs.sub?.id === job.id
+                                return (
+                                    <button
+                                        key={job.id}
+                                        type="button"
+                                        disabled={active || busyId === job.id}
+                                        onClick={() => void onSub(job.id)}
+                                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                                            active
+                                                ? 'border-sky-400/40 bg-sky-500/20 text-sky-100'
+                                                : 'border-white/12 bg-white/5 text-white/70 hover:bg-white/10'
+                                        }`}
+                                    >
+                                        {job.name}
+                                        {job.is_hidden ? ' ★' : ''}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ) : null}
             </section>
 
-            <section className="rpg-panel flex flex-col items-center rounded-xl p-5">
-                <h3 className="mb-2 self-start font-display text-lg font-bold text-white">Class potential</h3>
-                <RadarChart alloc={player.alloc} potential={potential} size={220} />
+            <section className="rpg-panel flex flex-col rounded-xl p-5">
+                <h3 className="mb-2 font-display text-lg font-bold text-white">Class potential</h3>
+                <div className="flex justify-center">
+                    <RadarChart alloc={player.alloc} potential={potential} size={200} />
+                </div>
                 <p className="mt-2 text-center text-xs text-white/40">
                     Free points:{' '}
                     <span className="font-mono text-emerald-300">{player.statPoints}</span>
                     {' · '}Allocate on the Character tab
                 </p>
+
+                <div className="mt-5 space-y-3 border-t border-white/8 pt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">Job tree</p>
+                    <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
+                        {treeRoots.map(({ root, children }) => (
+                            <div key={root.id} className="rounded-lg border border-white/8 bg-black/20 p-2.5">
+                                <p className={`text-sm font-semibold ${root.id === mainId ? 'text-emerald-300' : 'text-white/80'}`}>
+                                    {root.name}
+                                    {root.id === mainId ? ' · main' : ''}
+                                    {player.jobs.sub?.id === root.id ? ' · sub' : ''}
+                                </p>
+                                {children.length > 0 ? (
+                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                        {children.map((c) => (
+                                            <span
+                                                key={c.id}
+                                                className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                                                    c.id === mainId
+                                                        ? 'border-emerald-400/35 text-emerald-200'
+                                                        : unlockedIds.includes(c.id)
+                                                            ? 'border-white/15 text-white/65'
+                                                            : 'border-white/8 text-white/30'
+                                                }`}
+                                            >
+                                                {c.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
+                        ))}
+                        {hiddenJobs.length > 0 ? (
+                            <div className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-2.5">
+                                <p className="text-sm font-semibold text-amber-200/90">Hidden jobs</p>
+                                <div className="mt-1.5 space-y-1">
+                                    {hiddenJobs.map((j) => (
+                                        <p key={j.id} className="text-[11px] text-white/45">
+                                            {unlockedIds.includes(j.id) ? j.name : '???'}
+                                            {j.unlock_condition ? (
+                                                <span className="text-white/25"> — {j.unlock_condition}</span>
+                                            ) : null}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
             </section>
         </div>
     )
