@@ -121,6 +121,7 @@ export default function CharacterCreator() {
                 mp: stats.mp,
                 money: stats.money,
             })
+            await useGameStore.getState().refreshSkills()
         } catch (e) {
             console.error(e)
         } finally {
@@ -228,11 +229,19 @@ export default function CharacterCreator() {
                                                     <div className={`p-2 rounded-lg ${selectedJob.id === job.id ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40'}`}>
                                                         <job.icon className="h-6 w-6" />
                                                     </div>
-                                                    <div>
+                                                    <div className="flex-1 min-w-0">
                                                         <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
                                                         <p className="text-[10px] text-emerald-500/60 uppercase font-black">
-                                                            {(job as any).stat_bonus || (job.skills?.length ? `Skills: ${job.skills.join(', ')}` : job.id)}
+                                                            {(job as any).stat_bonus || job.id}
                                                         </p>
+                                                        {(job as any).potential && (
+                                                            <p className="text-[9px] text-white/35 font-mono mt-1 truncate">
+                                                                Potential {(job as any).potential}
+                                                            </p>
+                                                        )}
+                                                        {(job as any).description && (
+                                                            <p className="text-[10px] text-white/40 mt-1">{(job as any).description}</p>
+                                                        )}
                                                     </div>
                                                 </button>
                                             ))}

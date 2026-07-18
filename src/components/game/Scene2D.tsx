@@ -17,11 +17,9 @@ import {
   isInSafeZone,
   STAR_TOWN_SPAWN,
 } from '@/lib/starTown'
+import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
 
 const WORLD_SIZE = 2000
-const ATTACK_COOLDOWN_MS = 280
-const LIGHT_RANGE = 70
-const HARD_RANGE = 95
 const CONTACT_RANGE = 36
 const CHASE_RANGE = 220
 const RESPAWN_MS = 4000
@@ -133,7 +131,7 @@ function dist(ax: number, ay: number, bx: number, by: number) {
 export default function GameScene2D() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const {
-    player, updatePosition, world, updateWorldCycle, attack, isEditorMode, isForgeMode,
+    player, updatePosition, world, updateWorldCycle, attack, castSkillSlot, isEditorMode, isForgeMode,
     forgeSelection, addWorldObject, takeDamage, healFull, applyKillRewards, syncHpToServer,
     buyItem, spendMoney, setWorldObjects,
   } = useGameStore()
@@ -147,6 +145,9 @@ export default function GameScene2D() {
   const monstersRef = useRef<LivingMonster[]>([])
   const floatsRef = useRef<FloatText[]>([])
   const lastAttackHandled = useRef(0)
+  const lastSkillHandled = useRef(0)
+  const lastBasicAtkAt = useRef(0)
+  const profileRef = useRef(DEFAULT_ATTACK)
   const lastContactHit = useRef(0)
   const deadUntilRef = useRef(0)
   const templatesReady = useRef(false)
@@ -159,6 +160,7 @@ export default function GameScene2D() {
 
   useEffect(() => {
     playerStatsRef.current = player.stats
+    profileRef.current = parseAttackProfile(player.jobs.main?.attack_profile)
   }, [player.stats])
 
   useEffect(() => {
@@ -349,6 +351,18 @@ export default function GameScene2D() {
         void runInteract()
       }
       if (e.code === 'Escape') setPanel(null)
+      if (!isEditorMode && !isForgeMode) {
+        const slotMap: Record<string, 1 | 2 | 3 | 4> = {
+          Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4,
+          Numpad1: 1, Numpad2: 2, Numpad3: 3, Numpad4: 4,
+        }
+        const slot = slotMap[e.code]
+        if (slot) {
+          if (isInSafeZone(posRef.current.x, posRef.current.y, world.objects)) return
+          if (deadUntilRef.current > Date.now()) return
+          castSkillSlot(slot)
+        }
+      }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
       setKeys((prev) => ({ ...prev, [e.code]: false }))
@@ -384,8 +398,28 @@ export default function GameScene2D() {
       if (isEditorMode) return
       if (deadUntilRef.current > Date.now()) return
       if (isInSafeZone(posRef.current.x, posRef.current.y, world.objects)) return
-      if (e.button === 0) attack('light')
-      if (e.button === 2) attack('hard')
+      const profile = profileRef.current
+      const now = Date.now()
+      if (e.button === 0) {
+        if (now - lastBasicAtkAt.current < profile.light_cd) return
+        lastBasicAtkAt.current = now
+        attack('light')
+      }
+      if (e.button === 2) {
+        if (now - lastBasicAtkAt.current < profile.hard_cd) return
+        if (profile.mp_cost_hard > 0) {
+          const mp = useGameStore.getState().player.stats.mp
+          if (mp < profile.mp_cost_hard) return
+          useGameStore.setState((s) => ({
+            player: {
+              ...s.player,
+              stats: { ...s.player.stats, mp: s.player.stats.mp - profile.mp_cost_hard },
+            },
+          }))
+        }
+        lastBasicAtkAt.current = now
+        attack('hard')
+      }
     }
     const handleContextMenu = (e: MouseEvent) => e.preventDefault()
 
@@ -400,7 +434,7 @@ export default function GameScene2D() {
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('contextmenu', handleContextMenu)
     }
-  }, [attack, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
+  }, [attack, castSkillSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
 
   const animate = (time: number) => {
     if (!lastTimeRef.current) lastTimeRef.current = time
@@ -456,21 +490,26 @@ export default function GameScene2D() {
     }
 
     const lastAtk = world.lastAttack
+    const profile = profileRef.current
+    const atkCd = lastAtk.type === 'hard' ? profile.hard_cd : profile.light_cd
     if (
       !isEditorMode && !isForgeMode && !isDead && !playerSafe &&
       lastAtk.time && lastAtk.time !== lastAttackHandled.current &&
-      now - lastAtk.time < ATTACK_COOLDOWN_MS + 50
+      now - lastAtk.time < atkCd + 50
     ) {
       lastAttackHandled.current = lastAtk.time
-      const range = lastAtk.type === 'hard' ? HARD_RANGE : LIGHT_RANGE
-      const mult = lastAtk.type === 'hard' ? 1.6 : 1
+      const range = lastAtk.type === 'hard' ? profile.hard_range : profile.light_range
+      const mult = lastAtk.type === 'hard' ? profile.hard_mult : profile.light_mult
+      const hits = Math.max(1, profile.hits || 1)
       for (const m of monstersRef.current) {
         if (m.deadUntil > now) continue
         if (dist(posRef.current.x, posRef.current.y, m.x, m.y) > range) continue
-        const dmg = Math.max(1, Math.floor(playerStatsRef.current.atk * mult - m.def * 0.5))
-        m.hp -= dmg
-        m.flashUntil = now + 120
-        pushFloat(m.x, m.y - 20, `-${dmg}`, '#fbbf24')
+        for (let h = 0; h < hits; h++) {
+          const dmg = Math.max(1, Math.floor(playerStatsRef.current.atk * mult - m.def * 0.5))
+          m.hp -= dmg
+          m.flashUntil = now + 120
+          pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#fbbf24')
+        }
         sfx.hit()
         if (m.hp <= 0) {
           m.hp = 0
@@ -482,6 +521,68 @@ export default function GameScene2D() {
           pushFloat(m.x, m.y - 55, `+${moneyGain} G`, '#fbbf24')
           sfx.kill()
           void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
+        }
+      }
+    }
+
+    const lastSkill = world.lastSkillCast
+    if (
+      !isEditorMode && !isForgeMode && !isDead && !playerSafe &&
+      lastSkill && lastSkill.time !== lastSkillHandled.current &&
+      now - lastSkill.time < 400
+    ) {
+      lastSkillHandled.current = lastSkill.time
+      const skill = useGameStore.getState().player.skillCatalog.find((s) => s.skill_id === lastSkill.skillId)
+      if (skill) {
+        if (skill.skill_type === 'heal') {
+          const healAmt = Math.floor(skill.power)
+          useGameStore.setState((s) => ({
+            player: {
+              ...s.player,
+              stats: {
+                ...s.player.stats,
+                hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + healAmt),
+                mp: skill.effect === 'mp_heal'
+                  ? Math.min(s.player.stats.maxMp, s.player.stats.mp + healAmt)
+                  : s.player.stats.mp,
+              },
+            },
+          }))
+          pushFloat(posRef.current.x, posRef.current.y - 40, `+${healAmt}`, '#34d399')
+          sfx.levelUp()
+        } else if (skill.skill_type === 'dash') {
+          const facing = 1
+          posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + facing * (skill.range || 90)))
+          pushFloat(posRef.current.x, posRef.current.y - 30, 'DASH', '#a78bfa')
+        } else if (skill.skill_type === 'buff') {
+          pushFloat(posRef.current.x, posRef.current.y - 40, skill.effect.toUpperCase() || 'BUFF', '#60a5fa')
+        } else {
+          const aoe = skill.effect.includes('aoe')
+          const multi = /hits:(\d+)/.exec(skill.effect)
+          const hitCount = multi ? parseInt(multi[1]) : 1
+          for (const m of monstersRef.current) {
+            if (m.deadUntil > now) continue
+            const d = dist(posRef.current.x, posRef.current.y, m.x, m.y)
+            if (d > skill.range) continue
+            if (!aoe && d > skill.range) continue
+            for (let h = 0; h < hitCount; h++) {
+              const dmg = Math.max(1, Math.floor(playerStatsRef.current.atk * skill.power - m.def * 0.4))
+              m.hp -= dmg
+              m.flashUntil = now + 140
+              pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#c084fc')
+            }
+            sfx.hit()
+            if (m.hp <= 0) {
+              m.hp = 0
+              m.deadUntil = now + RESPAWN_MS
+              const expGain = Math.max(10, Math.floor(m.maxHp / 3))
+              const moneyGain = Math.max(4, Math.floor(m.atk * 2 + 6))
+              const dropItems = m.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
+              pushFloat(m.x, m.y - 40, `+${expGain} EXP`, '#34d399')
+              sfx.kill()
+              void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
+            }
+          }
         }
       }
     }
@@ -658,11 +759,19 @@ export default function GameScene2D() {
     const attackAge = Date.now() - world.lastAttack.time
     if (attackAge < 350 && !playerSafe) {
       const progress = attackAge / 350
-      const ringRadius = radius * (1 + progress * 2.5)
+      const ringRadius = (world.lastAttack.type === 'hard' ? profileRef.current.hard_range : profileRef.current.light_range) * (0.35 + progress * 0.65)
       ctx.beginPath()
       ctx.arc(pX, pY, ringRadius, 0, Math.PI * 2)
       ctx.strokeStyle = world.lastAttack.type === 'hard' ? `rgba(239, 68, 68, ${1 - progress})` : `rgba(255, 255, 255, ${1 - progress})`
       ctx.lineWidth = 3 * (1 - progress); ctx.stroke()
+    }
+    if (world.lastSkillCast && Date.now() - world.lastSkillCast.time < 400 && !playerSafe) {
+      const progress = (Date.now() - world.lastSkillCast.time) / 400
+      ctx.beginPath()
+      ctx.arc(pX, pY, 40 + progress * 80, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(192, 132, 252, ${1 - progress})`
+      ctx.lineWidth = 4
+      ctx.stroke()
     }
 
     ctx.shadowBlur = 30
@@ -714,7 +823,7 @@ export default function GameScene2D() {
   useEffect(() => {
     requestRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(requestRef.current)
-  }, [keys, world.lastAttack.time, world.objects, isEditorMode, isForgeMode, player.name, player.appearance])
+  }, [keys, world.lastAttack.time, world.lastSkillCast?.time, world.objects, isEditorMode, isForgeMode, player.name, player.appearance])
 
   useEffect(() => {
     const handleResize = () => {

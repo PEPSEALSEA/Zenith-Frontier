@@ -6,15 +6,21 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'player_id', 'name', 'level', 'exp', 'stored_exp',
     'main_job_id', 'sub_job_id', 'karma', 'vorpal_soul', 'arcanum_id',
     'hp', 'mp', 'atk', 'def', 'spd', 'money', 'appearance', 'created_at',
+    'str', 'dex', 'int', 'vit', 'luk', 'stat_points',
+    'skill_slot_1', 'skill_slot_2', 'skill_slot_3', 'skill_slot_4',
+    'job_mastery', 'job_mastery_exp',
   ],
   Jobs: [
     'job_id', 'job_name', 'tier', 'parent_job_id', 'branch',
     'is_hidden', 'unlock_condition', 'stat_bonus', 'description',
+    'potential', 'attack_profile',
   ],
   PlayerJobs: ['player_id', 'job_id', 'unlocked_at'],
   Skills: [
     'skill_id', 'skill_name', 'job_id', 'tier', 'parent_skill_id',
     'evolution_branches', 'is_locked_by', 'description',
+    'unlock_type', 'unlock_value', 'skill_type', 'mp_cost', 'cooldown_ms',
+    'power', 'range', 'effect',
   ],
   PlayerSkills: [
     'player_id', 'skill_id', 'skill_level', 'branch_chosen', 'is_locked', 'unlocked_at',

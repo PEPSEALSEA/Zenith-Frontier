@@ -47,6 +47,15 @@ export type HydratedPlayer = {
     main_job_id: string
     stats: CharacterStats
     inventory: { item_id: string; quantity: number; name?: string }[]
+    str: number
+    dex: number
+    int: number
+    vit: number
+    luk: number
+    stat_points: number
+    skill_slots: [string, string, string, string]
+    job_mastery: number
+    job_mastery_exp: number
 }
 
 function maxExpForLevel(level: number): number {
@@ -60,6 +69,11 @@ export function hydratePlayerFromRow(
     inventory: { item_id: string; quantity: number; name?: string }[] = [],
 ): HydratedPlayer {
     const level = Number(row.level) || 1
+    const str = Number(row.str) || 5
+    const dex = Number(row.dex) || 5
+    const int = Number(row.int) || 5
+    const vit = Number(row.vit) || 5
+    const luk = Number(row.luk) || 5
     const hp = Number(row.hp) || 100
     const mp = Number(row.mp) || 50
     return {
@@ -69,19 +83,29 @@ export function hydratePlayerFromRow(
         main_job_id: String(row.main_job_id || ''),
         stats: {
             hp,
-            maxHp: Math.max(hp, 100),
+            maxHp: Math.max(hp, Number(row.max_hp) || 80 + vit * 8),
             mp,
-            maxMp: Math.max(mp, 50),
+            maxMp: Math.max(mp, Number(row.max_mp) || 40 + int * 6),
             level,
             exp: Number(row.exp) || 0,
             maxExp: maxExpForLevel(level),
             atk: Number(row.atk) || 10,
             def: Number(row.def) || 5,
             spd: Number(row.spd) || 12,
-            luck: 8,
+            luck: Number(row.luck) || luk + 5,
             money: Number(row.money) || 100,
         },
         inventory,
+        str, dex, int, vit, luk,
+        stat_points: Number(row.stat_points) || 0,
+        skill_slots: [
+            String(row.skill_slot_1 || ''),
+            String(row.skill_slot_2 || ''),
+            String(row.skill_slot_3 || ''),
+            String(row.skill_slot_4 || ''),
+        ],
+        job_mastery: Number(row.job_mastery) || 1,
+        job_mastery_exp: Number(row.job_mastery_exp) || 0,
     }
 }
 
@@ -151,10 +175,11 @@ class GASService {
         return await this.post('update_player_stats', payload)
     }
 
-    async addExp(playerId: string, expAmount: number) {
+    async addExp(playerId: string, expAmount: number, masteryGain = 0) {
         return await this.post('add_exp', {
             player_id: playerId,
             exp_amount: String(expAmount),
+            mastery_gain: String(masteryGain),
         })
     }
 
@@ -173,7 +198,14 @@ class GASService {
         })
     }
 
-    async getAllJobs(): Promise<(Job & { stat_bonus?: string; description?: string; tier?: string; parent_job_id?: string })[]> {
+    async getAllJobs(): Promise<(Job & {
+        stat_bonus?: string
+        description?: string
+        tier?: string
+        parent_job_id?: string
+        potential?: string
+        attack_profile?: string
+    })[]> {
         const res = await this.get('get_all_jobs', {})
         return parseGASResponse(res).map((j) => ({
             id: String(j.job_id),
@@ -185,7 +217,43 @@ class GASService {
             description: j.description,
             tier: j.tier,
             parent_job_id: j.parent_job_id || '',
+            potential: j.potential || '',
+            attack_profile: j.attack_profile || '',
         }))
+    }
+
+    async getAllSkills() {
+        const res = await this.get('get_all_skills', {})
+        return parseGASResponse(res)
+    }
+
+    async getPlayerSkills(playerId: string) {
+        const res = await this.get('get_player_skills', { player_id: playerId })
+        return parseGASResponse(res)
+    }
+
+    async allocateStat(playerId: string, stat: string) {
+        return await this.post('allocate_stat', { player_id: playerId, stat })
+    }
+
+    async setSkillLoadout(playerId: string, slot: number, skillId: string) {
+        return await this.post('set_skill_loadout', {
+            player_id: playerId,
+            slot: String(slot),
+            skill_id: skillId,
+        })
+    }
+
+    async unlockSkill(playerId: string, skillId: string) {
+        return await this.post('unlock_skill', { player_id: playerId, skill_id: skillId })
+    }
+
+    async useSkillScroll(playerId: string, itemId: string) {
+        return await this.post('use_skill_scroll', { player_id: playerId, item_id: itemId })
+    }
+
+    async promoteJob(playerId: string, jobId: string) {
+        return await this.post('promote_job', { player_id: playerId, job_id: jobId })
     }
 
     async getPlayerInventory(playerId: string) {

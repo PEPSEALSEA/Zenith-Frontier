@@ -28,15 +28,21 @@ const SHEET_HEADERS: Record<string, string[]> = {
     'player_id', 'name', 'level', 'exp', 'stored_exp',
     'main_job_id', 'sub_job_id', 'karma', 'vorpal_soul', 'arcanum_id',
     'hp', 'mp', 'atk', 'def', 'spd', 'money', 'appearance', 'created_at',
+    'str', 'dex', 'int', 'vit', 'luk', 'stat_points',
+    'skill_slot_1', 'skill_slot_2', 'skill_slot_3', 'skill_slot_4',
+    'job_mastery', 'job_mastery_exp',
   ],
   Jobs: [
     'job_id', 'job_name', 'tier', 'parent_job_id', 'branch',
     'is_hidden', 'unlock_condition', 'stat_bonus', 'description',
+    'potential', 'attack_profile',
   ],
   PlayerJobs: ['player_id', 'job_id', 'unlocked_at'],
   Skills: [
     'skill_id', 'skill_name', 'job_id', 'tier', 'parent_skill_id',
     'evolution_branches', 'is_locked_by', 'description',
+    'unlock_type', 'unlock_value', 'skill_type', 'mp_cost', 'cooldown_ms',
+    'power', 'range', 'effect',
   ],
   PlayerSkills: [
     'player_id', 'skill_id', 'skill_level', 'branch_chosen', 'is_locked', 'unlocked_at',
@@ -91,6 +97,51 @@ const sheetIdCache: Record<string, number> = {};
 
 function now() {
   return new Date().toISOString();
+}
+
+type AllocStat = 'str' | 'dex' | 'int' | 'vit' | 'luk';
+const ALLOC_STATS: AllocStat[] = ['str', 'dex', 'int', 'vit', 'luk'];
+const STAT_POINTS_PER_LEVEL = 3;
+
+function parsePotential(raw?: string): Record<AllocStat, number> {
+  const out: Record<AllocStat, number> = { str: 50, dex: 50, int: 50, vit: 50, luk: 50 };
+  if (!raw) return out;
+  for (const part of raw.split(',')) {
+    const m = part.trim().match(/^(str|dex|int|vit|luk):(\d+)$/i);
+    if (!m) continue;
+    out[m[1].toLowerCase() as AllocStat] = parseInt(m[2], 10);
+  }
+  return out;
+}
+
+function combatFromAlloc(alloc: Record<AllocStat, number>, jobBonus?: string) {
+  const base = {
+    atk: 8 + alloc.str * 2,
+    def: 5 + Math.floor(alloc.vit * 1.2),
+    spd: 8 + alloc.dex * 2,
+    luck: 5 + alloc.luk,
+    maxHp: 80 + alloc.vit * 8,
+    maxMp: 40 + alloc.int * 6,
+  };
+  if (jobBonus) {
+    for (const part of jobBonus.split(',')) {
+      const m = part.trim().match(/^(atk|def|spd|hp|mp|luck)([+-]\d+)$/i);
+      if (!m) continue;
+      const key = m[1].toLowerCase();
+      const delta = parseInt(m[2], 10);
+      if (key === 'atk') base.atk += delta;
+      else if (key === 'def') base.def += delta;
+      else if (key === 'spd') base.spd += delta;
+      else if (key === 'luck') base.luck += delta;
+      else if (key === 'hp') base.maxHp += delta;
+      else if (key === 'mp') base.maxMp += delta;
+    }
+  }
+  return base;
+}
+
+function masteryExpToNext(level: number): number {
+  return 100 + (level - 1) * 25;
 }
 
 async function getAuthToken(env: Bindings): Promise<string> {
@@ -356,6 +407,8 @@ async function createPlayer(env: Bindings, p: Params) {
   if (await findRowIndex(env, 'Players', 'player_id', p.player_id) !== -1) {
     return 'ERROR|PLAYER_ALREADY_EXISTS';
   }
+  const alloc = { str: 5, dex: 5, int: 5, vit: 5, luk: 5 };
+  const combat = combatFromAlloc(alloc);
   await appendRow(env, 'Players', {
     player_id: p.player_id,
     name: p.name,
@@ -367,14 +420,26 @@ async function createPlayer(env: Bindings, p: Params) {
     karma: '0',
     vorpal_soul: '0',
     arcanum_id: '',
-    hp: '100',
-    mp: '100',
-    atk: '10',
-    def: '10',
-    spd: '10',
+    hp: String(combat.maxHp),
+    mp: String(combat.maxMp),
+    atk: String(combat.atk),
+    def: String(combat.def),
+    spd: String(combat.spd),
     money: p.money || '100',
     appearance: p.appearance || '',
     created_at: now(),
+    str: '5',
+    dex: '5',
+    int: '5',
+    vit: '5',
+    luk: '5',
+    stat_points: '0',
+    skill_slot_1: '',
+    skill_slot_2: '',
+    skill_slot_3: '',
+    skill_slot_4: '',
+    job_mastery: '1',
+    job_mastery_exp: '0',
   });
   return `OK|PLAYER_CREATED|${p.player_id}`;
 }
@@ -383,13 +448,69 @@ async function updatePlayerStats(env: Bindings, p: Params) {
   if (!p.player_id) return 'ERROR|MISSING_PLAYER_ID';
   const rowIdx = await findRowIndex(env, 'Players', 'player_id', p.player_id);
   if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
-  const allowed = ['hp', 'mp', 'atk', 'def', 'spd', 'money', 'level', 'exp', 'name', 'appearance'];
+  const allowed = [
+    'hp', 'mp', 'atk', 'def', 'spd', 'money', 'level', 'exp', 'name', 'appearance',
+    'str', 'dex', 'int', 'vit', 'luk', 'stat_points',
+    'skill_slot_1', 'skill_slot_2', 'skill_slot_3', 'skill_slot_4',
+    'job_mastery', 'job_mastery_exp',
+  ];
   const updates: Params = {};
   for (const f of allowed) {
     if (p[f] !== undefined) updates[f] = p[f];
   }
   await updateRowCells(env, 'Players', rowIdx, updates);
   return `OK|STATS_UPDATED|${p.player_id}`;
+}
+
+function readAlloc(row: Row): Record<AllocStat, number> {
+  return {
+    str: parseInt(row.str) || 5,
+    dex: parseInt(row.dex) || 5,
+    int: parseInt(row.int) || 5,
+    vit: parseInt(row.vit) || 5,
+    luk: parseInt(row.luk) || 5,
+  };
+}
+
+async function recomputeCombatStats(env: Bindings, rowIdx: number, row: Row) {
+  const jobs = await sheetToRows(env, 'Jobs');
+  const job = jobs.find((j) => j.job_id === row.main_job_id);
+  const combat = combatFromAlloc(readAlloc(row), job?.stat_bonus);
+  const hp = Math.min(parseInt(row.hp) || combat.maxHp, combat.maxHp);
+  const mp = Math.min(parseInt(row.mp) || combat.maxMp, combat.maxMp);
+  await updateRowCells(env, 'Players', rowIdx, {
+    atk: String(combat.atk),
+    def: String(combat.def),
+    spd: String(combat.spd),
+    hp: String(hp),
+    mp: String(mp),
+  });
+}
+
+async function grantStarterSkills(env: Bindings, playerId: string, jobId: string) {
+  const starters = (await sheetToRows(env, 'Skills')).filter(
+    (s) => s.job_id === jobId && (s.unlock_type === 'starter' || !s.unlock_type),
+  );
+  for (const skill of starters) {
+    if (await findRowIndexDouble(env, 'PlayerSkills', 'player_id', playerId, 'skill_id', skill.skill_id) !== -1) {
+      continue;
+    }
+    await appendRow(env, 'PlayerSkills', {
+      player_id: playerId,
+      skill_id: skill.skill_id,
+      skill_level: '1',
+      branch_chosen: '',
+      is_locked: '0',
+      unlocked_at: now(),
+    });
+  }
+  const rowIdx = await findRowIndex(env, 'Players', 'player_id', playerId);
+  if (rowIdx === -1) return;
+  const row = await getRowByIndex(env, 'Players', rowIdx);
+  if (!row) return;
+  if (!row.skill_slot_1 && starters[0]) {
+    await updateCell(env, 'Players', rowIdx, 'skill_slot_1', starters[0].skill_id);
+  }
 }
 
 function expToNextLevel(level: number): number {
@@ -407,11 +528,28 @@ async function addExp(env: Bindings, p: Params) {
   let level = parseInt(row.level) || 1;
   let exp = parseInt(row.exp) || 0;
   let stored = parseInt(row.stored_exp) || 0;
+  let statPoints = parseInt(row.stat_points) || 0;
+  let mastery = parseInt(row.job_mastery) || 1;
+  let masteryExp = parseInt(row.job_mastery_exp) || 0;
   const amount = parseInt(p.exp_amount) || 0;
+  const masteryGain = parseInt(p.mastery_gain || '0') || 0;
+
+  if (masteryGain > 0) {
+    masteryExp += masteryGain;
+    while (masteryExp >= masteryExpToNext(mastery) && mastery < 99) {
+      masteryExp -= masteryExpToNext(mastery);
+      mastery += 1;
+    }
+  }
+
   if (level >= 99 && level < 150) {
     stored += amount;
-    await updateCell(env, 'Players', rowIdx, 'stored_exp', String(stored));
-    return `OK|EXP_STORED|${stored}`;
+    await updateRowCells(env, 'Players', rowIdx, {
+      stored_exp: String(stored),
+      job_mastery: String(mastery),
+      job_mastery_exp: String(masteryExp),
+    });
+    return `OK|EXP_STORED|${stored}|${mastery}|${masteryExp}`;
   }
   exp += amount;
   let leveled = 0;
@@ -419,12 +557,16 @@ async function addExp(env: Bindings, p: Params) {
     exp -= expToNextLevel(level);
     level += 1;
     leveled += 1;
+    statPoints += STAT_POINTS_PER_LEVEL;
   }
   await updateRowCells(env, 'Players', rowIdx, {
     exp: String(exp),
     level: String(level),
+    stat_points: String(statPoints),
+    job_mastery: String(mastery),
+    job_mastery_exp: String(masteryExp),
   });
-  return `OK|EXP_ADDED|${level}|${exp}|${leveled}`;
+  return `OK|EXP_ADDED|${level}|${exp}|${leveled}|${statPoints}|${mastery}|${masteryExp}`;
 }
 
 async function addMoney(env: Bindings, p: Params) {
@@ -495,6 +637,8 @@ async function unlockJob(env: Bindings, p: Params) {
 
 async function setMainJob(env: Bindings, p: Params) {
   if (!p.player_id || !p.job_id) return 'ERROR|MISSING_FIELDS';
+  const job = (await sheetToRows(env, 'Jobs')).find((r) => r.job_id === String(p.job_id));
+  if (!job) return 'ERROR|JOB_NOT_FOUND';
   if (await findRowIndexDouble(env, 'PlayerJobs', 'player_id', p.player_id, 'job_id', p.job_id) === -1) {
     await appendRow(env, 'PlayerJobs', {
       player_id: p.player_id,
@@ -507,7 +651,14 @@ async function setMainJob(env: Bindings, p: Params) {
   const row = await getRowByIndex(env, 'Players', rowIdx);
   if (!row) return 'ERROR|PLAYER_NOT_FOUND';
   if (row.sub_job_id === String(p.job_id)) return 'ERROR|JOB_ALREADY_SET_AS_SUB';
-  await updateCell(env, 'Players', rowIdx, 'main_job_id', p.job_id);
+  const switching = row.main_job_id && row.main_job_id !== String(p.job_id);
+  await updateRowCells(env, 'Players', rowIdx, {
+    main_job_id: p.job_id,
+    ...(switching ? { job_mastery: '1', job_mastery_exp: '0' } : {}),
+  });
+  const updated = await getRowByIndex(env, 'Players', rowIdx);
+  if (updated) await recomputeCombatStats(env, rowIdx, updated);
+  await grantStarterSkills(env, p.player_id, p.job_id);
   return `OK|MAIN_JOB_SET|${p.job_id}`;
 }
 
@@ -556,9 +707,33 @@ async function unlockSkill(env: Bindings, p: Params) {
   const playerIdx = await findRowIndex(env, 'Players', 'player_id', p.player_id);
   const playerRow = playerIdx === -1 ? null : await getRowByIndex(env, 'Players', playerIdx);
   if (!playerRow) return 'ERROR|PLAYER_NOT_FOUND';
+
+  const unlockType = skill.unlock_type || 'starter';
+  const unlockValue = skill.unlock_value || '';
+  const mastery = parseInt(playerRow.job_mastery) || 1;
+  const level = parseInt(playerRow.level) || 1;
+  const money = parseInt(playerRow.money) || 0;
+
+  if (unlockType === 'mastery') {
+    if (mastery < (parseInt(unlockValue) || 1)) return 'ERROR|MASTERY_TOO_LOW';
+  } else if (unlockType === 'level') {
+    if (level < (parseInt(unlockValue) || 1)) return 'ERROR|LEVEL_TOO_LOW';
+  } else if (unlockType === 'gold') {
+    const cost = parseInt(unlockValue) || 0;
+    if (money < cost) return 'ERROR|NOT_ENOUGH_GOLD';
+    await updateCell(env, 'Players', playerIdx, 'money', String(money - cost));
+  } else if (unlockType === 'scroll') {
+    return 'ERROR|USE_SCROLL_ITEM';
+  }
+
   const isSubJob = playerRow.sub_job_id === skill.job_id;
-  const maxTier = isSubJob ? 2 : 3;
+  const isMainJob = playerRow.main_job_id === skill.job_id;
+  if (!isMainJob && !isSubJob && unlockType !== 'scroll') {
+    return 'ERROR|WRONG_JOB';
+  }
+  const maxTier = isSubJob && !isMainJob ? 2 : 3;
   if (parseInt(skill.tier) > maxTier) return 'ERROR|SKILL_TIER_LOCKED_FOR_SUB_JOB';
+
   await appendRow(env, 'PlayerSkills', {
     player_id: p.player_id,
     skill_id: p.skill_id,
@@ -568,6 +743,112 @@ async function unlockSkill(env: Bindings, p: Params) {
     unlocked_at: now(),
   });
   return `OK|SKILL_UNLOCKED|${p.skill_id}`;
+}
+
+async function allocateStat(env: Bindings, p: Params) {
+  if (!p.player_id || !p.stat) return 'ERROR|MISSING_FIELDS';
+  const stat = String(p.stat).toLowerCase() as AllocStat;
+  if (!ALLOC_STATS.includes(stat)) return 'ERROR|INVALID_STAT';
+  const rowIdx = await findRowIndex(env, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  const row = await getRowByIndex(env, 'Players', rowIdx);
+  if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+  const points = parseInt(row.stat_points) || 0;
+  if (points < 1) return 'ERROR|NO_STAT_POINTS';
+  const job = (await sheetToRows(env, 'Jobs')).find((j) => j.job_id === row.main_job_id);
+  const potential = parsePotential(job?.potential);
+  const current = parseInt(row[stat]) || 5;
+  if (current >= potential[stat]) return 'ERROR|POTENTIAL_CAP';
+  const next = current + 1;
+  await updateRowCells(env, 'Players', rowIdx, {
+    [stat]: String(next),
+    stat_points: String(points - 1),
+  });
+  const updated = await getRowByIndex(env, 'Players', rowIdx);
+  if (updated) await recomputeCombatStats(env, rowIdx, updated);
+  return `OK|STAT_ALLOCATED|${stat}|${next}|${points - 1}`;
+}
+
+async function setSkillLoadout(env: Bindings, p: Params) {
+  if (!p.player_id || !p.slot) return 'ERROR|MISSING_FIELDS';
+  const slot = parseInt(p.slot);
+  if (slot < 1 || slot > 4) return 'ERROR|INVALID_SLOT';
+  const col = `skill_slot_${slot}`;
+  const skillId = p.skill_id || '';
+  const rowIdx = await findRowIndex(env, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  if (skillId) {
+    if (await findRowIndexDouble(env, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skillId) === -1) {
+      return 'ERROR|SKILL_NOT_UNLOCKED';
+    }
+    const row = await getRowByIndex(env, 'Players', rowIdx);
+    if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+    for (let i = 1; i <= 4; i++) {
+      if (i === slot) continue;
+      if (row[`skill_slot_${i}`] === skillId) {
+        await updateCell(env, 'Players', rowIdx, `skill_slot_${i}`, '');
+      }
+    }
+  }
+  await updateCell(env, 'Players', rowIdx, col, skillId);
+  return `OK|LOADOUT_SET|${slot}|${skillId || 'EMPTY'}`;
+}
+
+async function useSkillScroll(env: Bindings, p: Params) {
+  if (!p.player_id || !p.item_id) return 'ERROR|MISSING_FIELDS';
+  const eq = (await sheetToRows(env, 'Equipment')).find((r) => r.item_id === String(p.item_id));
+  if (!eq) return 'ERROR|ITEM_NOT_FOUND';
+  if (eq.item_type !== 'skill_scroll') return 'ERROR|NOT_A_SCROLL';
+  const m = (eq.base_stats || '').match(/skill:([A-Za-z0-9_]+)/);
+  if (!m) return 'ERROR|SCROLL_HAS_NO_SKILL';
+  const skillId = m[1];
+  const skill = (await sheetToRows(env, 'Skills')).find((r) => r.skill_id === skillId);
+  if (!skill) return 'ERROR|SKILL_NOT_FOUND';
+  if (await findRowIndexDouble(env, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skillId) !== -1) {
+    return 'ERROR|SKILL_ALREADY_UNLOCKED';
+  }
+  const rem = await removeItem(env, { player_id: p.player_id, item_id: p.item_id, quantity: '1' });
+  if (!rem.startsWith('OK|')) return rem;
+  if (skill.parent_skill_id) {
+    if (await findRowIndexDouble(env, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skill.parent_skill_id) === -1) {
+      await addItem(env, { player_id: p.player_id, item_id: p.item_id, quantity: '1' });
+      return 'ERROR|PARENT_SKILL_NOT_UNLOCKED';
+    }
+  }
+  await appendRow(env, 'PlayerSkills', {
+    player_id: p.player_id,
+    skill_id: skillId,
+    skill_level: '1',
+    branch_chosen: '',
+    is_locked: '0',
+    unlocked_at: now(),
+  });
+  return `OK|SCROLL_USED|${skillId}`;
+}
+
+async function promoteJob(env: Bindings, p: Params) {
+  if (!p.player_id || !p.job_id) return 'ERROR|MISSING_FIELDS';
+  const job = (await sheetToRows(env, 'Jobs')).find((r) => r.job_id === String(p.job_id));
+  if (!job) return 'ERROR|JOB_NOT_FOUND';
+  if (job.tier !== 'high' || !job.parent_job_id) return 'ERROR|NOT_A_PROMOTION';
+  const rowIdx = await findRowIndex(env, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  const row = await getRowByIndex(env, 'Players', rowIdx);
+  if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+  if (row.main_job_id !== job.parent_job_id) return 'ERROR|WRONG_PARENT_JOB';
+  const level = parseInt(row.level) || 1;
+  const mastery = parseInt(row.job_mastery) || 1;
+  const cond = job.unlock_condition || '';
+  let needLevel = 20;
+  let needMastery = 5;
+  for (const part of cond.split(',')) {
+    const [k, v] = part.split(':');
+    if (k === 'level') needLevel = parseInt(v) || 20;
+    if (k === 'mastery') needMastery = parseInt(v) || 5;
+  }
+  if (level < needLevel) return 'ERROR|LEVEL_TOO_LOW';
+  if (mastery < needMastery) return 'ERROR|MASTERY_TOO_LOW';
+  return setMainJob(env, { player_id: p.player_id, job_id: p.job_id });
 }
 
 async function evolveSkill(env: Bindings, p: Params) {
@@ -1055,6 +1336,10 @@ async function routePost(env: Bindings, action: string, p: Params): Promise<stri
     case 'set_sub_job': return setSubJob(env, p);
     case 'unlock_job': return unlockJob(env, p);
     case 'unlock_skill': return unlockSkill(env, p);
+    case 'allocate_stat': return allocateStat(env, p);
+    case 'set_skill_loadout': return setSkillLoadout(env, p);
+    case 'use_skill_scroll': return useSkillScroll(env, p);
+    case 'promote_job': return promoteJob(env, p);
     case 'evolve_skill': return evolveSkill(env, p);
     case 'link_skill_combo': return linkSkillCombo(env, p);
     case 'kill_boss': return killBoss(env, p);

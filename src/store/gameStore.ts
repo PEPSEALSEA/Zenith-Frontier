@@ -28,6 +28,38 @@ export interface Job {
     level: number
     type: 'main' | 'sub' | 'hidden'
     skills: string[]
+    stat_bonus?: string
+    potential?: string
+    attack_profile?: string
+    tier?: string
+    parent_job_id?: string
+    description?: string
+}
+
+export interface SkillInfo {
+    skill_id: string
+    skill_name: string
+    job_id: string
+    tier: number
+    parent_skill_id: string
+    description: string
+    unlock_type: string
+    unlock_value: string
+    skill_type: string
+    mp_cost: number
+    cooldown_ms: number
+    power: number
+    range: number
+    effect: string
+    owned?: boolean
+}
+
+export interface AllocatedStats {
+    str: number
+    dex: number
+    int: number
+    vit: number
+    luk: number
 }
 
 export interface PlayerAppearance {
@@ -216,6 +248,15 @@ export interface GameState {
         name: string
         appearance: PlayerAppearance
         stats: CharacterStats
+        alloc: AllocatedStats
+        statPoints: number
+        skillSlots: [string, string, string, string]
+        ownedSkillIds: string[]
+        skillCatalog: SkillInfo[]
+        jobMastery: number
+        jobMasteryExp: number
+        skillCooldowns: Record<string, number>
+        pendingLevelUps: number
         jobs: {
             main: Job | null
             sub: Job | null
@@ -239,6 +280,7 @@ export interface GameState {
         activeScenario: string | null
         bossesDefeated: string[]
         lastAttack: { type: 'light' | 'hard' | null, time: number }
+        lastSkillCast: { skillId: string; time: number } | null
 
         // Instances
         objects: WorldObject[]
@@ -277,6 +319,14 @@ export interface GameState {
     setInventory: (items: InventoryItem[]) => void
     updateWorldCycle: (delta: number) => void
     attack: (type: 'light' | 'hard') => void
+    castSkillSlot: (slot: 1 | 2 | 3 | 4) => boolean
+    allocateStat: (stat: keyof AllocatedStats) => Promise<boolean>
+    setSkillSlot: (slot: 1 | 2 | 3 | 4, skillId: string) => Promise<boolean>
+    unlockSkill: (skillId: string) => Promise<boolean>
+    useSkillScroll: (itemId: string) => Promise<boolean>
+    promoteJob: (jobId: string) => Promise<boolean>
+    clearPendingLevelUps: () => void
+    refreshSkills: () => Promise<void>
     addMoney: (amount: number) => void
     applyKillRewards: (opts: { exp: number; money: number; items?: string[] }) => Promise<void>
     syncHpToServer: () => Promise<void>
@@ -304,6 +354,8 @@ export interface GameState {
     rollLootTable: (tableId: string) => { item_id: string, count: number }[]
     evaluateDialogCondition: (condition: DialogCondition) => boolean
 }
+
+import { combatFromAlloc, parseSkillRow, STAT_POINTS_PER_LEVEL } from '@/lib/classSystem'
 
 export const ADMIN_EMAIL = 'sealseapep@gmail.com'
 const GAS_URL = API_URL
@@ -339,6 +391,13 @@ function applyJobStatBonus(base: CharacterStats, job: Job, statBonus?: string): 
     return next
 }
 
+function mapSkillRows(rows: Record<string, string>[], ownedIds: Set<string>): SkillInfo[] {
+    return rows.map((r) => {
+        const s = parseSkillRow(r)
+        return { ...s, owned: ownedIds.has(s.skill_id) }
+    })
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
     auth: {
         user: null,
@@ -359,6 +418,15 @@ export const useGameStore = create<GameState>((set, get) => ({
             level: 1, exp: 0, maxExp: 100,
             atk: 10, def: 5, spd: 12, luck: 8, money: 100
         },
+        alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
+        statPoints: 0,
+        skillSlots: ['', '', '', ''],
+        ownedSkillIds: [],
+        skillCatalog: [],
+        jobMastery: 1,
+        jobMasteryExp: 0,
+        skillCooldowns: {},
+        pendingLevelUps: 0,
         jobs: { main: null, sub: null },
         equipment: { weapon: null, armor: null, accessory: null },
         inventory: [],
@@ -372,6 +440,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         activeScenario: null,
         bossesDefeated: [],
         lastAttack: { type: null, time: 0 },
+        lastSkillCast: null,
         objects: [],
         spawners: [],
         playerQuests: [],
@@ -400,8 +469,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     exitAdminDashboard: () => set({ isAdminDashboard: false }),
 
     initializeCharacter: (name, appearance, job, statsOverride, inventory) => set((state) => {
-        const base = { ...state.player.stats, ...(statsOverride || {}) }
-        const withJob = statsOverride ? base : applyJobStatBonus(base, job, (job as any).stat_bonus)
+        const alloc = { str: 5, dex: 5, int: 5, vit: 5, luk: 5 }
+        const combat = combatFromAlloc(alloc, (job as any).stat_bonus || job.stat_bonus)
+        const base = statsOverride ? { ...state.player.stats, ...statsOverride } : {
+            ...state.player.stats,
+            atk: combat.atk,
+            def: combat.def,
+            spd: combat.spd,
+            luck: combat.luck,
+            maxHp: combat.maxHp,
+            hp: combat.maxHp,
+            maxMp: combat.maxMp,
+            mp: combat.maxMp,
+        }
         return {
             isInitialized: true,
             player: {
@@ -409,7 +489,8 @@ export const useGameStore = create<GameState>((set, get) => ({
                 name,
                 appearance,
                 jobs: { ...state.player.jobs, main: job },
-                stats: withJob,
+                stats: base,
+                alloc,
                 inventory: inventory || state.player.inventory,
             },
         }
@@ -428,6 +509,13 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'main',
             skills: [],
         }
+        const ownedRows = await gasService.getPlayerSkills(email)
+        const ownedIds = ownedRows.map((r) => String(r.skill_id))
+        const catalog = mapSkillRows(await gasService.getAllSkills(), new Set(ownedIds))
+        const combat = combatFromAlloc(
+            { str: hydrated.str, dex: hydrated.dex, int: hydrated.int, vit: hydrated.vit, luk: hydrated.luk },
+            job.stat_bonus,
+        )
         set((state) => ({
             isInitialized: true,
             player: {
@@ -435,8 +523,29 @@ export const useGameStore = create<GameState>((set, get) => ({
                 name: hydrated.name,
                 appearance: hydrated.appearance,
                 jobs: { ...state.player.jobs, main: job },
-                stats: hydrated.stats,
+                stats: {
+                    ...hydrated.stats,
+                    maxHp: Math.max(hydrated.stats.hp, combat.maxHp),
+                    maxMp: Math.max(hydrated.stats.mp, combat.maxMp),
+                    atk: hydrated.stats.atk || combat.atk,
+                    def: hydrated.stats.def || combat.def,
+                    spd: hydrated.stats.spd || combat.spd,
+                    luck: hydrated.stats.luck || combat.luck,
+                },
                 inventory: hydrated.inventory,
+                alloc: {
+                    str: hydrated.str,
+                    dex: hydrated.dex,
+                    int: hydrated.int,
+                    vit: hydrated.vit,
+                    luk: hydrated.luk,
+                },
+                statPoints: hydrated.stat_points,
+                skillSlots: hydrated.skill_slots,
+                ownedSkillIds: ownedIds,
+                skillCatalog: catalog,
+                jobMastery: hydrated.job_mastery,
+                jobMasteryExp: hydrated.job_mastery_exp,
             },
         }))
         return true
@@ -458,14 +567,29 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     gainExp: (amount) => set((state) => {
         let { exp, level, maxExp } = state.player.stats
+        let statPoints = state.player.statPoints
+        let pending = state.player.pendingLevelUps
         exp += amount
         while (exp >= maxExp && level < 99) {
             exp -= maxExp
             level++
             maxExp = Math.floor(maxExp * 1.5)
+            statPoints += STAT_POINTS_PER_LEVEL
+            pending += 1
         }
-        return { player: { ...state.player, stats: { ...state.player.stats, exp, level, maxExp } } }
+        return {
+            player: {
+                ...state.player,
+                statPoints,
+                pendingLevelUps: pending,
+                stats: { ...state.player.stats, exp, level, maxExp },
+            },
+        }
     }),
+
+    clearPendingLevelUps: () => set((state) => ({
+        player: { ...state.player, pendingLevelUps: 0 },
+    })),
 
     takeDamage: (amount) => set((state) => ({
         player: { ...state.player, stats: { ...state.player.stats, hp: Math.max(0, state.player.stats.hp - amount) } }
@@ -554,28 +678,206 @@ export const useGameStore = create<GameState>((set, get) => ({
         world: { ...state.world, lastAttack: { type, time: Date.now() } }
     })),
 
+    castSkillSlot: (slot) => {
+        const state = get()
+        const skillId = state.player.skillSlots[slot - 1]
+        if (!skillId) return false
+        const skill = state.player.skillCatalog.find((s) => s.skill_id === skillId)
+        if (!skill) return false
+        const now = Date.now()
+        const cdUntil = state.player.skillCooldowns[skillId] || 0
+        if (now < cdUntil) return false
+        if (state.player.stats.mp < skill.mp_cost) return false
+        set((s) => ({
+            player: {
+                ...s.player,
+                stats: { ...s.player.stats, mp: s.player.stats.mp - skill.mp_cost },
+                skillCooldowns: {
+                    ...s.player.skillCooldowns,
+                    [skillId]: now + skill.cooldown_ms,
+                },
+            },
+            world: {
+                ...s.world,
+                lastSkillCast: { skillId, time: now },
+            },
+        }))
+        return true
+    },
+
+    allocateStat: async (stat) => {
+        const { auth, player } = get()
+        if (player.statPoints < 1) return false
+        const email = auth.user?.email
+        if (email) {
+            const { gasService } = await import('@/services/gasService')
+            const res = await gasService.allocateStat(email, stat)
+            if (!res.startsWith('OK|')) return false
+        }
+        set((state) => {
+            const alloc = { ...state.player.alloc, [stat]: state.player.alloc[stat] + 1 }
+            const combat = combatFromAlloc(alloc, state.player.jobs.main?.stat_bonus)
+            return {
+                player: {
+                    ...state.player,
+                    alloc,
+                    statPoints: state.player.statPoints - 1,
+                    stats: {
+                        ...state.player.stats,
+                        atk: combat.atk,
+                        def: combat.def,
+                        spd: combat.spd,
+                        luck: combat.luck,
+                        maxHp: combat.maxHp,
+                        maxMp: combat.maxMp,
+                        hp: Math.min(state.player.stats.hp, combat.maxHp),
+                        mp: Math.min(state.player.stats.mp, combat.maxMp),
+                    },
+                },
+            }
+        })
+        return true
+    },
+
+    setSkillSlot: async (slot, skillId) => {
+        const { auth, player } = get()
+        if (skillId && !player.ownedSkillIds.includes(skillId)) return false
+        const email = auth.user?.email
+        if (email) {
+            const { gasService } = await import('@/services/gasService')
+            const res = await gasService.setSkillLoadout(email, slot, skillId)
+            if (!res.startsWith('OK|')) return false
+        }
+        set((state) => {
+            const slots = [...state.player.skillSlots] as [string, string, string, string]
+            for (let i = 0; i < 4; i++) {
+                if (i !== slot - 1 && slots[i] === skillId) slots[i] = ''
+            }
+            slots[slot - 1] = skillId
+            return { player: { ...state.player, skillSlots: slots } }
+        })
+        return true
+    },
+
+    unlockSkill: async (skillId) => {
+        const { auth } = get()
+        const email = auth.user?.email
+        if (!email) return false
+        const { gasService } = await import('@/services/gasService')
+        const res = await gasService.unlockSkill(email, skillId)
+        if (!res.startsWith('OK|')) return false
+        await get().refreshSkills()
+        const player = await gasService.getPlayer(email)
+        if (player?.money !== undefined) {
+            set((state) => ({
+                player: {
+                    ...state.player,
+                    stats: { ...state.player.stats, money: Number(player.money) || state.player.stats.money },
+                },
+            }))
+        }
+        return true
+    },
+
+    useSkillScroll: async (itemId) => {
+        const { auth } = get()
+        const email = auth.user?.email
+        if (!email) return false
+        const { gasService } = await import('@/services/gasService')
+        const res = await gasService.useSkillScroll(email, itemId)
+        if (!res.startsWith('OK|')) return false
+        set((state) => ({
+            player: {
+                ...state.player,
+                inventory: state.player.inventory
+                    .map((i) => i.item_id === itemId ? { ...i, quantity: i.quantity - 1 } : i)
+                    .filter((i) => i.quantity > 0),
+            },
+        }))
+        await get().refreshSkills()
+        return true
+    },
+
+    promoteJob: async (jobId) => {
+        const { auth } = get()
+        const email = auth.user?.email
+        if (!email) return false
+        const { gasService } = await import('@/services/gasService')
+        const res = await gasService.promoteJob(email, jobId)
+        if (!res.startsWith('OK|')) return false
+        const jobs = await gasService.getAllJobs()
+        const job = jobs.find((j) => j.id === jobId)
+        if (job) {
+            set((state) => ({
+                player: {
+                    ...state.player,
+                    jobs: { ...state.player.jobs, main: job },
+                    jobMastery: 1,
+                    jobMasteryExp: 0,
+                },
+            }))
+        }
+        await get().refreshSkills()
+        return true
+    },
+
+    refreshSkills: async () => {
+        const { auth } = get()
+        const email = auth.user?.email
+        if (!email) return
+        const { gasService } = await import('@/services/gasService')
+        const ownedRows = await gasService.getPlayerSkills(email)
+        const ownedIds = ownedRows.map((r) => String(r.skill_id))
+        const catalog = mapSkillRows(await gasService.getAllSkills(), new Set(ownedIds))
+        const player = await gasService.getPlayer(email)
+        set((state) => ({
+            player: {
+                ...state.player,
+                ownedSkillIds: ownedIds,
+                skillCatalog: catalog,
+                skillSlots: player ? [
+                    String(player.skill_slot_1 || ''),
+                    String(player.skill_slot_2 || ''),
+                    String(player.skill_slot_3 || ''),
+                    String(player.skill_slot_4 || ''),
+                ] : state.player.skillSlots,
+            },
+        }))
+    },
+
     addMoney: (amount) => set((state) => ({
         player: { ...state.player, stats: { ...state.player.stats, money: state.player.stats.money + amount } }
     })),
 
     applyKillRewards: async ({ exp, money, items }) => {
-        const { auth, gainExp, addMoney, addInventoryItem } = get()
+        const { auth, addMoney, addInventoryItem } = get()
         const email = auth.user?.email
-        gainExp(exp)
+        if (!email) {
+            get().gainExp(exp)
+            if (money) addMoney(money)
+            for (const id of items || []) addInventoryItem({ item_id: id, quantity: 1 })
+            return
+        }
         if (money) addMoney(money)
         for (const id of items || []) addInventoryItem({ item_id: id, quantity: 1 })
-        if (!email) return
         const { gasService } = await import('@/services/gasService')
-        const expRes = await gasService.addExp(email, exp)
+        const expRes = await gasService.addExp(email, exp, 12)
         if (expRes.startsWith('OK|EXP_ADDED|')) {
             const parts = expRes.split('|')
             const level = Number(parts[2])
             const serverExp = Number(parts[3])
             const leveled = Number(parts[4]) || 0
+            const statPoints = Number(parts[5])
+            const mastery = Number(parts[6])
+            const masteryExp = Number(parts[7])
             if (!Number.isNaN(level)) {
                 set((state) => ({
                     player: {
                         ...state.player,
+                        statPoints: Number.isNaN(statPoints) ? state.player.statPoints : statPoints,
+                        jobMastery: Number.isNaN(mastery) ? state.player.jobMastery : mastery,
+                        jobMasteryExp: Number.isNaN(masteryExp) ? state.player.jobMasteryExp : masteryExp,
+                        pendingLevelUps: state.player.pendingLevelUps + leveled,
                         stats: {
                             ...state.player.stats,
                             level,

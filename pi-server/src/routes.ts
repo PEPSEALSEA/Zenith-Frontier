@@ -15,6 +15,14 @@ import {
   type Db,
 } from './db.js';
 import type { Params, Row } from './schema.js';
+import {
+  ALLOC_STATS,
+  STAT_POINTS_PER_LEVEL,
+  combatFromAlloc,
+  masteryExpToNext,
+  parsePotential,
+  type AllocStat,
+} from './classSystem.js';
 
 export type AppVars = { db: Db };
 
@@ -50,6 +58,8 @@ function createPlayer(db: Db, p: Params) {
   if (findRowIndex(db, 'Players', 'player_id', p.player_id) !== -1) {
     return 'ERROR|PLAYER_ALREADY_EXISTS';
   }
+  const alloc = { str: 5, dex: 5, int: 5, vit: 5, luk: 5 };
+  const combat = combatFromAlloc(alloc);
   appendRow(db, 'Players', {
     player_id: p.player_id,
     name: p.name,
@@ -61,14 +71,26 @@ function createPlayer(db: Db, p: Params) {
     karma: '0',
     vorpal_soul: '0',
     arcanum_id: '',
-    hp: '100',
-    mp: '100',
-    atk: '10',
-    def: '10',
-    spd: '10',
+    hp: String(combat.maxHp),
+    mp: String(combat.maxMp),
+    atk: String(combat.atk),
+    def: String(combat.def),
+    spd: String(combat.spd),
     money: p.money || '100',
     appearance: p.appearance || '',
     created_at: now(),
+    str: '5',
+    dex: '5',
+    int: '5',
+    vit: '5',
+    luk: '5',
+    stat_points: '0',
+    skill_slot_1: '',
+    skill_slot_2: '',
+    skill_slot_3: '',
+    skill_slot_4: '',
+    job_mastery: '1',
+    job_mastery_exp: '0',
   });
   return `OK|PLAYER_CREATED|${p.player_id}`;
 }
@@ -77,13 +99,69 @@ function updatePlayerStats(db: Db, p: Params) {
   if (!p.player_id) return 'ERROR|MISSING_PLAYER_ID';
   const rowIdx = findRowIndex(db, 'Players', 'player_id', p.player_id);
   if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
-  const allowed = ['hp', 'mp', 'atk', 'def', 'spd', 'money', 'level', 'exp', 'name', 'appearance'];
+  const allowed = [
+    'hp', 'mp', 'atk', 'def', 'spd', 'money', 'level', 'exp', 'name', 'appearance',
+    'str', 'dex', 'int', 'vit', 'luk', 'stat_points',
+    'skill_slot_1', 'skill_slot_2', 'skill_slot_3', 'skill_slot_4',
+    'job_mastery', 'job_mastery_exp',
+  ];
   const updates: Params = {};
   for (const f of allowed) {
     if (p[f] !== undefined) updates[f] = p[f];
   }
   updateRowCells(db, 'Players', rowIdx, updates);
   return `OK|STATS_UPDATED|${p.player_id}`;
+}
+
+function readAlloc(row: Row): Record<AllocStat, number> {
+  return {
+    str: parseInt(row.str) || 5,
+    dex: parseInt(row.dex) || 5,
+    int: parseInt(row.int) || 5,
+    vit: parseInt(row.vit) || 5,
+    luk: parseInt(row.luk) || 5,
+  };
+}
+
+function recomputeCombatStats(db: Db, rowIdx: number, row: Row) {
+  const job = sheetToRows(db, 'Jobs').find((j) => j.job_id === row.main_job_id);
+  const combat = combatFromAlloc(readAlloc(row), job?.stat_bonus);
+  const hp = Math.min(parseInt(row.hp) || combat.maxHp, combat.maxHp);
+  const mp = Math.min(parseInt(row.mp) || combat.maxMp, combat.maxMp);
+  updateRowCells(db, 'Players', rowIdx, {
+    atk: String(combat.atk),
+    def: String(combat.def),
+    spd: String(combat.spd),
+    hp: String(hp),
+    mp: String(mp),
+  });
+  return combat;
+}
+
+function grantStarterSkills(db: Db, playerId: string, jobId: string) {
+  const starters = sheetToRows(db, 'Skills').filter(
+    (s) => s.job_id === jobId && (s.unlock_type === 'starter' || !s.unlock_type),
+  );
+  for (const skill of starters) {
+    if (findRowIndexDouble(db, 'PlayerSkills', 'player_id', playerId, 'skill_id', skill.skill_id) !== -1) {
+      continue;
+    }
+    appendRow(db, 'PlayerSkills', {
+      player_id: playerId,
+      skill_id: skill.skill_id,
+      skill_level: '1',
+      branch_chosen: '',
+      is_locked: '0',
+      unlocked_at: now(),
+    });
+  }
+  const rowIdx = findRowIndex(db, 'Players', 'player_id', playerId);
+  if (rowIdx === -1) return;
+  const row = getRowByIndex(db, 'Players', rowIdx);
+  if (!row) return;
+  if (!row.skill_slot_1 && starters[0]) {
+    updateCell(db, 'Players', rowIdx, 'skill_slot_1', starters[0].skill_id);
+  }
 }
 
 function expToNextLevel(level: number): number {
@@ -101,11 +179,28 @@ function addExp(db: Db, p: Params) {
   let level = parseInt(row.level) || 1;
   let exp = parseInt(row.exp) || 0;
   let stored = parseInt(row.stored_exp) || 0;
+  let statPoints = parseInt(row.stat_points) || 0;
+  let mastery = parseInt(row.job_mastery) || 1;
+  let masteryExp = parseInt(row.job_mastery_exp) || 0;
   const amount = parseInt(p.exp_amount) || 0;
+  const masteryGain = parseInt(p.mastery_gain || '0') || 0;
+
+  if (masteryGain > 0) {
+    masteryExp += masteryGain;
+    while (masteryExp >= masteryExpToNext(mastery) && mastery < 99) {
+      masteryExp -= masteryExpToNext(mastery);
+      mastery += 1;
+    }
+  }
+
   if (level >= 99 && level < 150) {
     stored += amount;
-    updateCell(db, 'Players', rowIdx, 'stored_exp', String(stored));
-    return `OK|EXP_STORED|${stored}`;
+    updateRowCells(db, 'Players', rowIdx, {
+      stored_exp: String(stored),
+      job_mastery: String(mastery),
+      job_mastery_exp: String(masteryExp),
+    });
+    return `OK|EXP_STORED|${stored}|${mastery}|${masteryExp}`;
   }
   exp += amount;
   let leveled = 0;
@@ -113,12 +208,16 @@ function addExp(db: Db, p: Params) {
     exp -= expToNextLevel(level);
     level += 1;
     leveled += 1;
+    statPoints += STAT_POINTS_PER_LEVEL;
   }
   updateRowCells(db, 'Players', rowIdx, {
     exp: String(exp),
     level: String(level),
+    stat_points: String(statPoints),
+    job_mastery: String(mastery),
+    job_mastery_exp: String(masteryExp),
   });
-  return `OK|EXP_ADDED|${level}|${exp}|${leveled}`;
+  return `OK|EXP_ADDED|${level}|${exp}|${leveled}|${statPoints}|${mastery}|${masteryExp}`;
 }
 
 function addMoney(db: Db, p: Params) {
@@ -189,6 +288,8 @@ function unlockJob(db: Db, p: Params) {
 
 function setMainJob(db: Db, p: Params) {
   if (!p.player_id || !p.job_id) return 'ERROR|MISSING_FIELDS';
+  const job = sheetToRows(db, 'Jobs').find((r) => r.job_id === String(p.job_id));
+  if (!job) return 'ERROR|JOB_NOT_FOUND';
   if (findRowIndexDouble(db, 'PlayerJobs', 'player_id', p.player_id, 'job_id', p.job_id) === -1) {
     appendRow(db, 'PlayerJobs', {
       player_id: p.player_id,
@@ -201,7 +302,14 @@ function setMainJob(db: Db, p: Params) {
   const row = getRowByIndex(db, 'Players', rowIdx);
   if (!row) return 'ERROR|PLAYER_NOT_FOUND';
   if (row.sub_job_id === String(p.job_id)) return 'ERROR|JOB_ALREADY_SET_AS_SUB';
-  updateCell(db, 'Players', rowIdx, 'main_job_id', p.job_id);
+  const switching = row.main_job_id && row.main_job_id !== String(p.job_id);
+  updateRowCells(db, 'Players', rowIdx, {
+    main_job_id: p.job_id,
+    ...(switching ? { job_mastery: '1', job_mastery_exp: '0' } : {}),
+  });
+  const updated = getRowByIndex(db, 'Players', rowIdx);
+  if (updated) recomputeCombatStats(db, rowIdx, updated);
+  grantStarterSkills(db, p.player_id, p.job_id);
   return `OK|MAIN_JOB_SET|${p.job_id}`;
 }
 
@@ -250,9 +358,35 @@ function unlockSkill(db: Db, p: Params) {
   const playerIdx = findRowIndex(db, 'Players', 'player_id', p.player_id);
   const playerRow = playerIdx === -1 ? null : getRowByIndex(db, 'Players', playerIdx);
   if (!playerRow) return 'ERROR|PLAYER_NOT_FOUND';
+
+  const unlockType = skill.unlock_type || 'starter';
+  const unlockValue = skill.unlock_value || '';
+  const mastery = parseInt(playerRow.job_mastery) || 1;
+  const level = parseInt(playerRow.level) || 1;
+  const money = parseInt(playerRow.money) || 0;
+
+  if (unlockType === 'starter') {
+    // free if same job or already main
+  } else if (unlockType === 'mastery') {
+    if (mastery < (parseInt(unlockValue) || 1)) return 'ERROR|MASTERY_TOO_LOW';
+  } else if (unlockType === 'level') {
+    if (level < (parseInt(unlockValue) || 1)) return 'ERROR|LEVEL_TOO_LOW';
+  } else if (unlockType === 'gold') {
+    const cost = parseInt(unlockValue) || 0;
+    if (money < cost) return 'ERROR|NOT_ENOUGH_GOLD';
+    updateCell(db, 'Players', playerIdx, 'money', String(money - cost));
+  } else if (unlockType === 'scroll') {
+    return 'ERROR|USE_SCROLL_ITEM';
+  }
+
   const isSubJob = playerRow.sub_job_id === skill.job_id;
-  const maxTier = isSubJob ? 2 : 3;
+  const isMainJob = playerRow.main_job_id === skill.job_id;
+  if (!isMainJob && !isSubJob && unlockType !== 'scroll') {
+    return 'ERROR|WRONG_JOB';
+  }
+  const maxTier = isSubJob && !isMainJob ? 2 : 3;
   if (parseInt(skill.tier) > maxTier) return 'ERROR|SKILL_TIER_LOCKED_FOR_SUB_JOB';
+
   appendRow(db, 'PlayerSkills', {
     player_id: p.player_id,
     skill_id: p.skill_id,
@@ -262,6 +396,112 @@ function unlockSkill(db: Db, p: Params) {
     unlocked_at: now(),
   });
   return `OK|SKILL_UNLOCKED|${p.skill_id}`;
+}
+
+function allocateStat(db: Db, p: Params) {
+  if (!p.player_id || !p.stat) return 'ERROR|MISSING_FIELDS';
+  const stat = String(p.stat).toLowerCase() as AllocStat;
+  if (!ALLOC_STATS.includes(stat)) return 'ERROR|INVALID_STAT';
+  const rowIdx = findRowIndex(db, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  const row = getRowByIndex(db, 'Players', rowIdx);
+  if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+  const points = parseInt(row.stat_points) || 0;
+  if (points < 1) return 'ERROR|NO_STAT_POINTS';
+  const job = sheetToRows(db, 'Jobs').find((j) => j.job_id === row.main_job_id);
+  const potential = parsePotential(job?.potential);
+  const current = parseInt(row[stat]) || 5;
+  if (current >= potential[stat]) return 'ERROR|POTENTIAL_CAP';
+  const next = current + 1;
+  updateRowCells(db, 'Players', rowIdx, {
+    [stat]: String(next),
+    stat_points: String(points - 1),
+  });
+  const updated = getRowByIndex(db, 'Players', rowIdx);
+  if (updated) recomputeCombatStats(db, rowIdx, updated);
+  return `OK|STAT_ALLOCATED|${stat}|${next}|${points - 1}`;
+}
+
+function setSkillLoadout(db: Db, p: Params) {
+  if (!p.player_id || !p.slot) return 'ERROR|MISSING_FIELDS';
+  const slot = parseInt(p.slot);
+  if (slot < 1 || slot > 4) return 'ERROR|INVALID_SLOT';
+  const col = `skill_slot_${slot}`;
+  const skillId = p.skill_id || '';
+  const rowIdx = findRowIndex(db, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  if (skillId) {
+    if (findRowIndexDouble(db, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skillId) === -1) {
+      return 'ERROR|SKILL_NOT_UNLOCKED';
+    }
+    const row = getRowByIndex(db, 'Players', rowIdx);
+    if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+    for (let i = 1; i <= 4; i++) {
+      if (i === slot) continue;
+      if (row[`skill_slot_${i}`] === skillId) {
+        updateCell(db, 'Players', rowIdx, `skill_slot_${i}`, '');
+      }
+    }
+  }
+  updateCell(db, 'Players', rowIdx, col, skillId);
+  return `OK|LOADOUT_SET|${slot}|${skillId || 'EMPTY'}`;
+}
+
+function useSkillScroll(db: Db, p: Params) {
+  if (!p.player_id || !p.item_id) return 'ERROR|MISSING_FIELDS';
+  const eq = sheetToRows(db, 'Equipment').find((r) => r.item_id === String(p.item_id));
+  if (!eq) return 'ERROR|ITEM_NOT_FOUND';
+  if (eq.item_type !== 'skill_scroll') return 'ERROR|NOT_A_SCROLL';
+  const m = (eq.base_stats || '').match(/skill:([A-Za-z0-9_]+)/);
+  if (!m) return 'ERROR|SCROLL_HAS_NO_SKILL';
+  const skillId = m[1];
+  const skill = sheetToRows(db, 'Skills').find((r) => r.skill_id === skillId);
+  if (!skill) return 'ERROR|SKILL_NOT_FOUND';
+  if (findRowIndexDouble(db, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skillId) !== -1) {
+    return 'ERROR|SKILL_ALREADY_UNLOCKED';
+  }
+  const rem = removeItem(db, { player_id: p.player_id, item_id: p.item_id, quantity: '1' });
+  if (!rem.startsWith('OK|')) return rem;
+  if (skill.parent_skill_id) {
+    if (findRowIndexDouble(db, 'PlayerSkills', 'player_id', p.player_id, 'skill_id', skill.parent_skill_id) === -1) {
+      addItem(db, { player_id: p.player_id, item_id: p.item_id, quantity: '1' });
+      return 'ERROR|PARENT_SKILL_NOT_UNLOCKED';
+    }
+  }
+  appendRow(db, 'PlayerSkills', {
+    player_id: p.player_id,
+    skill_id: skillId,
+    skill_level: '1',
+    branch_chosen: '',
+    is_locked: '0',
+    unlocked_at: now(),
+  });
+  return `OK|SCROLL_USED|${skillId}`;
+}
+
+function promoteJob(db: Db, p: Params) {
+  if (!p.player_id || !p.job_id) return 'ERROR|MISSING_FIELDS';
+  const job = sheetToRows(db, 'Jobs').find((r) => r.job_id === String(p.job_id));
+  if (!job) return 'ERROR|JOB_NOT_FOUND';
+  if (job.tier !== 'high' || !job.parent_job_id) return 'ERROR|NOT_A_PROMOTION';
+  const rowIdx = findRowIndex(db, 'Players', 'player_id', p.player_id);
+  if (rowIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+  const row = getRowByIndex(db, 'Players', rowIdx);
+  if (!row) return 'ERROR|PLAYER_NOT_FOUND';
+  if (row.main_job_id !== job.parent_job_id) return 'ERROR|WRONG_PARENT_JOB';
+  const level = parseInt(row.level) || 1;
+  const mastery = parseInt(row.job_mastery) || 1;
+  const cond = job.unlock_condition || '';
+  let needLevel = 20;
+  let needMastery = 5;
+  for (const part of cond.split(',')) {
+    const [k, v] = part.split(':');
+    if (k === 'level') needLevel = parseInt(v) || 20;
+    if (k === 'mastery') needMastery = parseInt(v) || 5;
+  }
+  if (level < needLevel) return 'ERROR|LEVEL_TOO_LOW';
+  if (mastery < needMastery) return 'ERROR|MASTERY_TOO_LOW';
+  return setMainJob(db, { player_id: p.player_id, job_id: p.job_id });
 }
 
 function evolveSkill(db: Db, p: Params) {
@@ -750,6 +990,10 @@ export function routePost(db: Db, action: string, p: Params): string {
     case 'set_sub_job': return setSubJob(db, p);
     case 'unlock_job': return unlockJob(db, p);
     case 'unlock_skill': return unlockSkill(db, p);
+    case 'allocate_stat': return allocateStat(db, p);
+    case 'set_skill_loadout': return setSkillLoadout(db, p);
+    case 'use_skill_scroll': return useSkillScroll(db, p);
+    case 'promote_job': return promoteJob(db, p);
     case 'evolve_skill': return evolveSkill(db, p);
     case 'link_skill_combo': return linkSkillCombo(db, p);
     case 'kill_boss': return killBoss(db, p);

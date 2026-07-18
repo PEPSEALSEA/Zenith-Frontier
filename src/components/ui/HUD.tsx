@@ -34,12 +34,19 @@ const FaceIcon = ({ faceKey, className }: { faceKey: string, className?: string 
 
 const HUD = () => {
     const { player, world, auth } = useGameStore()
-    const { stats, jobs } = player
+    const { stats, jobs, skillSlots, skillCatalog, skillCooldowns, statPoints } = player
     const [isProfileOpen, setIsProfileOpen] = useState(false)
+    const [, setTick] = useState(0)
+
+    React.useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 200)
+        return () => clearInterval(id)
+    }, [])
 
     const hpPercent = (stats.hp / stats.maxHp) * 100
     const mpPercent = (stats.mp / stats.maxMp) * 100
     const expPercent = (stats.exp / stats.maxExp) * 100
+    const now = Date.now()
 
     return (
         <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6 z-10">
@@ -142,8 +149,39 @@ const HUD = () => {
                 </div>
             </div>
 
-            {/* Bottom Center: System EXP Progress */}
-            <div className="flex flex-col items-center gap-4 mb-3">
+            {/* Bottom Center: System EXP Progress + Skill Bar */}
+            <div className="flex flex-col items-center gap-3 mb-3">
+                {statPoints > 0 && (
+                    <div className="pointer-events-none rounded-full border border-emerald-500/40 bg-emerald-500/15 px-4 py-1.5 text-[10px] font-black tracking-[0.25em] text-emerald-300 uppercase">
+                        Level Up — {statPoints} points to allocate
+                    </div>
+                )}
+                <div className="pointer-events-none flex items-end gap-2">
+                    {([1, 2, 3, 4] as const).map((slot) => {
+                        const id = skillSlots[slot - 1]
+                        const sk = skillCatalog.find((s) => s.skill_id === id)
+                        const cdUntil = id ? (skillCooldowns[id] || 0) : 0
+                        const onCd = now < cdUntil
+                        const cdPct = onCd && sk ? Math.max(0, (cdUntil - now) / sk.cooldown_ms) : 0
+                        return (
+                            <div
+                                key={slot}
+                                className="relative h-14 w-14 rounded-xl border border-white/15 bg-black/70 backdrop-blur-md flex flex-col items-center justify-center overflow-hidden"
+                            >
+                                {onCd && (
+                                    <div
+                                        className="absolute inset-0 bg-black/70 origin-bottom"
+                                        style={{ transform: `scaleY(${cdPct})` }}
+                                    />
+                                )}
+                                <span className="relative text-[9px] font-black text-white/40">{slot}</span>
+                                <span className="relative text-[8px] font-bold text-white uppercase truncate w-12 text-center leading-tight">
+                                    {sk?.skill_name?.slice(0, 8) || '—'}
+                                </span>
+                            </div>
+                        )
+                    })}
+                </div>
                 <div className="h-1.5 w-[600px] rounded-full bg-black/60 border border-white/5 relative overflow-hidden backdrop-blur-md">
                     <motion.div
                         className="h-full bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)]"

@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useGameStore, Job } from '@/store/gameStore'
+import { useGameStore } from '@/store/gameStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     Backpack,
-    Map,
     Settings,
     Users,
     LayoutGrid,
@@ -18,15 +17,24 @@ import {
     Plus
 } from 'lucide-react'
 import AdminPortal from './AdminPortal'
+import RadarChart from './RadarChart'
+import { ALLOC_STATS, masteryExpToNext, parsePotential } from '@/lib/classSystem'
+import type { AllocatedStats } from '@/store/gameStore'
 
 const Inventory = () => {
     const [isOpen, setIsOpen] = useState(false)
     const [activeTab, setActiveTab] = useState('EQUIPMENT')
-    const { player, gainExp, takeDamage, auth, isEditorMode, setEditorMode } = useGameStore()
+    const { player, gainExp, takeDamage, auth, isEditorMode, setEditorMode, refreshSkills } = useGameStore()
     const isAdmin = auth.user?.email === 'sealseapep@gmail.com'
 
-    const tabs = ['EQUIPMENT', 'JOB SYSTEM', 'INVENTORY', 'WORLD BOOK', 'ARCANUM']
+    const tabs = ['EQUIPMENT', 'JOB SYSTEM', 'SKILLS', 'INVENTORY', 'WORLD BOOK', 'ARCANUM']
     if (isAdmin) tabs.push('ADMIN')
+
+    React.useEffect(() => {
+        if (isOpen && (activeTab === 'SKILLS' || activeTab === 'JOB SYSTEM')) {
+            void refreshSkills()
+        }
+    }, [isOpen, activeTab, refreshSkills])
 
     return (
         <>
@@ -59,8 +67,9 @@ const Inventory = () => {
                                 <NavIcon icon={Backpack} active={activeTab === 'INVENTORY'} onClick={() => setActiveTab('INVENTORY')} />
                                 <NavIcon icon={Sword} active={activeTab === 'EQUIPMENT'} onClick={() => setActiveTab('EQUIPMENT')} />
                                 <NavIcon icon={Users} active={activeTab === 'JOB SYSTEM'} onClick={() => setActiveTab('JOB SYSTEM')} />
+                                <NavIcon icon={Zap} active={activeTab === 'SKILLS'} onClick={() => setActiveTab('SKILLS')} />
                                 <NavIcon icon={Scroll} active={activeTab === 'WORLD BOOK'} onClick={() => setActiveTab('WORLD BOOK')} />
-                                <NavIcon icon={Zap} active={activeTab === 'ARCANUM'} onClick={() => setActiveTab('ARCANUM')} />
+                                <NavIcon icon={LayoutGrid} active={activeTab === 'ARCANUM'} onClick={() => setActiveTab('ARCANUM')} />
                                 {isAdmin && <NavIcon icon={Settings} active={activeTab === 'ADMIN'} onClick={() => setActiveTab('ADMIN')} />}
                             </div>
 
@@ -88,6 +97,7 @@ const Inventory = () => {
                                 <div className="flex-1 overflow-y-auto p-8 overflow-hidden">
                                     {activeTab === 'INVENTORY' && <InventoryGrid />}
                                     {activeTab === 'JOB SYSTEM' && <JobSystemView />}
+                                    {activeTab === 'SKILLS' && <SkillsView />}
                                     {activeTab === 'EQUIPMENT' && <EquipmentGrid />}
                                     {activeTab === 'ARCANUM' && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -190,9 +200,13 @@ const InventoryGrid = () => {
     )
 }
 
-const EquipmentGrid = () => (
+const EquipmentGrid = () => {
+    const { player, allocateStat } = useGameStore()
+    const potential = parsePotential(player.jobs.main?.potential)
+    const maxStat = (k: keyof AllocatedStats) => Math.max(potential[k], 1)
+
+    return (
     <div className="grid grid-cols-4 gap-8">
-        {/* Left Slot: Main Weapon */}
         <div className="col-span-2 space-y-6">
             <label className="text-[10px] font-bold tracking-[0.3em] text-white/30 uppercase">Primary Armament</label>
             <div className="h-48 rounded-xl border-2 border-dashed border-white/5 bg-white/[0.02] flex items-center justify-center relative group group-hover:bg-white/[0.04] transition-all cursor-pointer">
@@ -207,29 +221,47 @@ const EquipmentGrid = () => (
             </div>
         </div>
 
-        {/* Right Side: Stats detail */}
         <div className="col-span-2 bg-black/40 rounded-xl p-8 border border-white/5">
-            <h4 className="text-xl font-black italic tracking-tight text-white/80 mb-6 uppercase border-b border-white/5 pb-4">Character Affinity</h4>
-            <div className="space-y-4">
-                <AffineStat label="STRENGTH" value={45} color="amber" />
-                <AffineStat label="DEXTERITY" value={82} color="emerald" />
-                <AffineStat label="INTELLIGENCE" value={31} color="blue" />
-                <AffineStat label="VORPALITY" value={15} color="cyan" />
+            <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
+                <h4 className="text-xl font-black italic tracking-tight text-white/80 uppercase">Potential</h4>
+                <span className="text-[10px] font-mono text-emerald-400">PTS {player.statPoints}</span>
+            </div>
+            <RadarChart alloc={player.alloc} potential={potential} size={200} />
+            <div className="space-y-3 mt-4">
+                {ALLOC_STATS.map((stat) => (
+                    <div key={stat} className="flex items-center gap-2">
+                        <div className="flex-1">
+                            <AffineStat
+                                label={stat.toUpperCase()}
+                                value={Math.round((player.alloc[stat] / maxStat(stat)) * 100)}
+                                color={stat === 'str' ? 'amber' : stat === 'dex' ? 'emerald' : stat === 'int' ? 'blue' : 'cyan'}
+                            />
+                        </div>
+                        <button
+                            disabled={player.statPoints < 1 || player.alloc[stat] >= potential[stat]}
+                            onClick={() => void allocateStat(stat)}
+                            className="h-8 w-8 rounded border border-white/10 text-emerald-400 disabled:opacity-20 hover:bg-emerald-500/10"
+                        >
+                            +
+                        </button>
+                    </div>
+                ))}
             </div>
         </div>
     </div>
-)
+    )
+}
 
 const AffineStat = ({ label, value, color }: { label: string, value: number, color: string }) => (
     <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between px-1">
             <span className="text-[9px] font-bold tracking-widest text-white/40">{label}</span>
-            <span className="text-[10px] font-mono font-bold text-white">{value}</span>
+            <span className="text-[10px] font-mono font-bold text-white">{value}%</span>
         </div>
         <div className="h-1.5 w-full bg-black/60 rounded-full overflow-hidden border border-white/5">
             <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${value}%` }}
+                animate={{ width: `${Math.min(100, value)}%` }}
                 className={`h-full rounded-full ${color === 'emerald' ? 'bg-emerald-500' : color === 'amber' ? 'bg-amber-500' : color === 'blue' ? 'bg-blue-500' : 'bg-cyan-500'}`}
             />
         </div>
@@ -237,27 +269,158 @@ const AffineStat = ({ label, value, color }: { label: string, value: number, col
 )
 
 const JobSystemView = () => {
-    const { player } = useGameStore()
+    const { player, promoteJob } = useGameStore()
+    const potential = parsePotential(player.jobs.main?.potential)
+    const masteryNeed = masteryExpToNext(player.jobMastery)
+    const masteryPct = Math.min(100, (player.jobMasteryExp / masteryNeed) * 100)
+
     return (
         <div className="grid grid-cols-2 gap-8 h-full">
             <div className="flex flex-col gap-4">
                 <label className="text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase">Main Occupation</label>
-                <div className="p-8 rounded-2xl bg-gradient-to-br from-emerald-600/20 to-zinc-950 border border-emerald-500/30 flex flex-col items-center justify-center gap-4 group hover:scale-[1.02] transition-transform cursor-pointer relative overflow-hidden">
-                    <Zap className="h-16 w-16 text-emerald-400 opacity-60 transition-transform group-hover:scale-110 mb-2" />
+                <div className="p-8 rounded-2xl bg-gradient-to-br from-emerald-600/20 to-zinc-950 border border-emerald-500/30 flex flex-col items-center justify-center gap-4 relative overflow-hidden">
+                    <Zap className="h-16 w-16 text-emerald-400 opacity-60 mb-2" />
                     <h3 className="text-2xl font-black tracking-tighter text-white uppercase italic">{player.jobs.main?.name || 'TRAINEE'}</h3>
-                    <span className="text-[10px] font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full uppercase">LVL {player.jobs.main?.level || 0}</span>
+                    <span className="text-[10px] font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full uppercase">
+                        CHAR LVL {player.stats.level}
+                    </span>
+                    <div className="w-full mt-2">
+                        <div className="flex justify-between text-[9px] font-bold tracking-widest text-white/40 uppercase mb-1">
+                            <span>Job Mastery {player.jobMastery}</span>
+                            <span>{player.jobMasteryExp}/{masteryNeed}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-black/50 overflow-hidden">
+                            <div className="h-full bg-emerald-400" style={{ width: `${masteryPct}%` }} />
+                        </div>
+                    </div>
                     <div className="absolute top-0 right-0 h-24 w-24 bg-emerald-500/10 rounded-full blur-3xl -mr-12 -mt-12" />
                 </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => void promoteJob('JOB_006')}
+                        className="flex-1 rounded-lg border border-white/10 py-3 text-[9px] font-black tracking-widest text-cyan-300 uppercase hover:bg-cyan-500/10"
+                    >
+                        Promote Knight
+                    </button>
+                    <button
+                        onClick={() => void promoteJob('JOB_007')}
+                        className="flex-1 rounded-lg border border-white/10 py-3 text-[9px] font-black tracking-widest text-rose-300 uppercase hover:bg-rose-500/10"
+                    >
+                        Promote Berserker
+                    </button>
+                </div>
+                <p className="text-[9px] text-white/30 tracking-wide">Promotions require Warrior + Lv20 + Mastery 5</p>
             </div>
 
             <div className="flex flex-col gap-4">
-                <label className="text-[10px] font-bold tracking-[0.3em] text-cyan-500 uppercase">Sub-Profession</label>
-                <div className="p-8 rounded-2xl bg-black/40 border border-white/5 flex flex-col items-center justify-center gap-4 group hover:scale-[1.02] transition-all cursor-pointer relative overflow-hidden">
-                    <Map className="h-12 w-12 text-white/10" />
-                    <span className="text-[10px] font-bold tracking-[0.5em] text-white/20 uppercase">No Sub-Job Assigned</span>
-                    <div className="h-px w-24 bg-white/5" />
-                    <button className="text-[9px] font-black tracking-[0.2em] text-cyan-400 hover:text-cyan-300 uppercase transition-colors">Assign Secondary Path +</button>
+                <label className="text-[10px] font-bold tracking-[0.3em] text-cyan-500 uppercase">Class Potential</label>
+                <div className="p-6 rounded-2xl bg-black/40 border border-white/5 flex flex-col items-center">
+                    <RadarChart alloc={player.alloc} potential={potential} size={240} />
+                    <p className="text-[10px] text-white/40 mt-2 text-center">
+                        Free points: <span className="text-emerald-300 font-mono">{player.statPoints}</span>
+                    </p>
                 </div>
+            </div>
+        </div>
+    )
+}
+
+const SkillsView = () => {
+    const { player, setSkillSlot, unlockSkill, useSkillScroll } = useGameStore()
+    const [selectedSlot, setSelectedSlot] = useState<1 | 2 | 3 | 4>(1)
+    const jobId = player.jobs.main?.id
+    const jobSkills = player.skillCatalog.filter((s) => !jobId || s.job_id === jobId || player.ownedSkillIds.includes(s.skill_id))
+    const scrolls = player.inventory.filter((i) => i.item_id.startsWith('EQ_SCR_'))
+
+    const unlockHint = (s: typeof jobSkills[0]) => {
+        if (s.unlock_type === 'mastery') return `Mastery ${s.unlock_value}`
+        if (s.unlock_type === 'gold') return `${s.unlock_value} G`
+        if (s.unlock_type === 'scroll') return `Scroll ${s.unlock_value}`
+        if (s.unlock_type === 'level') return `Lv ${s.unlock_value}`
+        return 'Starter'
+    }
+
+    return (
+        <div className="grid grid-cols-5 gap-6 h-full">
+            <div className="col-span-2 space-y-4">
+                <label className="text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase">Loadout 1–4</label>
+                <div className="grid grid-cols-2 gap-3">
+                    {([1, 2, 3, 4] as const).map((slot) => {
+                        const id = player.skillSlots[slot - 1]
+                        const sk = player.skillCatalog.find((s) => s.skill_id === id)
+                        return (
+                            <button
+                                key={slot}
+                                onClick={() => setSelectedSlot(slot)}
+                                className={`p-4 rounded-xl border text-left transition-all ${selectedSlot === slot ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-black/30'}`}
+                            >
+                                <div className="text-[9px] font-black text-white/40 tracking-widest">SLOT {slot}</div>
+                                <div className="text-sm font-bold text-white mt-1 uppercase italic">{sk?.skill_name || 'Empty'}</div>
+                                {sk && <div className="text-[9px] text-cyan-400/70 mt-1">MP {sk.mp_cost} · {sk.skill_type}</div>}
+                                {id && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); void setSkillSlot(slot, '') }}
+                                        className="mt-2 text-[8px] text-rose-400 uppercase tracking-widest"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+                {scrolls.length > 0 && (
+                    <div className="mt-6 space-y-2">
+                        <label className="text-[10px] font-bold tracking-[0.3em] text-violet-400 uppercase">Scrolls</label>
+                        {scrolls.map((sc) => (
+                            <button
+                                key={sc.item_id}
+                                onClick={() => void useSkillScroll(sc.item_id)}
+                                className="w-full rounded-lg border border-violet-500/30 bg-violet-500/5 px-4 py-3 text-left text-xs text-violet-200 hover:bg-violet-500/15"
+                            >
+                                Use {sc.name || sc.item_id} ×{sc.quantity}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="col-span-3 space-y-3 overflow-y-auto max-h-[55vh] pr-2">
+                <label className="text-[10px] font-bold tracking-[0.3em] text-cyan-500 uppercase">Skill Codex</label>
+                {jobSkills.map((s) => {
+                    const owned = player.ownedSkillIds.includes(s.skill_id)
+                    return (
+                        <div key={s.skill_id} className="flex items-center gap-4 rounded-xl border border-white/5 bg-black/30 p-4">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-black uppercase italic text-white truncate">{s.skill_name}</h4>
+                                    <span className="text-[8px] font-bold tracking-widest text-white/30 uppercase">{s.unlock_type}</span>
+                                </div>
+                                <p className="text-[10px] text-white/40 mt-1">{s.description}</p>
+                                <p className="text-[9px] text-emerald-400/60 font-mono mt-1">
+                                    {s.skill_type} · MP {s.mp_cost} · CD {s.cooldown_ms}ms · {unlockHint(s)}
+                                </p>
+                            </div>
+                            {owned ? (
+                                <button
+                                    onClick={() => void setSkillSlot(selectedSlot, s.skill_id)}
+                                    className="px-4 py-2 rounded-lg border border-emerald-500/40 text-[9px] font-black tracking-widest text-emerald-300 uppercase hover:bg-emerald-500/10"
+                                >
+                                    Equip {selectedSlot}
+                                </button>
+                            ) : s.unlock_type === 'scroll' ? (
+                                <span className="text-[9px] text-violet-300/70 uppercase tracking-widest">Need Scroll</span>
+                            ) : (
+                                <button
+                                    onClick={() => void unlockSkill(s.skill_id)}
+                                    className="px-4 py-2 rounded-lg border border-amber-500/40 text-[9px] font-black tracking-widest text-amber-300 uppercase hover:bg-amber-500/10"
+                                >
+                                    Unlock
+                                </button>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )
