@@ -357,7 +357,7 @@ export interface GameState {
     clearPendingLevelUps: () => void
     refreshSkills: () => Promise<void>
     refreshEquipmentCatalog: () => Promise<void>
-    pushToast: (toast: Omit<GameToast, 'id' | 'createdAt'> & { id?: string }) => void
+    pushToast: (toast: Omit<GameToast, 'id' | 'createdAt' | 'count' | 'stackKey'> & { id?: string }) => void
     dismissToast: (id: string) => void
     addMoney: (amount: number) => void
     applyKillRewards: (opts: { exp: number; money: number; items?: string[] }) => Promise<void>
