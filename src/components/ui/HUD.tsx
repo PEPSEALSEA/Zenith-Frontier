@@ -242,12 +242,24 @@ const HUD = () => {
                     })}
                 </div>
 
-                <div className="rpg-bar-track h-1.5 w-80 rounded-full">
-                    <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-amber-600 via-amber-400 to-yellow-300"
-                        animate={{ width: `${expPercent}%` }}
-                        transition={{ type: 'spring', stiffness: 120, damping: 22 }}
-                    />
+                <div className="w-80">
+                    <div className="mb-1 flex items-baseline justify-between gap-3 px-0.5">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-200/65">
+                            Exp
+                        </span>
+                        <span className="font-mono text-[10px] font-semibold tabular-nums tracking-tight text-amber-50/90">
+                            {Math.floor(stats.exp).toLocaleString()}
+                            <span className="mx-1 text-white/30">/</span>
+                            {Math.floor(stats.maxExp).toLocaleString()}
+                        </span>
+                    </div>
+                    <div className="rpg-bar-track relative h-1.5 overflow-hidden rounded-full">
+                        <motion.div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-700 via-amber-400 to-yellow-200"
+                            animate={{ width: `${expPercent}%` }}
+                            transition={{ type: 'spring', stiffness: 120, damping: 22 }}
+                        />
+                    </div>
                 </div>
             </motion.div>
 
