@@ -373,13 +373,13 @@ const STAR_TOWN_MAP: Params[] = [
   { id: 'star_heal', type: 'landmark', x: '500', y: '600', z: '2', name: 'Star Spring', radius: '34', params: 'interact=heal;kind=heal;color=#2dd4bf' },
   { id: 'star_golf', type: 'landmark', x: '720', y: '580', z: '2', name: 'Star Golf', radius: '40', params: 'interact=golf;kind=golf;color=#86efac' },
   {
-    id: 'gate_town_exit', type: 'landmark', x: '880', y: '400', z: '1', name: 'East Gate', radius: '28',
+    id: 'gate_town_exit', type: 'landmark', x: '880', y: '400', z: '1', name: 'East Gate', radius: '36',
     params: 'kind=gate;gate=exit;to=park1;sibling=gate_park_enter;spawn_x=1080;spawn_y=400;color=#facc15',
   },
   { id: 'whisperwood', type: 'forest', x: '1330', y: '430', z: '0', name: 'Whisperwood Park', radius: '320', params: 'map_id=park1' },
   {
-    id: 'gate_park_enter', type: 'landmark', x: '1020', y: '400', z: '1', name: 'Town Gate', radius: '28',
-    params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=800;spawn_y=400;color=#facc15',
+    id: 'gate_park_enter', type: 'landmark', x: '1040', y: '400', z: '1', name: 'Town Gate', radius: '36',
+    params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=800;spawn_y=400;color=#facc15;hidden=1',
   },
   { id: 'forest_rabbit_1', type: 'monster', x: '1150', y: '250', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
   { id: 'forest_rabbit_2', type: 'monster', x: '1450', y: '550', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },

@@ -93,7 +93,7 @@ export const MAP_MANIFEST: { maps: MapRegionManifest[] } = {
         {
           id: 'gate_park_enter',
           to: 'town1',
-          x: 1020,
+          x: 1040,
           y: 400,
           sibling: 'gate_town_exit',
           spawnX: 800,

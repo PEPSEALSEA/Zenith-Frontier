@@ -270,7 +270,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
     y: 400,
     z: 1,
     name: 'East Gate',
-    radius: 28,
+    radius: 36,
     params: {
       kind: 'gate',
       gate: 'exit',
@@ -294,11 +294,11 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'gate_park_enter',
     type: 'landmark',
-    x: 1020,
+    x: 1040,
     y: 400,
     z: 1,
     name: 'Town Gate',
-    radius: 28,
+    radius: 36,
     params: {
       kind: 'gate',
       gate: 'entrance',
@@ -307,6 +307,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       spawn_x: '800',
       spawn_y: '400',
       color: '#facc15',
+      hidden: '1',
     },
   },
   {

@@ -121,14 +121,6 @@ export function drawTownWalls(ctx: CanvasRenderingContext2D) {
   strokeSegs('#8a5530', TOWN_WALL_THICKNESS)
   strokeSegs('#c4a06a', 4)
 
-  const g = TOWN_GATE_ZONE
-  ctx.fillStyle = '#6b3f1f'
-  ctx.fillRect(g.x - 8, g.y - 6, 12, g.h + 12)
-  ctx.fillRect(g.x + g.w - 4, g.y - 6, 12, g.h + 12)
-  ctx.fillStyle = '#c4a574'
-  ctx.fillRect(g.x - 6, g.y - 4, 8, g.h + 8)
-  ctx.fillRect(g.x + g.w - 4, g.y - 4, 8, g.h + 8)
-
   ctx.restore()
 }
 
@@ -145,18 +137,6 @@ export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) 
   ctx.fill()
   ctx.strokeStyle = 'rgba(50, 110, 60, 0.45)'
   ctx.lineWidth = 4
-  ctx.stroke()
-
-  const pathY = GATE_PATH.y
-  ctx.strokeStyle = 'rgba(180, 150, 100, 0.55)'
-  ctx.lineWidth = 28
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(GATE_PATH.fromX, pathY)
-  ctx.quadraticCurveTo((GATE_PATH.fromX + GATE_PATH.toX) / 2, pathY, GATE_PATH.toX, pathY)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(210, 180, 130, 0.4)'
-  ctx.lineWidth = 14
   ctx.stroke()
 
   ctx.fillStyle = 'rgba(80, 160, 210, 0.45)'

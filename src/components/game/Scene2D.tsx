@@ -1127,9 +1127,17 @@ export default function GameScene2D() {
         ctx.shadowBlur = 0
         drawFace(ctx, 0, 0, 8, String(obj.params?.face || 'star'))
       } else if (kind === 'gate') {
-        buildingGroundShadow(ctx, 34, 14)
-        if (!drawSprite(ctx, 'gate', 68, 28)) drawBuilding(ctx, 'landmark', color, 26, 'gate')
-        labelOffset = 20
+        const gateRole = String(obj.params?.gate || '')
+        if (gateRole === 'entrance') {
+          ctx.restore()
+          continue
+        }
+        buildingGroundShadow(ctx, 42, 18)
+        if (!drawSprite(ctx, 'gate', 96, 22)) drawBuilding(ctx, 'landmark', color, 30, 'gate')
+        labelOffset = 24
+        drawLabelBelow(ctx, obj.name, labelOffset)
+        ctx.restore()
+        continue
       } else if (kind === 'house') {
         buildingGroundShadow(ctx, 46, 30)
         if (!drawSprite(ctx, 'house', 108, 30)) drawBuilding(ctx, 'house', color, 30, 'house')
