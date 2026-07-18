@@ -37,8 +37,8 @@ const JOB_ICONS: Record<string, any> = {
 
 const FALLBACK_JOBS: (Job & { icon: any; stat_bonus?: string })[] = [
     { id: 'JOB_001', name: 'Warrior', level: 1, type: 'main', skills: ['Slash'], icon: Sword, stat_bonus: 'atk+10,def+5' },
-    { id: 'JOB_002', name: 'Archer', level: 1, type: 'main', skills: ['Double Shot'], icon: Target, stat_bonus: 'spd+10,atk+5' },
-    { id: 'JOB_003', name: 'Twin-Blade', level: 1, type: 'main', skills: ['Quick Step'], icon: Zap, stat_bonus: 'spd+15,atk+3' },
+    { id: 'JOB_002', name: 'Archer', level: 1, type: 'main', skills: ['Double Shot'], icon: Target, stat_bonus: 'spd+6,atk+5' },
+    { id: 'JOB_003', name: 'Twin-Blade', level: 1, type: 'main', skills: ['Quick Step'], icon: Zap, stat_bonus: 'spd+8,atk+3' },
     { id: 'JOB_004', name: 'Spearman', level: 1, type: 'main', skills: ['Pierce'], icon: DraftingCompass, stat_bonus: 'atk+7,def+8' },
     { id: 'JOB_005', name: 'Supporter', level: 1, type: 'main', skills: ['Heal'], icon: Heart, stat_bonus: 'mp+30,def+5' },
     { id: 'JOB_008', name: 'Mage', level: 1, type: 'main', skills: ['Arcane Bolt'], icon: Shield, stat_bonus: 'mp+20,atk+5' },

@@ -794,7 +794,7 @@ export default function GameScene2D() {
 
     let dx = 0
     let dy = 0
-    const baseSpeed = isForgeMode ? 15 : (isEditorMode ? playerStatsRef.current.spd * 1.5 : playerStatsRef.current.spd * 0.6)
+    const baseSpeed = isForgeMode ? 15 : (isEditorMode ? playerStatsRef.current.spd * 1.5 : playerStatsRef.current.spd * 0.48)
     if (!isDead && !panelRef.current) {
       if (keys['KeyW'] || keys['ArrowUp']) dy -= baseSpeed
       if (keys['KeyS'] || keys['ArrowDown']) dy += baseSpeed

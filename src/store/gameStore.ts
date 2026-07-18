@@ -482,7 +482,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         stats: {
             hp: 100, maxHp: 100, mp: 50, maxMp: 50,
             level: 1, exp: 0, maxExp: 100,
-            atk: 10, def: 5, spd: 12, luck: 8, money: 100,
+            atk: 10, def: 5, spd: 10, luck: 8, money: 100,
             acc: 0.075, eva: 0.074,
         },
         alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
@@ -577,7 +577,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                 stats: {
                     hp: 100, maxHp: 100, mp: 50, maxMp: 50,
                     level: 1, exp: 0, maxExp: 100,
-                    atk: 10, def: 5, spd: 12, luck: 8, money: 100,
+                    atk: 10, def: 5, spd: 10, luck: 8, money: 100,
                     acc: 0.075, eva: 0.074,
                 },
                 alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
@@ -706,7 +706,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                     maxMp: Math.max(hydrated.stats.mp, combat.maxMp),
                     atk: hydrated.stats.atk || combat.atk,
                     def: hydrated.stats.def || combat.def,
-                    spd: hydrated.stats.spd || combat.spd,
+                    spd: combat.spd,
                     luck: hydrated.stats.luck || combat.luck,
                     acc: combat.acc,
                     eva: combat.eva,

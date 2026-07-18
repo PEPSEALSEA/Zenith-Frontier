@@ -22,12 +22,12 @@ export function combatFromAlloc(
   const base = {
     atk: 8 + alloc.str * 2,
     def: 5 + Math.floor(alloc.vit * 1.2),
-    spd: 8 + alloc.dex * 2,
+    spd: 6 + alloc.dex,
     luck: 5 + alloc.luk,
     maxHp: 80 + alloc.vit * 8,
     maxMp: 40 + alloc.int * 6,
     acc: alloc.dex * 0.015,
-    eva: alloc.dex * 0.01 + (8 + alloc.dex * 2) * 0.002,
+    eva: alloc.dex * 0.01 + (6 + alloc.dex) * 0.002,
   };
   if (jobBonus) {
     for (const part of jobBonus.split(',')) {
