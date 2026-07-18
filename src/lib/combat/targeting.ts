@@ -59,7 +59,13 @@ export function aimAngle(
   origin: Point,
   facing: number,
   locked: { id: string; x: number; y: number } | null,
+  aimPoint?: Point | null,
 ): number {
   if (locked) return Math.atan2(locked.y - origin.y, locked.x - origin.x)
+  if (aimPoint) {
+    const dx = aimPoint.x - origin.x
+    const dy = aimPoint.y - origin.y
+    if (dx * dx + dy * dy > 4) return Math.atan2(dy, dx)
+  }
   return facing >= 0 ? 0 : Math.PI
 }

@@ -181,7 +181,7 @@ const HUD = () => {
 
                 <div className="relative rpg-panel rpg-panel-gold flex items-end gap-1.5 rounded-2xl px-3 py-2.5">
                     <p className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] uppercase tracking-wider text-white/40">
-                        1–4 skills · Tab lock · L/R attack
+                        Aim with mouse · Tab lock · 1–4 skills
                     </p>
                     {([1, 2, 3, 4] as const).map((slot) => {
                         const id = skillSlots[slot - 1]

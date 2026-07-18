@@ -234,6 +234,8 @@ export default function GameScene2D() {
   const skillKeyLatch = useRef<Set<string>>(new Set())
   const lockRef = useRef<LockState>({ targetId: null })
   const lastDotTick = useRef(0)
+  const mouseWorldRef = useRef({ x: 0, y: 0, ready: false })
+  const lastAimAngleRef = useRef(0)
 
   useEffect(() => {
     preloadSheets()
@@ -507,6 +509,21 @@ export default function GameScene2D() {
       if (isEditorMode) return
       if (deadUntilRef.current > Date.now()) return
       if (isInSafeZone(posRef.current.x, posRef.current.y, world.objects)) return
+      {
+        const canvas = canvasRef.current
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect()
+          const camX = camRef.current.x - canvas.width / 2
+          const camY = camRef.current.y - canvas.height / 2
+          mouseWorldRef.current = {
+            x: e.clientX - rect.left + camX,
+            y: e.clientY - rect.top + camY,
+            ready: true,
+          }
+          const mdx = mouseWorldRef.current.x - posRef.current.x
+          if (Math.abs(mdx) > 2) facingRef.current = mdx >= 0 ? 1 : -1
+        }
+      }
       if (e.button === 0 && !e.shiftKey) {
         // click empty: soft-clear lock if far from any monster
         const near = monstersRef.current.find(
@@ -538,16 +555,32 @@ export default function GameScene2D() {
       }
     }
     const handleContextMenu = (e: MouseEvent) => e.preventDefault()
+    const handleMouseMove = (e: MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const camX = camRef.current.x - canvas.width / 2
+      const camY = camRef.current.y - canvas.height / 2
+      mouseWorldRef.current = {
+        x: e.clientX - rect.left + camX,
+        y: e.clientY - rect.top + camY,
+        ready: true,
+      }
+      const dx = mouseWorldRef.current.x - posRef.current.x
+      if (Math.abs(dx) > 2) facingRef.current = dx >= 0 ? 1 : -1
+    }
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('contextmenu', handleContextMenu)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [attack, castSkillSlot, useItemSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
@@ -614,6 +647,16 @@ export default function GameScene2D() {
     }
 
     const locked = getLocked(lockRef.current, monstersRef.current, now)
+    const aimPoint = mouseWorldRef.current.ready
+      ? { x: mouseWorldRef.current.x, y: mouseWorldRef.current.y }
+      : null
+    if (locked) {
+      lastAimAngleRef.current = Math.atan2(locked.y - posRef.current.y, locked.x - posRef.current.x)
+    } else if (aimPoint) {
+      lastAimAngleRef.current = Math.atan2(aimPoint.y - posRef.current.y, aimPoint.x - posRef.current.x)
+    } else {
+      lastAimAngleRef.current = facingRef.current >= 0 ? 0 : Math.PI
+    }
 
     const lastAtk = world.lastAttack
     const profile = profileRef.current
@@ -630,6 +673,7 @@ export default function GameScene2D() {
         origin: posRef.current,
         facing: facingRef.current,
         locked,
+        aimPoint,
         atk: atkNow,
         luck: luckNow,
         rangeAdd: buff.rangeAdd,
@@ -663,6 +707,7 @@ export default function GameScene2D() {
             origin: { ...posRef.current },
             facing: facingRef.current,
             locked,
+            aimPoint,
             atk: atkNow,
             luck: luckNow,
             rangeAdd: buff.rangeAdd,
@@ -692,8 +737,10 @@ export default function GameScene2D() {
               else if (kind === 'range') buffRef.current = { ...buffRef.current, rangeAdd: 50, until: now + duration }
             },
             applyDash: (d) => {
-              const facing = facingRef.current
-              posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + facing * d))
+              const ang = lastAimAngleRef.current
+              posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
+              posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
+              facingRef.current = Math.cos(ang) >= 0 ? 1 : -1
             },
           })
         }
@@ -743,7 +790,7 @@ export default function GameScene2D() {
       const lockHint = locked ? ` · Lock: ${locked.id.slice(0, 8)}` : ''
       const nextHint = near && !panelRef.current
         ? `Press E — ${near.name}`
-        : (!playerSafe && !isEditorMode ? `Tab lock target${lockHint}` : '')
+        : (!playerSafe && !isEditorMode ? `Aim mouse · Tab lock${lockHint}` : '')
       if (nextHint !== hintRef.current) {
         hintRef.current = nextHint
         setHint(nextHint)
@@ -950,9 +997,7 @@ export default function GameScene2D() {
     const attackAge = Date.now() - world.lastAttack.time
     if (attackAge < 280 && !playerSafe && world.lastAttack.type) {
       const progress = attackAge / 280
-      const ang = locked
-        ? Math.atan2(locked.y - posRef.current.y, locked.x - posRef.current.x)
-        : (facingRef.current >= 0 ? 0 : Math.PI)
+      const ang = lastAimAngleRef.current
       const r = (world.lastAttack.type === 'hard' ? profileRef.current.hard_range : profileRef.current.light_range) * 0.55
       ctx.beginPath()
       ctx.moveTo(posRef.current.x, posRef.current.y)

@@ -43,6 +43,7 @@ export function resolveBasicAttack(opts: {
   origin: Point
   facing: number
   locked: LockTarget
+  aimPoint?: { x: number; y: number } | null
   atk: number
   luck: number
   rangeAdd: number
@@ -55,7 +56,7 @@ export function resolveBasicAttack(opts: {
   const range = (hard ? opts.profile.hard_range : opts.profile.light_range) + opts.rangeAdd
   const mult = hard ? opts.profile.hard_mult : opts.profile.light_mult
   const hits = Math.max(1, opts.profile.hits || 1)
-  const angle = aimAngle(opts.origin, opts.facing, opts.locked)
+  const angle = aimAngle(opts.origin, opts.facing, opts.locked, opts.aimPoint ?? null)
   const delivery = spawnBasicAttackFx(opts.profile, opts.origin, angle, hard)
   const baseDmg = Math.max(1, Math.floor(opts.atk * mult))
 
@@ -86,6 +87,7 @@ export function resolveSkillCast(opts: {
   origin: Point
   facing: number
   locked: LockTarget
+  aimPoint?: { x: number; y: number } | null
   atk: number
   luck: number
   rangeAdd: number
@@ -98,7 +100,7 @@ export function resolveSkillCast(opts: {
   applyDash: (dist: number) => void
 }) {
   const tags = parseEffect(opts.skill.effect)
-  const angle = aimAngle(opts.origin, opts.facing, opts.locked)
+  const angle = aimAngle(opts.origin, opts.facing, opts.locked, opts.aimPoint ?? null)
   const fx = skillFx(opts.skill.skill_id)
 
   if (opts.skill.skill_type === 'heal') {
