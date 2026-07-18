@@ -1,5 +1,6 @@
 import type { WorldObject, WorldObjectType } from '@/store/gameStore'
 import { drawSprite } from '@/lib/sprites'
+import { PARK_BOUNDS, PARK_OUTLINE_PTS, parkPtsParam } from '@/lib/map/worldLayout'
 
 export const STAR_TOWN_SPAWN = { x: 500, y: 400 }
 
@@ -284,12 +285,18 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'whisperwood',
     type: 'forest',
-    x: 1330,
-    y: 430,
+    x: 1950,
+    y: 970,
     z: 0,
     name: 'Whisperwood Park',
-    radius: 320,
-    params: { map_id: 'park1' },
+    radius: 930,
+    params: {
+      shape: 'poly',
+      w: String(PARK_BOUNDS.w),
+      h: String(PARK_BOUNDS.h),
+      map_id: 'park1',
+      pts: parkPtsParam(),
+    },
   },
   {
     id: 'gate_park_enter',
@@ -313,8 +320,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_1',
     type: 'monster',
-    x: 1150,
-    y: 250,
+    x: 1400,
+    y: 280,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -323,8 +330,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_2',
     type: 'monster',
-    x: 1450,
-    y: 550,
+    x: 2400,
+    y: 1500,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -333,8 +340,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_bunny_3',
     type: 'monster',
-    x: 1300,
-    y: 400,
+    x: 1950,
+    y: 900,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -343,8 +350,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_sloth_1',
     type: 'monster',
-    x: 1500,
-    y: 350,
+    x: 2600,
+    y: 700,
     z: 1,
     name: 'Sleepy Sloth',
     radius: 34,
@@ -631,19 +638,37 @@ export function drawForestDecor(
   width: number,
   height: number,
 ) {
-  const cx = 1330
-  const cy = 430
   const trees: [number, number][] = []
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2 - Math.PI / 2
-    const rx = 270 + (i % 2 === 0 ? 18 : -12)
-    const ry = 250 + (i % 2 === 0 ? 10 : -16)
-    trees.push([Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry)])
+  const outline = PARK_OUTLINE_PTS
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i]
+    const b = outline[(i + 1) % outline.length]
+    const steps = 2
+    for (let s = 0; s < steps; s++) {
+      const t = (s + 0.35 + (i % 3) * 0.08) / steps
+      const inset = 28 + (i % 2 === 0 ? 18 : -8) + (s % 2) * 12
+      const mx = a.x + (b.x - a.x) * t
+      const my = a.y + (b.y - a.y) * t
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const len = Math.hypot(dx, dy) || 1
+      const nx = -dy / len
+      const ny = dx / len
+      trees.push([Math.round(mx + nx * inset), Math.round(my + ny * inset)])
+    }
   }
-  trees.push([1200, 300], [1460, 300], [1200, 560], [1460, 560])
-  const pathClearY0 = 370
-  const pathClearY1 = 430
-  const pathClearX1 = 1120
+  const clusters: [number, number][] = [
+    [1500, 500], [1680, 720], [1850, 480], [2100, 620],
+    [2300, 900], [2500, 1100], [2200, 1300], [1900, 1450],
+    [1600, 1200], [1450, 900], [1750, 1050], [2050, 1100],
+    [2400, 500], [2650, 850], [2550, 1400], [2000, 1600],
+    [1300, 600], [1350, 1400], [1700, 1600], [2150, 1700],
+  ]
+  for (const c of clusters) trees.push(c)
+
+  const pathClearY0 = 360
+  const pathClearY1 = 440
+  const pathClearX1 = 1180
   for (const [tx, ty] of trees) {
     if (tx < pathClearX1 && ty >= pathClearY0 && ty <= pathClearY1) continue
     if (tx < 1050) continue

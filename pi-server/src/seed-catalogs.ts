@@ -376,15 +376,15 @@ const STAR_TOWN_MAP: Params[] = [
     id: 'gate_town_exit', type: 'landmark', x: '880', y: '400', z: '1', name: 'East Gate', radius: '36',
     params: 'kind=gate;gate=exit;to=park1;sibling=gate_park_enter;spawn_x=1080;spawn_y=400;color=#facc15',
   },
-  { id: 'whisperwood', type: 'forest', x: '1330', y: '430', z: '0', name: 'Whisperwood Park', radius: '320', params: 'map_id=park1' },
+  { id: 'whisperwood', type: 'forest', x: '1950', y: '970', z: '0', name: 'Whisperwood Park', radius: '930', params: 'shape=poly;w=1860;h=1860;map_id=park1;pts=1100,90|1380,55|1680,95|1980,48|2280,88|2580,70|2800,160|2885,380|2840,620|2900,900|2860,1180|2810,1480|2720,1760|2420,1885|2080,1840|1750,1895|1420,1830|1180,1720|1060,1480|1095,1180|1045,900|1080,620|1055,480|1040,440|1020,400|1040,360|1070,280|1045,170' },
   {
     id: 'gate_park_enter', type: 'landmark', x: '1040', y: '400', z: '1', name: 'Town Gate', radius: '36',
     params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=800;spawn_y=400;color=#facc15;hidden=1',
   },
-  { id: 'forest_rabbit_1', type: 'monster', x: '1150', y: '250', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_rabbit_2', type: 'monster', x: '1450', y: '550', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_bunny_3', type: 'monster', x: '1300', y: '400', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_sloth_1', type: 'monster', x: '1500', y: '350', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
+  { id: 'forest_rabbit_1', type: 'monster', x: '1400', y: '280', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_rabbit_2', type: 'monster', x: '2400', y: '1500', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_bunny_3', type: 'monster', x: '1950', y: '900', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_sloth_1', type: 'monster', x: '2600', y: '700', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
 ];
 
 type Catalog = { sheet: string; pk: string; rows: Params[]; mode: 'insert' | 'upsert' };

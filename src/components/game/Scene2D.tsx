@@ -21,7 +21,7 @@ import {
   rollDodge,
 } from '@/lib/combat/hitDodge'
 
-const WORLD_SIZE = 2000
+const WORLD_SIZE = 3200
 const CONTACT_RANGE = 36
 const CHASE_RANGE = 220
 const RESPAWN_MS = 4000

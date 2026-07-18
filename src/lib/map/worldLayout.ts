@@ -20,8 +20,40 @@ export const TOWN_WALL_THICKNESS = 22
 /** Walkable corridor through the east wall — only way in/out of town. */
 export const TOWN_GATE_ZONE = { x: 848, y: 360, w: 72, h: 80 }
 
-/** Whisperwood Park — fully east of town, no overlap. */
-export const PARK_BOUNDS = { x: 1020, y: 120, w: 620, h: 620 }
+/** Whisperwood Park — fully east of town, ~3× linear vs old 620×620. */
+export const PARK_BOUNDS = { x: 1020, y: 40, w: 1860, h: 1860 }
+
+/** Jagged forest silhouette (clockwise). West recess meets GATE_PATH at y=400. */
+export const PARK_OUTLINE_PTS: { x: number; y: number }[] = [
+  { x: 1100, y: 90 },
+  { x: 1380, y: 55 },
+  { x: 1680, y: 95 },
+  { x: 1980, y: 48 },
+  { x: 2280, y: 88 },
+  { x: 2580, y: 70 },
+  { x: 2800, y: 160 },
+  { x: 2885, y: 380 },
+  { x: 2840, y: 620 },
+  { x: 2900, y: 900 },
+  { x: 2860, y: 1180 },
+  { x: 2810, y: 1480 },
+  { x: 2720, y: 1760 },
+  { x: 2420, y: 1885 },
+  { x: 2080, y: 1840 },
+  { x: 1750, y: 1895 },
+  { x: 1420, y: 1830 },
+  { x: 1180, y: 1720 },
+  { x: 1060, y: 1480 },
+  { x: 1095, y: 1180 },
+  { x: 1045, y: 900 },
+  { x: 1080, y: 620 },
+  { x: 1055, y: 480 },
+  { x: 1040, y: 440 },
+  { x: 1020, y: 400 },
+  { x: 1040, y: 360 },
+  { x: 1070, y: 280 },
+  { x: 1045, y: 170 },
+]
 
 export const TOWN_BOUNDS = { x: 70, y: 80, w: 830, h: 640 }
 
@@ -81,6 +113,10 @@ export function townPtsParam(): string {
   return TOWN_WALL_PTS.map((p) => `${p.x},${p.y}`).join('|')
 }
 
+export function parkPtsParam(): string {
+  return PARK_OUTLINE_PTS.map((p) => `${p.x},${p.y}`).join('|')
+}
+
 export function drawTownWalls(ctx: CanvasRenderingContext2D) {
   const pts = TOWN_WALL_PTS
   if (pts.length < 3) return
@@ -125,27 +161,42 @@ export function drawTownWalls(ctx: CanvasRenderingContext2D) {
 }
 
 export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) {
+  const pts = PARK_OUTLINE_PTS
+  if (pts.length < 3) return
   const b = PARK_BOUNDS
   ctx.save()
-  const g = ctx.createRadialGradient(obj.x, obj.y, 60, obj.x, obj.y, Math.max(b.w, b.h) * 0.55)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+
+  ctx.beginPath()
+  ctx.moveTo(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+  ctx.closePath()
+
+  const g = ctx.createRadialGradient(obj.x, obj.y, 80, obj.x, obj.y, Math.max(b.w, b.h) * 0.55)
   g.addColorStop(0, 'rgba(110, 170, 90, 0.55)')
   g.addColorStop(0.55, 'rgba(70, 130, 70, 0.42)')
   g.addColorStop(1, 'rgba(40, 90, 55, 0.22)')
   ctx.fillStyle = g
-  ctx.beginPath()
-  ctx.ellipse(obj.x, obj.y, b.w * 0.48, b.h * 0.46, 0, 0, Math.PI * 2)
   ctx.fill()
-  ctx.strokeStyle = 'rgba(50, 110, 60, 0.45)'
-  ctx.lineWidth = 4
+
+  ctx.strokeStyle = '#1a3d28'
+  ctx.lineWidth = 14
+  ctx.stroke()
+  ctx.strokeStyle = '#2d5a3a'
+  ctx.lineWidth = 8
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(90, 150, 100, 0.7)'
+  ctx.lineWidth = 3
   ctx.stroke()
 
   ctx.fillStyle = 'rgba(80, 160, 210, 0.45)'
   ctx.beginPath()
-  ctx.ellipse(obj.x + 40, obj.y + 180, 70, 40, 0, 0, Math.PI * 2)
+  ctx.ellipse(obj.x + 120, obj.y + 280, 110, 65, 0, 0, Math.PI * 2)
   ctx.fill()
   ctx.fillStyle = 'rgba(160, 220, 245, 0.35)'
   ctx.beginPath()
-  ctx.ellipse(obj.x + 20, obj.y + 168, 22, 12, 0, 0, Math.PI * 2)
+  ctx.ellipse(obj.x + 90, obj.y + 260, 36, 18, 0, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
 }
