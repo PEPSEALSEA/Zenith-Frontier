@@ -79,47 +79,111 @@ const getObjectColor = (type: string) => {
 }
 
 const drawFace = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, face: string) => {
-  ctx.strokeStyle = 'white'
-  ctx.lineWidth = 2.5
+  ctx.save()
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.beginPath()
+  ctx.lineWidth = Math.max(1.5, r * 0.12)
 
   switch (face) {
-    case 'ghost':
-      ctx.arc(x, y - r * 0.2, r * 0.7, Math.PI, 0)
-      ctx.lineTo(x + r * 0.7, y + r * 0.7)
-      ctx.lineTo(x + r * 0.4, y + r * 0.4)
-      ctx.lineTo(x + r * 0.1, y + r * 0.7)
-      ctx.lineTo(x - r * 0.2, y + r * 0.4)
-      ctx.lineTo(x - r * 0.5, y + r * 0.7)
+    case 'ghost': {
+      const top = y - r * 0.55
+      const mid = y + r * 0.05
+      const bottom = y + r * 0.7
+      const left = x - r * 0.62
+      const right = x + r * 0.62
+      ctx.beginPath()
+      ctx.moveTo(left, mid)
+      ctx.bezierCurveTo(left, top, right, top, right, mid)
+      ctx.lineTo(right, bottom - r * 0.15)
+      ctx.quadraticCurveTo(x + r * 0.42, bottom + r * 0.12, x + r * 0.28, bottom - r * 0.18)
+      ctx.quadraticCurveTo(x + r * 0.14, bottom + r * 0.12, x, bottom - r * 0.18)
+      ctx.quadraticCurveTo(x - r * 0.14, bottom + r * 0.12, x - r * 0.28, bottom - r * 0.18)
+      ctx.quadraticCurveTo(x - r * 0.42, bottom + r * 0.12, left, bottom - r * 0.15)
       ctx.closePath()
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'
+      ctx.lineWidth = Math.max(1, r * 0.06)
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(15,23,42,0.85)'
+      ctx.beginPath()
+      ctx.arc(x - r * 0.22, y - r * 0.08, r * 0.11, 0, Math.PI * 2)
+      ctx.arc(x + r * 0.22, y - r * 0.08, r * 0.11, 0, Math.PI * 2)
+      ctx.fill()
       break
-    case 'skull':
-      ctx.arc(x, y - r * 0.3, r * 0.7, Math.PI * 0.8, Math.PI * 2.2)
-      ctx.lineTo(x + r * 0.4, y + r * 0.8)
-      ctx.lineTo(x - r * 0.4, y + r * 0.8)
+    }
+    case 'skull': {
+      ctx.beginPath()
+      ctx.arc(x, y - r * 0.1, r * 0.62, Math.PI * 0.85, Math.PI * 2.15)
+      ctx.lineTo(x + r * 0.38, y + r * 0.55)
+      ctx.lineTo(x - r * 0.38, y + r * 0.55)
       ctx.closePath()
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(15,23,42,0.4)'
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(15,23,42,0.85)'
+      ctx.beginPath()
+      ctx.arc(x - r * 0.22, y - r * 0.12, r * 0.12, 0, Math.PI * 2)
+      ctx.arc(x + r * 0.22, y - r * 0.12, r * 0.12, 0, Math.PI * 2)
+      ctx.fill()
       break
-    case 'star':
+    }
+    case 'star': {
+      ctx.beginPath()
       for (let i = 0; i < 5; i++) {
         const a = (i * 2 * Math.PI) / 5 - Math.PI / 2
         const b = a + Math.PI / 5
         const x1 = x + Math.cos(a) * r * 0.85
         const y1 = y + Math.sin(a) * r * 0.85
-        const x2 = x + Math.cos(b) * r * 0.4
-        const y2 = y + Math.sin(b) * r * 0.4
+        const x2 = x + Math.cos(b) * r * 0.38
+        const y2 = y + Math.sin(b) * r * 0.38
         if (i === 0) ctx.moveTo(x1, y1)
         else ctx.lineTo(x1, y1)
         ctx.lineTo(x2, y2)
       }
       ctx.closePath()
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'
+      ctx.stroke()
       break
-    default:
-      ctx.arc(x, y, r * 0.8, 0, Math.PI * 2)
+    }
+    default: {
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.72, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(15,23,42,0.85)'
+      ctx.beginPath()
+      ctx.arc(x - r * 0.22, y - r * 0.05, r * 0.1, 0, Math.PI * 2)
+      ctx.arc(x + r * 0.22, y - r * 0.05, r * 0.1, 0, Math.PI * 2)
+      ctx.fill()
       break
+    }
   }
-  ctx.stroke()
+  ctx.restore()
+}
+
+function drawGroundShadow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  strength = 0.22,
+) {
+  const rx = radius * 0.78
+  const ry = radius * 0.22
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, rx)
+  grad.addColorStop(0, `rgba(0,0,0,${strength})`)
+  grad.addColorStop(0.55, `rgba(0,0,0,${strength * 0.45})`)
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2)
+  ctx.fill()
 }
 
 function dist(ax: number, ay: number, bx: number, by: number) {
@@ -741,16 +805,11 @@ export default function GameScene2D() {
       if (m.deadUntil > now) continue
       const mBob = Math.sin(time * 0.006 + m.x * 0.02) * 1.6
       ctx.save()
-      ctx.translate(m.x, m.y + mBob)
-      ctx.fillStyle = 'rgba(0,0,0,0.28)'
-      ctx.beginPath()
-      ctx.ellipse(0, 14 - mBob, 14, 5, 0, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.translate(m.x, m.y)
+      drawGroundShadow(ctx, 0, 14, 16, 0.2)
+      ctx.translate(0, mBob)
       if (m.flashUntil > now) ctx.globalAlpha = 0.5
-      ctx.shadowBlur = 10
-      ctx.shadowColor = m.color
       drawCuteCritter(ctx, m.face, m.color, 16)
-      ctx.shadowBlur = 0
       const barW = 36
       const pct = Math.max(0, m.hp / m.maxHp)
       ctx.fillStyle = 'rgba(0,0,0,0.7)'
@@ -764,7 +823,7 @@ export default function GameScene2D() {
       ctx.restore()
     }
 
-    const walkBob = Math.sin(time * (movingRef.current ? 0.018 : 0.007)) * (movingRef.current ? 2.8 : 1.2)
+    const walkBob = Math.sin(time * (movingRef.current ? 0.016 : 0.006)) * (movingRef.current ? 2.2 : 0.9)
     const pX = posRef.current.x
     const pY = posRef.current.y + walkBob
     const radius = isEditorMode ? 40 : 32
@@ -797,24 +856,38 @@ export default function GameScene2D() {
     const playerColor = isForgeMode ? 'transparent' : (isEditorMode ? '#f59e0b' : (isDead ? '#64748b' : player.appearance.color))
 
     if (!isForgeMode) {
-      ctx.fillStyle = 'rgba(0,0,0,0.32)'
+      drawGroundShadow(
+        ctx,
+        posRef.current.x,
+        posRef.current.y + radius * 0.62,
+        radius,
+        movingRef.current ? 0.18 : 0.24,
+      )
+
+      ctx.save()
+      ctx.globalAlpha = isDead ? 0.35 : 1
+      ctx.fillStyle = playerColor
       ctx.beginPath()
-      ctx.ellipse(posRef.current.x, posRef.current.y + radius * 0.55, radius * 0.72, radius * 0.22, 0, 0, Math.PI * 2)
+      ctx.arc(pX, pY, radius, 0, Math.PI * 2)
       ctx.fill()
 
-      ctx.shadowBlur = 22
-      ctx.shadowColor = playerColor
-      ctx.fillStyle = playerColor
-      ctx.globalAlpha = isDead ? 0.35 : 1
-      ctx.beginPath(); ctx.arc(pX, pY, radius, 0, Math.PI * 2); ctx.fill()
+      const pGrad = ctx.createRadialGradient(pX - radius * 0.25, pY - radius * 0.3, radius * 0.1, pX, pY, radius)
+      pGrad.addColorStop(0, 'rgba(255,255,255,0.35)')
+      pGrad.addColorStop(0.55, 'rgba(255,255,255,0.06)')
+      pGrad.addColorStop(1, 'rgba(0,0,0,0.12)')
+      ctx.fillStyle = pGrad
+      ctx.beginPath()
+      ctx.arc(pX, pY, radius, 0, Math.PI * 2)
+      ctx.fill()
 
-      const pGrad = ctx.createRadialGradient(pX, pY, 0, pX, pY, radius)
-      pGrad.addColorStop(0, 'rgba(255,255,255,0.4)'); pGrad.addColorStop(1, 'transparent')
-      ctx.fillStyle = pGrad; ctx.fill()
-      ctx.shadowBlur = 0
-      ctx.globalAlpha = 1
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(pX, pY, radius - 1, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.restore()
 
-      drawFace(ctx, pX, pY, radius * 0.5, player.appearance.face)
+      drawFace(ctx, pX, pY, radius * 0.52, player.appearance.face)
     }
 
     if (!isEditorMode && !isForgeMode) {
