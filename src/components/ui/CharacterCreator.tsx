@@ -156,7 +156,7 @@ export default function CharacterCreator() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-[#020617] p-4 lg:p-8">
+        <div className="flex h-screen items-center justify-center bg-[#020617] p-4 lg:p-8">
             {isLoading && (
                 <div className="fixed inset-0 z-[100]">
                     <SessionLoading
@@ -167,8 +167,8 @@ export default function CharacterCreator() {
                 </div>
             )}
 
-            <div className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-2xl backdrop-blur-2xl">
-                <div className="relative grid h-full grid-cols-1 lg:grid-cols-2">
+            <div className="relative flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-black/60 shadow-2xl backdrop-blur-2xl">
+                <div className="relative grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-2">
 
                     <div className="flex flex-col items-center justify-center border-b border-white/5 p-12 lg:border-b-0 lg:border-r bg-zinc-950/20">
                         <motion.div
@@ -187,15 +187,15 @@ export default function CharacterCreator() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col p-12">
+                    <div className="flex min-h-0 flex-col p-8 lg:p-12">
                         {!auth.isAuthenticated ? (
                             <div className="flex h-full flex-col items-center justify-center text-center">
                                 <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic mb-6">ZENITH FRONTIER</h1>
                                 <GoogleLogin onSuccess={handleSuccess} onError={() => { }} />
                             </div>
                         ) : (
-                            <div className="flex h-full flex-col">
-                                <div className="flex items-center justify-between mb-8 overflow-x-auto">
+                            <div className="flex min-h-0 flex-1 flex-col">
+                                <div className="mb-6 flex shrink-0 items-center justify-between overflow-x-auto">
                                     <div className="flex items-center gap-4">
                                         <img src={auth.user?.picture} className="h-10 w-10 rounded-full border border-emerald-500/50" />
                                         <span className="text-xs font-bold text-white uppercase">{auth.user?.name}</span>
@@ -215,9 +215,16 @@ export default function CharacterCreator() {
                                     </div>
                                 </div>
 
+                                <div className="relative min-h-0 flex-1">
                                 <AnimatePresence mode="wait">
                                     {step === 2 && (
-                                        <motion.div key="s2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                                        <motion.div
+                                            key="s2"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="absolute inset-0 space-y-6 overflow-y-auto overscroll-contain pr-1"
+                                        >
                                             <SectionTitle icon={Palette} title="Color Spectrum" />
                                             <div className="grid grid-cols-4 gap-2">
                                                 {COLORS.map(c => (
@@ -252,37 +259,53 @@ export default function CharacterCreator() {
                                     )}
 
                                     {step === 3 && (
-                                        <motion.div key="s3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                                            <SectionTitle icon={Sword} title="Select Job" />
-                                            {jobs.map(job => (
-                                                <button key={job.id} onClick={() => setSelectedJob(job)} className={`w-full p-4 rounded-xl border-2 text-left flex items-start gap-4 transition-all ${selectedJob.id === job.id ? 'border-emerald-500 bg-emerald-500/10 scale-[1.02]' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
-                                                    <div className={`p-2 rounded-lg ${selectedJob.id === job.id ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40'}`}>
-                                                        <job.icon className="h-6 w-6" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
-                                                        <p className="text-[10px] text-emerald-500/60 uppercase font-black">
-                                                            {(job as any).stat_bonus || job.id}
-                                                        </p>
-                                                        {(job as any).potential && (
-                                                            <p className="text-[9px] text-white/35 font-mono mt-1 truncate">
-                                                                Potential {(job as any).potential}
+                                        <motion.div
+                                            key="s3"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="absolute inset-0 flex flex-col"
+                                        >
+                                            <div className="shrink-0">
+                                                <SectionTitle icon={Sword} title="Select Job" />
+                                            </div>
+                                            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
+                                                {jobs.map(job => (
+                                                    <button
+                                                        key={job.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedJob(job)}
+                                                        className={`w-full p-4 rounded-xl border-2 text-left flex items-start gap-4 transition-all ${selectedJob.id === job.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}
+                                                    >
+                                                        <div className={`p-2 rounded-lg ${selectedJob.id === job.id ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40'}`}>
+                                                            <job.icon className="h-6 w-6" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-lg font-bold uppercase italic text-white">{job.name}</h4>
+                                                            <p className="text-[10px] text-emerald-500/60 uppercase font-black">
+                                                                {(job as any).stat_bonus || job.id}
                                                             </p>
-                                                        )}
-                                                        {(job as any).description && (
-                                                            <p className="text-[10px] text-white/40 mt-1">{(job as any).description}</p>
-                                                        )}
-                                                    </div>
-                                                </button>
-                                            ))}
-                                            <div className="flex flex-col gap-4 mt-4">
+                                                            {(job as any).potential && (
+                                                                <p className="text-[9px] text-white/35 font-mono mt-1 truncate">
+                                                                    Potential {(job as any).potential}
+                                                                </p>
+                                                            )}
+                                                            {(job as any).description && (
+                                                                <p className="text-[10px] text-white/40 mt-1">{(job as any).description}</p>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="mt-4 flex shrink-0 flex-col gap-4 border-t border-white/5 pt-4">
                                                 <div className="flex gap-4">
-                                                    <button onClick={() => setStep(2)} className="px-6 border border-white/10 rounded-xl text-white/40">BACK</button>
-                                                    <button onClick={handleStartGame} className="flex-1 h-14 bg-white text-black font-black tracking-[0.3em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all uppercase">Enter Frontier</button>
+                                                    <button type="button" onClick={() => setStep(2)} className="px-6 border border-white/10 rounded-xl text-white/40">BACK</button>
+                                                    <button type="button" onClick={handleStartGame} className="flex-1 h-14 bg-white text-black font-black tracking-[0.3em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all uppercase">Enter Frontier</button>
                                                 </div>
 
                                                 {auth.user?.email === ADMIN_EMAIL && (
                                                     <button
+                                                        type="button"
                                                         onClick={() => enterForgeMode()}
                                                         className="w-full h-12 border-2 border-amber-500/50 bg-amber-500/10 text-amber-500 font-black tracking-[0.2em] rounded-xl hover:bg-amber-500 hover:text-black transition-all uppercase text-[10px]"
                                                     >
@@ -293,6 +316,7 @@ export default function CharacterCreator() {
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
+                                </div>
                             </div>
                         )}
                     </div>
