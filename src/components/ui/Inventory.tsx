@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/gameStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -8,142 +8,151 @@ import {
     Settings,
     Users,
     LayoutGrid,
-    Scroll,
     Zap,
     Sword,
     Shield,
-    Search,
     X,
-    Plus
+    Plus,
+    Sparkles,
+    Coins,
 } from 'lucide-react'
 import AdminPortal from './AdminPortal'
 import RadarChart from './RadarChart'
 import { ALLOC_STATS, masteryExpToNext, parsePotential } from '@/lib/classSystem'
 import type { AllocatedStats } from '@/store/gameStore'
+import { FACES_MAP, FaceKey } from '@/store/gameStore'
+import { Ghost } from 'lucide-react'
+
+type TabId = 'character' | 'bag' | 'skills' | 'job' | 'arcanum' | 'admin'
+
+const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean }[] = [
+    { id: 'character', label: 'Character', icon: Sword },
+    { id: 'bag', label: 'Bag', icon: Backpack },
+    { id: 'skills', label: 'Skills', icon: Zap },
+    { id: 'job', label: 'Job', icon: Users },
+    { id: 'arcanum', label: 'Arcanum', icon: Sparkles },
+    { id: 'admin', label: 'Admin', icon: Settings, adminOnly: true },
+]
 
 const Inventory = () => {
     const [isOpen, setIsOpen] = useState(false)
-    const [activeTab, setActiveTab] = useState('EQUIPMENT')
+    const [activeTab, setActiveTab] = useState<TabId>('character')
     const { player, gainExp, takeDamage, auth, isEditorMode, setEditorMode, refreshSkills } = useGameStore()
     const isAdmin = auth.user?.email === 'sealseapep@gmail.com'
+    const visibleTabs = TABS.filter((t) => !t.adminOnly || isAdmin)
 
-    const tabs = ['EQUIPMENT', 'JOB SYSTEM', 'SKILLS', 'INVENTORY', 'WORLD BOOK', 'ARCANUM']
-    if (isAdmin) tabs.push('ADMIN')
-
-    React.useEffect(() => {
-        if (isOpen && (activeTab === 'SKILLS' || activeTab === 'JOB SYSTEM')) {
+    useEffect(() => {
+        if (isOpen && (activeTab === 'skills' || activeTab === 'job')) {
             void refreshSkills()
         }
     }, [isOpen, activeTab, refreshSkills])
 
+    useEffect(() => {
+        if (!isOpen) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.code === 'Escape') setIsOpen(false)
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [isOpen])
+
     return (
         <>
-            {/* Menu Toggle Button */}
-            <div className="absolute top-6 right-6 z-20 pointer-events-auto">
+            <div className="pointer-events-auto absolute right-6 top-6 z-20">
                 <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="flex h-12 w-12 items-center justify-center rounded-lg border-2 border-emerald-500/30 bg-black/60 backdrop-blur-md transition-all duration-300 hover:border-emerald-400 hover:bg-emerald-500/10 group overflow-hidden"
+                    type="button"
+                    onClick={() => setIsOpen((v) => !v)}
+                    aria-label={isOpen ? 'Close menu' : 'Open menu'}
+                    className="rpg-panel flex h-12 w-12 items-center justify-center rounded-xl border-emerald-400/30 transition hover:border-emerald-300/50"
                 >
-                    <motion.div
-                        animate={{ rotate: isOpen ? 180 : 0 }}
-                    >
-                        {isOpen ? <X className="h-6 w-6 text-emerald-400" /> : <LayoutGrid className="h-6 w-6 text-emerald-400" />}
-                    </motion.div>
-                    <div className="absolute inset-0 bg-emerald-500 opacity-0 group-active:opacity-20 transition-opacity" />
+                    {isOpen ? <X className="h-5 w-5 text-emerald-300" /> : <LayoutGrid className="h-5 w-5 text-emerald-300" />}
                 </button>
             </div>
 
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.98, x: 20 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.98, x: 20 }}
-                        className="pointer-events-auto absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-md"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="pointer-events-auto absolute inset-0 z-10 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm sm:p-6"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setIsOpen(false)
+                        }}
                     >
-                        <div className="relative flex h-[85vh] w-[95vw] sm:w-[80vw] overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/80 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]">
-                            {/* Sidebar Navigation */}
-                            <div className="flex w-24 flex-col border-r border-white/5 bg-black/40 p-4 gap-6">
-                                <NavIcon icon={Backpack} active={activeTab === 'INVENTORY'} onClick={() => setActiveTab('INVENTORY')} />
-                                <NavIcon icon={Sword} active={activeTab === 'EQUIPMENT'} onClick={() => setActiveTab('EQUIPMENT')} />
-                                <NavIcon icon={Users} active={activeTab === 'JOB SYSTEM'} onClick={() => setActiveTab('JOB SYSTEM')} />
-                                <NavIcon icon={Zap} active={activeTab === 'SKILLS'} onClick={() => setActiveTab('SKILLS')} />
-                                <NavIcon icon={Scroll} active={activeTab === 'WORLD BOOK'} onClick={() => setActiveTab('WORLD BOOK')} />
-                                <NavIcon icon={LayoutGrid} active={activeTab === 'ARCANUM'} onClick={() => setActiveTab('ARCANUM')} />
-                                {isAdmin && <NavIcon icon={Settings} active={activeTab === 'ADMIN'} onClick={() => setActiveTab('ADMIN')} />}
-                            </div>
-
-                            {/* Main Content Area */}
-                            <div className="flex-1 flex flex-col">
-                                {/* Header */}
-                                <div className="p-8 border-b border-white/5 flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                        <span className="mb-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-500/80">SYSTEM OVERLAY</span>
-                                        <h2 className="font-display text-3xl font-bold uppercase tracking-tight text-white">{activeTab}</h2>
-                                    </div>
-
-                                    {/* Search Bar Placeholder */}
-                                    <div className="relative h-10 w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
-                                        <input
-                                            type="text"
-                                            placeholder="SEARCH ENTRIES..."
-                                            className="h-full w-full rounded-full border border-white/5 bg-black/40 pl-10 pr-4 text-xs font-mono tracking-widest text-emerald-100 placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
-                                        />
-                                    </div>
+                        <motion.div
+                            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+                            className="rpg-panel rpg-panel-gold flex h-[min(88vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl"
+                        >
+                            <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">Menu</p>
+                                    <h2 className="truncate font-display text-xl font-bold text-white sm:text-2xl">
+                                        {player.name}
+                                        <span className="ml-2 font-sans text-sm font-medium text-white/40">
+                                            Lv.{player.stats.level} · {player.jobs.main?.name || 'Vagrant'}
+                                        </span>
+                                    </h2>
                                 </div>
-
-                                {/* Content Render Grid */}
-                                <div className="flex-1 overflow-y-auto p-8 overflow-hidden">
-                                    {activeTab === 'INVENTORY' && <InventoryGrid />}
-                                    {activeTab === 'JOB SYSTEM' && <JobSystemView />}
-                                    {activeTab === 'SKILLS' && <SkillsView />}
-                                    {activeTab === 'EQUIPMENT' && <EquipmentGrid />}
-                                    {activeTab === 'ARCANUM' && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            <ArcanumCard name="THE FOOL" description="Increased luck and unpredictable skill activation." reverse={false} />
-                                            <ArcanumCard name="THE EMPRESS" description="Natural mana regeneration increased +500%." reverse={true} />
-                                            <ArcanumCard name="DEATH" description="Skills have a chance to inflict 'Oblivion'." reverse={false} />
-                                        </div>
-                                    )}
-                                    {activeTab === 'ADMIN' && <AdminPortal />}
-                                </div>
-
-                                {/* Footer Controls */}
-                                <div className="p-6 border-t border-white/5 bg-black/40 flex items-center justify-end gap-4">
-                                    {auth.user?.email === 'sealseapep@gmail.com' && (
-                                        <>
-                                            <button
-                                                onClick={() => gainExp(50)}
-                                                className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-white transition-all uppercase"
-                                            >
-                                                Gain EXP (DEBUG)
-                                            </button>
-                                            <button
-                                                onClick={() => takeDamage(10)}
-                                                className="px-6 py-2 rounded border border-white/10 bg-zinc-900 text-[10px] font-bold tracking-widest text-white/60 hover:bg-zinc-800 hover:text-rose-500 hover:border-rose-500/30 transition-all uppercase"
-                                            >
-                                                Take DMG (DEBUG)
-                                            </button>
-                                        </>
-                                    )}
-                                    {isAdmin && (
-                                        <button
-                                            onClick={() => setEditorMode(!isEditorMode)}
-                                            className={`px-8 py-2 rounded border font-bold tracking-widest transition-all uppercase text-[10px] ${isEditorMode ? 'border-amber-500 bg-amber-500 text-black' : 'border-amber-500/50 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black'}`}
-                                        >
-                                            {isEditorMode ? 'EXIT EDITOR' : 'MAP EDITOR'}
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-2">
+                                    <div className="rpg-panel hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:flex">
+                                        <Coins className="h-3.5 w-3.5 text-amber-300" />
+                                        <span className="font-mono text-sm font-semibold tabular-nums text-amber-100">
+                                            {player.stats.money.toLocaleString()} G
+                                        </span>
+                                    </div>
                                     <button
+                                        type="button"
                                         onClick={() => setIsOpen(false)}
-                                        className="px-8 py-2 rounded border border-emerald-500/50 bg-emerald-500/10 text-[10px] font-bold tracking-widest text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all uppercase"
+                                        className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"
                                     >
-                                        CLOSE INTERFACE
+                                        Close <span className="text-white/35">Esc</span>
                                     </button>
                                 </div>
+                            </header>
+
+                            <nav className="flex gap-1 overflow-x-auto border-b border-white/10 px-2 py-2 sm:px-4">
+                                {visibleTabs.map((tab) => {
+                                    const Icon = tab.icon
+                                    const active = activeTab === tab.id
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                                active
+                                                    ? 'bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/35'
+                                                    : 'text-white/45 hover:bg-white/5 hover:text-white/80'
+                                            }`}
+                                        >
+                                            <Icon className="h-4 w-4" />
+                                            {tab.label}
+                                        </button>
+                                    )
+                                })}
+                            </nav>
+
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                                {activeTab === 'character' && <CharacterPanel />}
+                                {activeTab === 'bag' && <BagPanel />}
+                                {activeTab === 'skills' && <SkillsPanel />}
+                                {activeTab === 'job' && <JobPanel />}
+                                {activeTab === 'arcanum' && <ArcanumPanel />}
+                                {activeTab === 'admin' && isAdmin && (
+                                    <AdminPanel
+                                        isEditorMode={isEditorMode}
+                                        setEditorMode={setEditorMode}
+                                        gainExp={gainExp}
+                                        takeDamage={takeDamage}
+                                        onCloseMenu={() => setIsOpen(false)}
+                                    />
+                                )}
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -151,305 +160,498 @@ const Inventory = () => {
     )
 }
 
-const NavIcon = ({ icon: Icon, active, onClick }: { icon: any, active: boolean, onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className={`flex h-12 w-12 items-center justify-center rounded-xl border border-white/5 transition-all duration-300 relative group overflow-hidden ${active ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-transparent text-white/40 hover:bg-white/5 hover:text-white/80'}`}
-    >
-        <Icon className="h-5 w-5" />
-        {active && <motion.div layoutId="nav-glow" className="absolute inset-0 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.3)]" />}
-    </button>
-)
-
-const InventoryGrid = () => {
-    const { player } = useGameStore()
-    const items = player.inventory
-    const slots = Math.max(24, items.length)
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-6 py-4">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-400">Purse</span>
-                <span className="font-display text-2xl font-bold tabular-nums text-amber-300">{player.stats.money} G</span>
-            </div>
-            <div className="grid grid-cols-6 gap-4">
-                {[...Array(slots)].map((_, i) => {
-                    const item = items[i]
-                    return (
-                        <div
-                            key={item ? `${item.item_id}-${i}` : `empty-${i}`}
-                            className="aspect-square rounded-lg bg-black/40 border border-white/5 transition-all duration-300 hover:border-emerald-500/40 hover:bg-emerald-500/5 cursor-pointer group flex flex-col items-center justify-center p-2 relative overflow-hidden"
-                            title={item?.name || item?.item_id}
-                        >
-                            {item ? (
-                                <>
-                                    <Zap className="h-6 w-6 text-amber-500/80 transition-transform group-hover:scale-110 mb-1" />
-                                    <span className="text-[8px] font-bold text-white/70 text-center leading-tight uppercase tracking-wide truncate w-full px-1">
-                                        {item.name || item.item_id}
-                                    </span>
-                                    <span className="absolute bottom-1 right-1 text-[9px] font-mono text-emerald-400">x{item.quantity}</span>
-                                </>
-                            ) : (
-                                <Plus className="h-4 w-4 text-white/10 group-hover:text-white/40" />
-                            )}
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-    )
+function FaceIcon({ faceKey, className }: { faceKey: string; className?: string }) {
+    const Icon = FACES_MAP[faceKey as FaceKey] || Ghost
+    return <Icon className={className} />
 }
 
-const EquipmentGrid = () => {
+function CharacterPanel() {
     const { player, allocateStat } = useGameStore()
     const potential = parsePotential(player.jobs.main?.potential)
     const maxStat = (k: keyof AllocatedStats) => Math.max(potential[k], 1)
+    const hpPct = Math.round((player.stats.hp / player.stats.maxHp) * 100)
+    const mpPct = Math.round((player.stats.mp / player.stats.maxMp) * 100)
+    const expPct = Math.round((player.stats.exp / player.stats.maxExp) * 100)
 
     return (
-    <div className="grid grid-cols-4 gap-8">
-        <div className="col-span-2 space-y-6">
-            <label className="text-[10px] font-bold tracking-[0.3em] text-white/30 uppercase">Primary Armament</label>
-            <div className="h-48 rounded-xl border-2 border-dashed border-white/5 bg-white/[0.02] flex items-center justify-center relative group group-hover:bg-white/[0.04] transition-all cursor-pointer">
-                <Sword className="h-12 w-12 text-white/10 transition-all group-hover:scale-110 group-hover:text-emerald-500/20" />
-                <div className="absolute bottom-4 text-[10px] font-mono tracking-widest text-white/20 italic">EMPTY_SLOT_01</div>
-            </div>
-
-            <label className="text-[10px] font-bold tracking-[0.3em] text-white/30 uppercase block mt-12">Armor Plating</label>
-            <div className="h-48 rounded-xl border-2 border-dashed border-white/5 bg-white/[0.02] flex items-center justify-center relative group group-hover:bg-white/[0.04] transition-all cursor-pointer">
-                <Shield className="h-12 w-12 text-white/10 transition-all group-hover:scale-110 group-hover:text-emerald-500/20" />
-                <div className="absolute bottom-4 text-[10px] font-mono tracking-widest text-white/20 italic">EMPTY_SLOT_02</div>
-            </div>
-        </div>
-
-        <div className="col-span-2 bg-black/40 rounded-xl p-8 border border-white/5">
-            <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
-                <h4 className="font-display text-xl font-bold uppercase tracking-tight text-white/80">Potential</h4>
-                <span className="text-[10px] font-mono text-emerald-400">PTS {player.statPoints}</span>
-            </div>
-            <RadarChart alloc={player.alloc} potential={potential} size={200} />
-            <div className="space-y-3 mt-4">
-                {ALLOC_STATS.map((stat) => (
-                    <div key={stat} className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <AffineStat
-                                label={stat.toUpperCase()}
-                                value={Math.round((player.alloc[stat] / maxStat(stat)) * 100)}
-                                color={stat === 'str' ? 'amber' : stat === 'dex' ? 'emerald' : stat === 'int' ? 'blue' : 'cyan'}
-                            />
-                        </div>
-                        <button
-                            disabled={player.statPoints < 1 || player.alloc[stat] >= potential[stat]}
-                            onClick={() => void allocateStat(stat)}
-                            className="h-8 w-8 rounded border border-white/10 text-emerald-400 disabled:opacity-20 hover:bg-emerald-500/10"
-                        >
-                            +
-                        </button>
+        <div className="grid gap-4 lg:grid-cols-[1.05fr_1fr]">
+            <section className="space-y-4">
+                <div className="rpg-panel flex items-center gap-4 rounded-xl p-4">
+                    <div
+                        className="flex h-16 w-16 items-center justify-center rounded-xl border border-white/15"
+                        style={{ backgroundColor: player.appearance.color }}
+                    >
+                        <FaceIcon faceKey={player.appearance.face} className="h-8 w-8 text-white" />
                     </div>
-                ))}
-            </div>
-        </div>
-    </div>
-    )
-}
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <MiniBar label="HP" value={`${Math.ceil(player.stats.hp)}/${player.stats.maxHp}`} pct={hpPct} color="bg-rose-500" />
+                        <MiniBar label="MP" value={`${Math.ceil(player.stats.mp)}/${player.stats.maxMp}`} pct={mpPct} color="bg-sky-400" />
+                        <MiniBar label="EXP" value={`${player.stats.exp}/${player.stats.maxExp}`} pct={expPct} color="bg-amber-400" />
+                    </div>
+                </div>
 
-const AffineStat = ({ label, value, color }: { label: string, value: number, color: string }) => (
-    <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between px-1">
-            <span className="text-[9px] font-bold tracking-widest text-white/40">{label}</span>
-            <span className="text-[10px] font-mono font-bold text-white">{value}%</span>
-        </div>
-        <div className="h-1.5 w-full bg-black/60 rounded-full overflow-hidden border border-white/5">
-            <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, value)}%` }}
-                className={`h-full rounded-full ${color === 'emerald' ? 'bg-emerald-500' : color === 'amber' ? 'bg-amber-500' : color === 'blue' ? 'bg-blue-500' : 'bg-cyan-500'}`}
-            />
-        </div>
-    </div>
-)
+                <div className="grid grid-cols-3 gap-2">
+                    <StatBox label="ATK" value={player.stats.atk} />
+                    <StatBox label="DEF" value={player.stats.def} />
+                    <StatBox label="SPD" value={player.stats.spd} />
+                </div>
 
-const JobSystemView = () => {
-    const { player, promoteJob } = useGameStore()
-    const potential = parsePotential(player.jobs.main?.potential)
-    const masteryNeed = masteryExpToNext(player.jobMastery)
-    const masteryPct = Math.min(100, (player.jobMasteryExp / masteryNeed) * 100)
+                <div>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Equipment</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <EquipSlot icon={Sword} title="Weapon" hint="Empty" />
+                        <EquipSlot icon={Shield} title="Armor" hint="Empty" />
+                    </div>
+                </div>
+            </section>
 
-    return (
-        <div className="grid grid-cols-2 gap-8 h-full">
-            <div className="flex flex-col gap-4">
-                <label className="text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase">Main Occupation</label>
-                <div className="p-8 rounded-2xl bg-gradient-to-br from-emerald-600/20 to-zinc-950 border border-emerald-500/30 flex flex-col items-center justify-center gap-4 relative overflow-hidden">
-                    <Zap className="h-16 w-16 text-emerald-400 opacity-60 mb-2" />
-                    <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-white">{player.jobs.main?.name || 'TRAINEE'}</h3>
-                    <span className="text-[10px] font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full uppercase">
-                        CHAR LVL {player.stats.level}
+            <section className="rpg-panel rounded-xl p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <h3 className="font-display text-lg font-bold text-white">Allocate Stats</h3>
+                    <span className={`rounded-md px-2 py-1 font-mono text-xs font-semibold ${player.statPoints > 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-white/40'}`}>
+                        {player.statPoints} points
                     </span>
-                    <div className="w-full mt-2">
-                        <div className="flex justify-between text-[9px] font-bold tracking-widest text-white/40 uppercase mb-1">
-                            <span>Job Mastery {player.jobMastery}</span>
-                            <span>{player.jobMasteryExp}/{masteryNeed}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-black/50 overflow-hidden">
-                            <div className="h-full bg-emerald-400" style={{ width: `${masteryPct}%` }} />
-                        </div>
-                    </div>
-                    <div className="absolute top-0 right-0 h-24 w-24 bg-emerald-500/10 rounded-full blur-3xl -mr-12 -mt-12" />
                 </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => void promoteJob('JOB_006')}
-                        className="flex-1 rounded-lg border border-white/10 py-3 text-[9px] font-black tracking-widest text-cyan-300 uppercase hover:bg-cyan-500/10"
-                    >
-                        Promote Knight
-                    </button>
-                    <button
-                        onClick={() => void promoteJob('JOB_007')}
-                        className="flex-1 rounded-lg border border-white/10 py-3 text-[9px] font-black tracking-widest text-rose-300 uppercase hover:bg-rose-500/10"
-                    >
-                        Promote Berserker
-                    </button>
+                <div className="mb-4 flex justify-center">
+                    <RadarChart alloc={player.alloc} potential={potential} size={180} />
                 </div>
-                <p className="text-[9px] text-white/30 tracking-wide">Promotions require Warrior + Lv20 + Mastery 5</p>
-            </div>
-
-            <div className="flex flex-col gap-4">
-                <label className="text-[10px] font-bold tracking-[0.3em] text-cyan-500 uppercase">Class Potential</label>
-                <div className="p-6 rounded-2xl bg-black/40 border border-white/5 flex flex-col items-center">
-                    <RadarChart alloc={player.alloc} potential={potential} size={240} />
-                    <p className="text-[10px] text-white/40 mt-2 text-center">
-                        Free points: <span className="text-emerald-300 font-mono">{player.statPoints}</span>
-                    </p>
+                <div className="space-y-2">
+                    {ALLOC_STATS.map((stat) => {
+                        const cur = player.alloc[stat]
+                        const max = maxStat(stat)
+                        const locked = player.statPoints < 1 || cur >= potential[stat]
+                        return (
+                            <div key={stat} className="flex items-center gap-2 rounded-lg bg-black/25 px-2.5 py-2">
+                                <div className="w-10 text-xs font-bold uppercase text-white/55">{stat}</div>
+                                <div className="h-2 flex-1 overflow-hidden rounded-full bg-black/50">
+                                    <div
+                                        className="h-full rounded-full bg-emerald-400/80"
+                                        style={{ width: `${Math.min(100, (cur / max) * 100)}%` }}
+                                    />
+                                </div>
+                                <div className="w-12 text-right font-mono text-xs tabular-nums text-white/70">
+                                    {cur}/{potential[stat]}
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={locked}
+                                    onClick={() => void allocateStat(stat)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-emerald-400/35 text-emerald-300 transition enabled:hover:bg-emerald-500/15 disabled:opacity-25"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        )
+                    })}
                 </div>
-            </div>
+                {player.statPoints < 1 && (
+                    <p className="mt-3 text-center text-[11px] text-white/35">Level up to earn more stat points.</p>
+                )}
+            </section>
         </div>
     )
 }
 
-const SkillsView = () => {
+function BagPanel() {
+    const { player } = useGameStore()
+    const items = player.inventory
+    const slots = Math.max(20, Math.ceil(items.length / 5) * 5)
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="font-display text-lg font-bold text-white">Bag</h3>
+                    <p className="text-xs text-white/40">{items.length} items · {player.stats.money.toLocaleString()} G</p>
+                </div>
+            </div>
+            {items.length === 0 ? (
+                <div className="rpg-panel flex flex-col items-center justify-center rounded-xl px-6 py-16 text-center">
+                    <Backpack className="mb-3 h-10 w-10 text-white/20" />
+                    <p className="font-display text-base font-semibold text-white/70">Bag is empty</p>
+                    <p className="mt-1 max-w-xs text-sm text-white/35">Buy potions in Star Mart or defeat critters in Whisperwood.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
+                    {[...Array(slots)].map((_, i) => {
+                        const item = items[i]
+                        return (
+                            <div
+                                key={item ? `${item.item_id}-${i}` : `empty-${i}`}
+                                title={item?.name || item?.item_id}
+                                className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border p-2 ${
+                                    item
+                                        ? 'border-amber-300/25 bg-amber-500/5 hover:border-amber-300/45'
+                                        : 'border-white/5 bg-black/25'
+                                }`}
+                            >
+                                {item ? (
+                                    <>
+                                        <Zap className="mb-1 h-5 w-5 text-amber-300/90" />
+                                        <span className="line-clamp-2 w-full text-center text-[9px] font-semibold leading-tight text-white/80">
+                                            {item.name || item.item_id}
+                                        </span>
+                                        <span className="absolute bottom-1 right-1.5 font-mono text-[10px] text-emerald-300">
+                                            ×{item.quantity}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <Plus className="h-3.5 w-3.5 text-white/10" />
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function SkillsPanel() {
     const { player, setSkillSlot, unlockSkill, useSkillScroll } = useGameStore()
     const [selectedSlot, setSelectedSlot] = useState<1 | 2 | 3 | 4>(1)
     const jobId = player.jobs.main?.id
-    const jobSkills = player.skillCatalog.filter((s) => !jobId || s.job_id === jobId || player.ownedSkillIds.includes(s.skill_id))
+    const jobSkills = player.skillCatalog.filter(
+        (s) => !jobId || s.job_id === jobId || player.ownedSkillIds.includes(s.skill_id),
+    )
     const scrolls = player.inventory.filter((i) => i.item_id.startsWith('EQ_SCR_'))
 
-    const unlockHint = (s: typeof jobSkills[0]) => {
-        if (s.unlock_type === 'mastery') return `Mastery ${s.unlock_value}`
-        if (s.unlock_type === 'gold') return `${s.unlock_value} G`
-        if (s.unlock_type === 'scroll') return `Scroll ${s.unlock_value}`
-        if (s.unlock_type === 'level') return `Lv ${s.unlock_value}`
+    const unlockHint = (s: (typeof jobSkills)[0]) => {
+        if (s.unlock_type === 'mastery') return `Need Mastery ${s.unlock_value}`
+        if (s.unlock_type === 'gold') return `Cost ${s.unlock_value} G`
+        if (s.unlock_type === 'scroll') return 'Needs scroll'
+        if (s.unlock_type === 'level') return `Need Lv ${s.unlock_value}`
         return 'Starter'
     }
 
     return (
-        <div className="grid grid-cols-5 gap-6 h-full">
-            <div className="col-span-2 space-y-4">
-                <label className="text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase">Loadout 1–4</label>
-                <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+            <aside className="space-y-3">
+                <div>
+                    <h3 className="font-display text-lg font-bold text-white">Hotbar</h3>
+                    <p className="text-xs text-white/40">Pick a slot, then equip a skill.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                     {([1, 2, 3, 4] as const).map((slot) => {
                         const id = player.skillSlots[slot - 1]
                         const sk = player.skillCatalog.find((s) => s.skill_id === id)
+                        const selected = selectedSlot === slot
                         return (
                             <button
                                 key={slot}
+                                type="button"
                                 onClick={() => setSelectedSlot(slot)}
-                                className={`p-4 rounded-xl border text-left transition-all ${selectedSlot === slot ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-black/30'}`}
+                                className={`rounded-xl border p-3 text-left transition ${
+                                    selected
+                                        ? 'border-amber-300/40 bg-amber-400/10'
+                                        : 'border-white/10 bg-black/25 hover:border-white/20'
+                                }`}
                             >
-                                <div className="text-[9px] font-black text-white/40 tracking-widest">SLOT {slot}</div>
-                                <div className="mt-1 font-display text-sm font-semibold uppercase tracking-wide text-white">{sk?.skill_name || 'Empty'}</div>
-                                {sk && <div className="text-[9px] text-cyan-400/70 mt-1">MP {sk.mp_cost} · {sk.skill_type}</div>}
-                                {id && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); void setSkillSlot(slot, '') }}
-                                        className="mt-2 text-[8px] text-rose-400 uppercase tracking-widest"
-                                    >
-                                        Clear
-                                    </button>
+                                <div className="flex items-center justify-between">
+                                    <span className="font-mono text-[10px] text-white/40">Key {slot}</span>
+                                    {id && (
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                void setSkillSlot(slot, '')
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation()
+                                                    void setSkillSlot(slot, '')
+                                                }
+                                            }}
+                                            className="text-[10px] font-semibold text-rose-300/80 hover:text-rose-200"
+                                        >
+                                            Clear
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-1 truncate font-display text-sm font-semibold text-white">
+                                    {sk?.skill_name || 'Empty'}
+                                </div>
+                                {sk && (
+                                    <div className="mt-0.5 text-[10px] text-cyan-300/70">
+                                        MP {sk.mp_cost} · {sk.skill_type}
+                                    </div>
                                 )}
                             </button>
                         )
                     })}
                 </div>
                 {scrolls.length > 0 && (
-                    <div className="mt-6 space-y-2">
-                        <label className="text-[10px] font-bold tracking-[0.3em] text-violet-400 uppercase">Scrolls</label>
+                    <div className="space-y-2 pt-2">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-300/80">Scrolls</h4>
                         {scrolls.map((sc) => (
                             <button
                                 key={sc.item_id}
+                                type="button"
                                 onClick={() => void useSkillScroll(sc.item_id)}
-                                className="w-full rounded-lg border border-violet-500/30 bg-violet-500/5 px-4 py-3 text-left text-xs text-violet-200 hover:bg-violet-500/15"
+                                className="w-full rounded-lg border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-left text-xs text-violet-100 transition hover:bg-violet-500/20"
                             >
                                 Use {sc.name || sc.item_id} ×{sc.quantity}
                             </button>
                         ))}
                     </div>
                 )}
-            </div>
+            </aside>
 
-            <div className="col-span-3 space-y-3 overflow-y-auto max-h-[55vh] pr-2">
-                <label className="text-[10px] font-bold tracking-[0.3em] text-cyan-500 uppercase">Skill Codex</label>
-                {jobSkills.map((s) => {
-                    const owned = player.ownedSkillIds.includes(s.skill_id)
-                    return (
-                        <div key={s.skill_id} className="flex items-center gap-4 rounded-xl border border-white/5 bg-black/30 p-4">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h4 className="truncate font-display text-sm font-bold uppercase tracking-wide text-white">{s.skill_name}</h4>
-                                    <span className="text-[8px] font-bold tracking-widest text-white/30 uppercase">{s.unlock_type}</span>
-                                </div>
-                                <p className="text-[10px] text-white/40 mt-1">{s.description}</p>
-                                <p className="text-[9px] text-emerald-400/60 font-mono mt-1">
-                                    {s.skill_type} · MP {s.mp_cost} · CD {s.cooldown_ms}ms · {unlockHint(s)}
-                                </p>
-                            </div>
-                            {owned ? (
-                                <button
-                                    onClick={() => void setSkillSlot(selectedSlot, s.skill_id)}
-                                    className="px-4 py-2 rounded-lg border border-emerald-500/40 text-[9px] font-black tracking-widest text-emerald-300 uppercase hover:bg-emerald-500/10"
-                                >
-                                    Equip {selectedSlot}
-                                </button>
-                            ) : s.unlock_type === 'scroll' ? (
-                                <span className="text-[9px] text-violet-300/70 uppercase tracking-widest">Need Scroll</span>
-                            ) : (
-                                <button
-                                    onClick={() => void unlockSkill(s.skill_id)}
-                                    className="px-4 py-2 rounded-lg border border-amber-500/40 text-[9px] font-black tracking-widest text-amber-300 uppercase hover:bg-amber-500/10"
-                                >
-                                    Unlock
-                                </button>
-                            )}
+            <section>
+                <div className="mb-3 flex items-end justify-between gap-2">
+                    <div>
+                        <h3 className="font-display text-lg font-bold text-white">Skill list</h3>
+                        <p className="text-xs text-white/40">
+                            Equipping into slot <span className="font-mono text-amber-200">{selectedSlot}</span>
+                        </p>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    {jobSkills.length === 0 && (
+                        <div className="rpg-panel rounded-xl px-4 py-10 text-center text-sm text-white/40">
+                            No skills for this job yet.
                         </div>
-                    )
-                })}
+                    )}
+                    {jobSkills.map((s) => {
+                        const owned = player.ownedSkillIds.includes(s.skill_id)
+                        return (
+                            <div
+                                key={s.skill_id}
+                                className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/25 p-3 sm:flex-row sm:items-center"
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h4 className="font-display text-sm font-bold text-white">{s.skill_name}</h4>
+                                        <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/35">
+                                            {s.skill_type}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-relaxed text-white/45">{s.description}</p>
+                                    <p className="mt-1 font-mono text-[10px] text-white/30">
+                                        MP {s.mp_cost} · CD {(s.cooldown_ms / 1000).toFixed(1)}s · {unlockHint(s)}
+                                    </p>
+                                </div>
+                                {owned ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => void setSkillSlot(selectedSlot, s.skill_id)}
+                                        className="shrink-0 rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30 transition hover:bg-emerald-500/25"
+                                    >
+                                        Equip to {selectedSlot}
+                                    </button>
+                                ) : s.unlock_type === 'scroll' ? (
+                                    <span className="shrink-0 text-xs text-violet-300/70">Needs scroll</span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => void unlockSkill(s.skill_id)}
+                                        className="shrink-0 rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-500/25"
+                                    >
+                                        Unlock
+                                    </button>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            </section>
+        </div>
+    )
+}
+
+function JobPanel() {
+    const { player, promoteJob } = useGameStore()
+    const potential = parsePotential(player.jobs.main?.potential)
+    const masteryNeed = masteryExpToNext(player.jobMastery)
+    const masteryPct = Math.min(100, (player.jobMasteryExp / masteryNeed) * 100)
+
+    return (
+        <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rpg-panel space-y-4 rounded-xl p-5">
+                <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/70">Current job</p>
+                    <h3 className="mt-1 font-display text-2xl font-bold text-white">
+                        {player.jobs.main?.name || 'Trainee'}
+                    </h3>
+                    <p className="mt-1 text-sm text-white/45">Character level {player.stats.level}</p>
+                </div>
+                <div>
+                    <div className="mb-1 flex justify-between text-xs text-white/45">
+                        <span>Job mastery {player.jobMastery}</span>
+                        <span className="font-mono">
+                            {player.jobMasteryExp}/{masteryNeed}
+                        </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-black/45">
+                        <div className="h-full rounded-full bg-emerald-400" style={{ width: `${masteryPct}%` }} />
+                    </div>
+                </div>
+                <div className="rounded-lg border border-white/8 bg-black/25 p-3 text-xs leading-relaxed text-white/50">
+                    Promotions need Warrior + Level 20 + Mastery 5.
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => void promoteJob('JOB_006')}
+                        className="rounded-xl border border-sky-400/25 bg-sky-500/10 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20"
+                    >
+                        → Knight
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void promoteJob('JOB_007')}
+                        className="rounded-xl border border-rose-400/25 bg-rose-500/10 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                    >
+                        → Berserker
+                    </button>
+                </div>
+            </section>
+
+            <section className="rpg-panel flex flex-col items-center rounded-xl p-5">
+                <h3 className="mb-2 self-start font-display text-lg font-bold text-white">Class potential</h3>
+                <RadarChart alloc={player.alloc} potential={potential} size={220} />
+                <p className="mt-2 text-center text-xs text-white/40">
+                    Free points:{' '}
+                    <span className="font-mono text-emerald-300">{player.statPoints}</span>
+                    {' · '}Allocate on the Character tab
+                </p>
+            </section>
+        </div>
+    )
+}
+
+function ArcanumPanel() {
+    const cards = [
+        { name: 'The Fool', description: 'Increased luck and unpredictable skill activation.', reverse: false },
+        { name: 'The Empress', description: 'Natural mana regeneration increased.', reverse: true },
+        { name: 'Death', description: 'Skills have a chance to inflict Oblivion.', reverse: false },
+    ]
+
+    return (
+        <div className="space-y-4">
+            <div>
+                <h3 className="font-display text-lg font-bold text-white">Arcanum cards</h3>
+                <p className="text-xs text-white/40">Passive tarot-style bonuses. Collection expands later.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {cards.map((c) => (
+                    <div
+                        key={c.name}
+                        className={`rounded-xl border p-4 ${
+                            c.reverse
+                                ? 'border-rose-400/30 bg-rose-500/5'
+                                : 'border-emerald-400/25 bg-emerald-500/5'
+                        }`}
+                    >
+                        <div className="mb-3 flex items-center justify-between">
+                            <Sparkles className={`h-5 w-5 ${c.reverse ? 'text-rose-300' : 'text-emerald-300'}`} />
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${c.reverse ? 'text-rose-300/80' : 'text-emerald-300/80'}`}>
+                                {c.reverse ? 'Reversal' : 'Upright'}
+                            </span>
+                        </div>
+                        <h4 className="font-display text-xl font-bold text-white">{c.name}</h4>
+                        <p className="mt-2 text-sm leading-relaxed text-white/50">{c.description}</p>
+                    </div>
+                ))}
             </div>
         </div>
     )
 }
 
-const ArcanumCard = ({ name, description, reverse }: { name: string, description: string, reverse: boolean }) => (
-    <div className={`p-8 rounded-3xl border ${reverse ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-zinc-950'} flex flex-col justify-between aspect-[3/4] relative group hover:scale-[1.03] transition-all cursor-pointer overflow-hidden`}>
-        <div className={`absolute top-0 right-0 h-32 w-32 ${reverse ? 'bg-rose-500/10' : 'bg-emerald-500/10'} rounded-full blur-2xl -mr-16 -mt-16 group-hover:opacity-100 opacity-50 transition-opacity`} />
-        <div>
-            <div className="flex items-center justify-between mb-8">
-                <div className={`h-12 w-12 rounded-xl border border-white/10 flex items-center justify-center ${reverse ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                    <LayoutGrid className="h-6 w-6" />
-                </div>
-                <span className={`text-[10px] font-black tracking-[0.4em] ${reverse ? 'text-rose-500' : 'text-emerald-500'}`}>{reverse ? 'REVERSAL' : 'ACTIVE'}</span>
+function AdminPanel({
+    isEditorMode,
+    setEditorMode,
+    gainExp,
+    takeDamage,
+    onCloseMenu,
+}: {
+    isEditorMode: boolean
+    setEditorMode: (v: boolean) => void
+    gainExp: (n: number) => void
+    takeDamage: (n: number) => void
+    onCloseMenu: () => void
+}) {
+    return (
+        <div className="space-y-4">
+            <div>
+                <h3 className="font-display text-lg font-bold text-white">Admin tools</h3>
+                <p className="text-xs text-white/40">Debug and forge controls — players never see this tab.</p>
             </div>
-            <h3 className="mb-4 font-display text-4xl font-bold uppercase leading-8 tracking-tight text-white">{name}</h3>
-            <p className="text-xs font-medium text-white/40 leading-relaxed uppercase tracking-wider">{description}</p>
+            <div className="flex flex-wrap gap-2">
+                <button
+                    type="button"
+                    onClick={() => gainExp(50)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/10"
+                >
+                    +50 EXP
+                </button>
+                <button
+                    type="button"
+                    onClick={() => takeDamage(10)}
+                    className="rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20"
+                >
+                    −10 HP
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setEditorMode(!isEditorMode)
+                        onCloseMenu()
+                    }}
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                        isEditorMode
+                            ? 'bg-amber-400 text-stone-900'
+                            : 'border border-amber-400/30 bg-amber-500/10 text-amber-100'
+                    }`}
+                >
+                    {isEditorMode ? 'Exit map editor' : 'Open map editor'}
+                </button>
+            </div>
+            <AdminPortal />
         </div>
+    )
+}
 
-        <div className="flex flex-col gap-4">
-            <div className="h-px w-full bg-white/5" />
-            <div className="flex items-center justify-between">
-                <div className="flex -space-x-2">
-                    {[...Array(3)].map((_, i) => <div key={i} className={`h-2 w-2 rounded-full ${reverse ? 'bg-rose-500/60' : 'bg-emerald-500/60'}`} />)}
-                </div>
-                <span className="text-[9px] font-bold text-white/20 tracking-widest uppercase">Rank_S_Arcana</span>
+function MiniBar({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
+    return (
+        <div>
+            <div className="mb-0.5 flex justify-between text-[10px]">
+                <span className="font-semibold text-white/50">{label}</span>
+                <span className="font-mono tabular-nums text-white/70">{value}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-black/50">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
             </div>
         </div>
-    </div>
-)
+    )
+}
+
+function StatBox({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rpg-panel rounded-xl px-3 py-2.5 text-center">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{label}</div>
+            <div className="font-display text-xl font-bold tabular-nums text-white">{value}</div>
+        </div>
+    )
+}
+
+function EquipSlot({
+    icon: Icon,
+    title,
+    hint,
+}: {
+    icon: React.ComponentType<{ className?: string }>
+    title: string
+    hint: string
+}) {
+    return (
+        <div className="flex h-28 flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/20">
+            <Icon className="mb-1 h-7 w-7 text-white/20" />
+            <div className="text-xs font-semibold text-white/55">{title}</div>
+            <div className="text-[10px] text-white/30">{hint}</div>
+        </div>
+    )
+}
 
 export default Inventory
