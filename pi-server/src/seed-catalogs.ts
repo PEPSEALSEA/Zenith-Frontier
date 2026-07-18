@@ -19,9 +19,10 @@ function atk(
   hard_cd: number,
   hits = 1,
   mp_cost_hard = 0,
+  mp_cost_light = 0,
 ): string {
   return JSON.stringify({
-    style, light_mult, hard_mult, light_range, hard_range, light_cd, hard_cd, hits, mp_cost_hard,
+    style, light_mult, hard_mult, light_range, hard_range, light_cd, hard_cd, hits, mp_cost_hard, mp_cost_light,
   });
 }
 
@@ -91,7 +92,7 @@ const JOBS: Params[] = [
     job_id: 'JOB_008', job_name: 'Mage', tier: 'low', parent_job_id: '', branch: 'base_mage',
     is_hidden: '0', unlock_condition: '', stat_bonus: 'mp+20,atk+5', description: 'นักเวทย์เริ่มต้น',
     potential: 'str:20,dex:35,int:90,vit:40,luk:40',
-    attack_profile: atk('bolt', 0.95, 1.65, 140, 180, 340, 750, 1, 5),
+    attack_profile: atk('bolt', 0.95, 1.65, 140, 180, 340, 750, 1, 8, 2),
   },
   {
     job_id: 'JOB_009', job_name: 'Ranger', tier: 'high', parent_job_id: 'JOB_002', branch: 'scout',
@@ -140,28 +141,28 @@ const JOBS: Params[] = [
     is_hidden: '0', unlock_condition: 'level:20,mastery:5',
     stat_bonus: 'mp+50,def+10', description: 'นักบวชผู้รักษา',
     potential: 'str:20,dex:35,int:85,vit:75,luk:45',
-    attack_profile: atk('holy', 0.55, 1.0, 70, 95, 360, 700, 1, 4),
+    attack_profile: atk('holy', 0.55, 1.0, 70, 95, 360, 700, 1, 5, 2),
   },
   {
     job_id: 'JOB_016', job_name: 'Bard', tier: 'high', parent_job_id: 'JOB_005', branch: 'song',
     is_hidden: '0', unlock_condition: 'level:20,mastery:5',
     stat_bonus: 'mp+35,spd+10', description: 'นักเพลงเสริมพลังทีม',
     potential: 'str:25,dex:55,int:80,vit:50,luk:60',
-    attack_profile: atk('song', 0.5, 1.05, 80, 110, 380, 720, 1, 3),
+    attack_profile: atk('song', 0.5, 1.05, 80, 110, 380, 720, 1, 4, 1),
   },
   {
     job_id: 'JOB_017', job_name: 'Elementalist', tier: 'high', parent_job_id: 'JOB_008', branch: 'element',
     is_hidden: '0', unlock_condition: 'level:20,mastery:5',
     stat_bonus: 'mp+40,atk+12', description: 'จอมเวทย์ธาตุ ระเบิดวงกว้าง',
     potential: 'str:15,dex:40,int:100,vit:40,luk:45',
-    attack_profile: atk('beam', 1.0, 1.85, 150, 200, 320, 800, 1, 8),
+    attack_profile: atk('beam', 1.0, 1.85, 150, 200, 320, 800, 1, 10, 3),
   },
   {
     job_id: 'JOB_018', job_name: 'Warlock', tier: 'high', parent_job_id: 'JOB_008', branch: 'curse',
     is_hidden: '0', unlock_condition: 'level:20,mastery:5',
     stat_bonus: 'mp+30,atk+18', description: 'นักสาป ดาเมจต่อเนื่อง',
     potential: 'str:25,dex:35,int:95,vit:45,luk:55',
-    attack_profile: atk('hex', 0.85, 1.7, 130, 170, 360, 850, 1, 6),
+    attack_profile: atk('hex', 0.85, 1.7, 130, 170, 360, 850, 1, 8, 2),
   },
   {
     job_id: 'JOB_019', job_name: 'Vorpal Striker', tier: 'high', parent_job_id: '', branch: 'vorpal',

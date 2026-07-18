@@ -234,6 +234,7 @@ export default function GameScene2D() {
   const skillKeyLatch = useRef<Set<string>>(new Set())
   const lockRef = useRef<LockState>({ targetId: null })
   const lastDotTick = useRef(0)
+  const lastMpRegenAt = useRef(0)
   const mouseWorldRef = useRef({ x: 0, y: 0, ready: false })
   const lastAimAngleRef = useRef(0)
 
@@ -533,23 +534,34 @@ export default function GameScene2D() {
       }
       const profile = profileRef.current
       const now = Date.now()
+      const spendBasicMp = (cost: number) => {
+        if (cost <= 0) return true
+        const mp = useGameStore.getState().player.stats.mp
+        if (mp < cost) {
+          useGameStore.getState().pushToast({
+            kind: 'info',
+            title: 'Out of MP',
+            detail: `Need ${cost} MP to cast`,
+          })
+          return false
+        }
+        useGameStore.setState((s) => ({
+          player: {
+            ...s.player,
+            stats: { ...s.player.stats, mp: s.player.stats.mp - cost },
+          },
+        }))
+        return true
+      }
       if (e.button === 0) {
         if (now - lastBasicAtkAt.current < profile.light_cd) return
+        if (!spendBasicMp(profile.mp_cost_light || 0)) return
         lastBasicAtkAt.current = now
         attack('light')
       }
       if (e.button === 2) {
         if (now - lastBasicAtkAt.current < profile.hard_cd) return
-        if (profile.mp_cost_hard > 0) {
-          const mp = useGameStore.getState().player.stats.mp
-          if (mp < profile.mp_cost_hard) return
-          useGameStore.setState((s) => ({
-            player: {
-              ...s.player,
-              stats: { ...s.player.stats, mp: s.player.stats.mp - profile.mp_cost_hard },
-            },
-          }))
-        }
+        if (!spendBasicMp(profile.mp_cost_hard || 0)) return
         lastBasicAtkAt.current = now
         attack('hard')
       }
@@ -618,6 +630,25 @@ export default function GameScene2D() {
     movingRef.current = dx !== 0 || dy !== 0
     if (dx > 0) facingRef.current = 1
     else if (dx < 0) facingRef.current = -1
+
+    // Passive mana regen (casters rely on MP for basic attacks)
+    if (!isEditorMode && !isForgeMode && !isDead && now - lastMpRegenAt.current > 250) {
+      lastMpRegenAt.current = now
+      const st = useGameStore.getState().player.stats
+      if (st.mp < st.maxMp) {
+        const perSec = 3 + Math.floor((st.luck || 5) * 0.05) + Math.floor((st.maxMp || 50) / 80)
+        const gain = Math.max(1, Math.floor(perSec * 0.25))
+        useGameStore.setState((s) => ({
+          player: {
+            ...s.player,
+            stats: {
+              ...s.player.stats,
+              mp: Math.min(s.player.stats.maxMp, s.player.stats.mp + gain),
+            },
+          },
+        }))
+      }
+    }
 
     const playerSafe = isInSafeZone(posRef.current.x, posRef.current.y, objects)
     if (buffRef.current.until > 0 && now > buffRef.current.until) {

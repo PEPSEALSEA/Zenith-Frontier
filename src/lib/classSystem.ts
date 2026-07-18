@@ -9,6 +9,7 @@ export type AttackProfile = {
   light_cd: number
   hard_cd: number
   hits: number
+  mp_cost_light: number
   mp_cost_hard: number
 }
 
@@ -48,6 +49,7 @@ export const DEFAULT_ATTACK: AttackProfile = {
   light_cd: 280,
   hard_cd: 550,
   hits: 1,
+  mp_cost_light: 0,
   mp_cost_hard: 0,
 }
 
@@ -98,6 +100,7 @@ export function parseAttackProfile(raw?: string): AttackProfile {
     light_cd: Number(parts.light_cd) || DEFAULT_ATTACK.light_cd,
     hard_cd: Number(parts.hard_cd) || DEFAULT_ATTACK.hard_cd,
     hits: Number(parts.hits) || DEFAULT_ATTACK.hits,
+    mp_cost_light: Number(parts.mp_cost_light) || 0,
     mp_cost_hard: Number(parts.mp_cost_hard) || 0,
   }
 }

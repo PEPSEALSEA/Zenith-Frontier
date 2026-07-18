@@ -74,7 +74,7 @@ const STYLE_MAP: Record<string, StyleDelivery> = {
   shot: { shape: 'projectile', sheet: 'arrow', sfx: 'arrow', projectileSheet: 'arrow', trailColor: '#d2b48c' },
   volley: { shape: 'volley', sheet: 'arrow', sfx: 'arrow', projectileSheet: 'arrow', trailColor: '#d2b48c', volley: 3 },
   pierce_shot: { shape: 'projectile', sheet: 'arrow', sfx: 'arrow', projectileSheet: 'arrow', trailColor: '#fef3c7', pierce: 2 },
-  bolt: { shape: 'projectile', sheet: 'bolt', sfx: 'whoosh', projectileSheet: 'bolt', trailColor: '#c4b5fd' },
+  bolt: { shape: 'projectile', sheet: 'bolt', sfx: 'whoosh', projectileSheet: 'bolt', trailColor: '#c4b5fd', aoe: 0 },
   beam: { shape: 'beam', sheet: 'lightning', sfx: 'thunder', trailColor: '#93c5fd', lineWidth: 18 },
   hex: { shape: 'projectile', sheet: 'hex', sfx: 'hex', projectileSheet: 'hex', trailColor: '#a855f7', status: 'dot' },
   twin: { shape: 'cone', sheet: 'slash', sfx: 'slash', trailColor: '#fda4af', halfAngle: 1.0 },
@@ -272,7 +272,11 @@ export function fireStyleProjectiles(
 ) {
   const sheet = delivery.projectileSheet || 'bolt'
   const count = delivery.shape === 'volley' ? (delivery.volley || 3) : 1
-  const speed = hard ? 9.5 : 8
+  const isMagic = sheet === 'bolt' || sheet === 'hex' || sheet === 'holy' || sheet === 'fireball'
+  const speed = isMagic ? (hard ? 7.2 : 6.2) : (hard ? 9.5 : 8)
+  const aoe = hard && (sheet === 'bolt' || sheet === 'hex')
+    ? Math.max(delivery.aoe || 0, 48)
+    : (delivery.aoe || 0)
   for (let i = 0; i < count; i++) {
     const spread = count > 1 ? (i - (count - 1) / 2) * 0.12 : 0
     spawnProjectile({
@@ -281,15 +285,15 @@ export function fireStyleProjectiles(
       angle: angle + spread,
       speed,
       life: 900 + range * 2,
-      radius: 12,
+      radius: isMagic ? 14 : 12,
       damage: Math.floor(damage * (count > 1 ? 0.75 : 1)),
       hits: 1,
       maxPierce: delivery.pierce || 0,
-      aoe: delivery.aoe || 0,
+      aoe,
       sheet,
       trailColor: delivery.trailColor,
-      explodeSheet: delivery.aoe ? 'explosion' : undefined,
-      onHitSfx: 'hit',
+      explodeSheet: aoe > 0 ? 'explosion' : undefined,
+      onHitSfx: aoe > 0 ? 'explode' : 'hit',
       status: delivery.status || null,
       homingId,
       owner: 'player',
