@@ -319,14 +319,14 @@ const WORLD_BOSSES: Params[] = [
 const MONSTERS: Params[] = [
   { monster_id: 'MON_001', name: 'Slime', hp: '40', atk: '6', def: '1', spd: '6', skills: '', drops: 'EQ_004', appearance: '#22c55e|ghost' },
   { monster_id: 'MON_002', name: 'Forest Wolf', hp: '70', atk: '12', def: '4', spd: '14', skills: '', drops: 'EQ_001,EQ_SCR_001', appearance: '#a3a3a3|skull' },
-  { monster_id: 'MON_003', name: 'Fluff Rabbit', hp: '28', atk: '4', def: '1', spd: '14', skills: '', drops: 'EQ_004', appearance: '#fda4af|bunny' },
-  { monster_id: 'MON_004', name: 'Sleepy Sloth', hp: '55', atk: '7', def: '3', spd: '4', skills: '', drops: 'EQ_004,EQ_SCR_002', appearance: '#a8a29e|sloth' },
+  { monster_id: 'MON_003', name: 'Fluff Rabbit', hp: '28', atk: '4', def: '1', spd: '14', skills: 'hop', drops: 'EQ_004', appearance: '#fda4af|bunny' },
+  { monster_id: 'MON_004', name: 'Sleepy Sloth', hp: '55', atk: '7', def: '3', spd: '4', skills: 'spit', drops: 'EQ_004,EQ_SCR_002', appearance: '#a8a29e|sloth' },
 ];
 
 const DIALOGUE: Params[] = [
   {
     dialogue_id: 'DLG_STELLA_1',
-    text: 'Welcome to Star Town! Softcloud Inn for rest, Star Mart for potions, Star Spring to heal. Cute critters hop in Whisperwood Forest past the east gate.',
+    text: 'Welcome to Star Town (Town 1)! Softcloud Inn for rest, Star Mart for potions, Star Spring to heal. Take the east gate to Whisperwood Park.',
     options_json: '[]',
   },
 ];
@@ -355,21 +355,36 @@ const NPCS: Params[] = [
 ];
 
 const STAR_TOWN_MAP: Params[] = [
-  { id: 'town_start', type: 'town', x: '400', y: '300', z: '0', name: 'Star Town', radius: '180', params: 'shape=rect;w=360;h=320;safe=1' },
   {
-    id: 'npc_stella', type: 'npc', x: '400', y: '270', z: '0', name: 'Stella', radius: '28',
-    params: 'interact=talk;entity_id=NPC_STELLA;color=#fbbf24;face=star;line=Hi! This is Star Town — our first city. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. Cute friends live in the forest east of town!',
+    id: 'town_start', type: 'town', x: '400', y: '300', z: '0', name: 'Star Town', radius: '220',
+    params: 'shape=poly;w=480;h=400;safe=1;map_id=town1;pts=220,140|580,140|620,220|620,380|580,460|220,460|180,380|180,220',
   },
-  { id: 'star_mart', type: 'market', x: '300', y: '230', z: '0', name: 'Star Mart', radius: '36', params: 'interact=shop;price=25;item_id=EQ_004;color=#34d399' },
-  { id: 'star_scrolls', type: 'market', x: '260', y: '260', z: '0', name: 'Scroll Stall', radius: '32', params: 'interact=shop;price=200;item_id=EQ_SCR_001;color=#c084fc' },
-  { id: 'star_inn', type: 'hotel', x: '500', y: '230', z: '0', name: 'Softcloud Inn', radius: '36', params: 'interact=rest;price=10;color=#60a5fa' },
-  { id: 'star_heal', type: 'landmark', x: '300', y: '370', z: '0', name: 'Star Spring', radius: '34', params: 'interact=heal;kind=heal;color=#2dd4bf' },
-  { id: 'star_golf', type: 'landmark', x: '510', y: '380', z: '0', name: 'Star Golf', radius: '40', params: 'interact=golf;kind=golf;color=#86efac' },
-  { id: 'whisperwood', type: 'forest', x: '760', y: '320', z: '0', name: 'Whisperwood Forest', radius: '220', params: '' },
-  { id: 'forest_rabbit_1', type: 'monster', x: '700', y: '260', z: '0', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_rabbit_2', type: 'monster', x: '760', y: '380', z: '0', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_bunny_3', type: 'monster', x: '680', y: '340', z: '0', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
-  { id: 'forest_sloth_1', type: 'monster', x: '820', y: '300', z: '0', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
+  {
+    id: 'player_home', type: 'landmark', x: '400', y: '210', z: '2', name: 'Your House', radius: '42',
+    params: 'interact=talk;kind=house;color=#f59e0b;line=Home sweet home. Safe walls of Town 1.',
+  },
+  {
+    id: 'npc_stella', type: 'npc', x: '440', y: '280', z: '0', name: 'Stella', radius: '28',
+    params: 'interact=talk;entity_id=NPC_STELLA;color=#fbbf24;face=star;line=Hi! This is Star Town — Town 1. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. East gate leads to Whisperwood Park!',
+  },
+  { id: 'star_mart', type: 'market', x: '280', y: '230', z: '2', name: 'Star Mart', radius: '36', params: 'interact=shop;price=25;item_id=EQ_004;color=#34d399' },
+  { id: 'star_scrolls', type: 'market', x: '240', y: '280', z: '2', name: 'Scroll Stall', radius: '32', params: 'interact=shop;price=200;item_id=EQ_SCR_001;color=#c084fc' },
+  { id: 'star_inn', type: 'hotel', x: '520', y: '230', z: '2', name: 'Softcloud Inn', radius: '36', params: 'interact=rest;price=10;color=#60a5fa' },
+  { id: 'star_heal', type: 'landmark', x: '280', y: '380', z: '2', name: 'Star Spring', radius: '34', params: 'interact=heal;kind=heal;color=#2dd4bf' },
+  { id: 'star_golf', type: 'landmark', x: '520', y: '390', z: '2', name: 'Star Golf', radius: '40', params: 'interact=golf;kind=golf;color=#86efac' },
+  {
+    id: 'gate_town_exit', type: 'landmark', x: '620', y: '300', z: '1', name: 'East Gate', radius: '28',
+    params: 'kind=gate;gate=exit;to=park1;sibling=gate_park_enter;spawn_x=660;spawn_y=300;color=#facc15',
+  },
+  { id: 'whisperwood', type: 'forest', x: '760', y: '320', z: '0', name: 'Whisperwood Park', radius: '260', params: 'map_id=park1' },
+  {
+    id: 'gate_park_enter', type: 'landmark', x: '600', y: '300', z: '1', name: 'Town Gate', radius: '28',
+    params: 'kind=gate;gate=entrance;to=town1;sibling=gate_town_exit;spawn_x=560;spawn_y=300;color=#facc15',
+  },
+  { id: 'forest_rabbit_1', type: 'monster', x: '720', y: '220', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_rabbit_2', type: 'monster', x: '860', y: '380', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_bunny_3', type: 'monster', x: '780', y: '300', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
+  { id: 'forest_sloth_1', type: 'monster', x: '900', y: '280', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
 ];
 
 type Catalog = { sheet: string; pk: string; rows: Params[]; mode: 'insert' | 'upsert' };

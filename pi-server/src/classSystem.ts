@@ -18,7 +18,7 @@ export function parsePotential(raw?: string): Record<AllocStat, number> {
 export function combatFromAlloc(
   alloc: Record<AllocStat, number>,
   jobBonus?: string,
-): { atk: number; def: number; spd: number; luck: number; maxHp: number; maxMp: number } {
+): { atk: number; def: number; spd: number; luck: number; maxHp: number; maxMp: number; acc: number; eva: number } {
   const base = {
     atk: 8 + alloc.str * 2,
     def: 5 + Math.floor(alloc.vit * 1.2),
@@ -26,6 +26,8 @@ export function combatFromAlloc(
     luck: 5 + alloc.luk,
     maxHp: 80 + alloc.vit * 8,
     maxMp: 40 + alloc.int * 6,
+    acc: alloc.dex * 0.015,
+    eva: alloc.dex * 0.01 + (8 + alloc.dex * 2) * 0.002,
   };
   if (jobBonus) {
     for (const part of jobBonus.split(',')) {
@@ -41,6 +43,7 @@ export function combatFromAlloc(
       else if (key === 'mp') base.maxMp += delta;
     }
   }
+  base.eva = alloc.dex * 0.01 + base.spd * 0.002;
   return base;
 }
 

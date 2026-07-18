@@ -30,6 +30,8 @@ export interface CharacterStats {
     spd: number
     luck: number
     money: number
+    acc?: number
+    eva?: number
 }
 
 export interface Job {
@@ -480,7 +482,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         stats: {
             hp: 100, maxHp: 100, mp: 50, maxMp: 50,
             level: 1, exp: 0, maxExp: 100,
-            atk: 10, def: 5, spd: 12, luck: 8, money: 100
+            atk: 10, def: 5, spd: 12, luck: 8, money: 100,
+            acc: 0.075, eva: 0.074,
         },
         alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
         statPoints: 0,
@@ -575,6 +578,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                     hp: 100, maxHp: 100, mp: 50, maxMp: 50,
                     level: 1, exp: 0, maxExp: 100,
                     atk: 10, def: 5, spd: 12, luck: 8, money: 100,
+                    acc: 0.075, eva: 0.074,
                 },
                 alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
                 statPoints: 0,
@@ -622,6 +626,8 @@ export const useGameStore = create<GameState>((set, get) => ({
                 def: combat.def,
                 spd: combat.spd,
                 luck: combat.luck,
+                acc: combat.acc,
+                eva: combat.eva,
                 maxHp: combat.maxHp,
                 hp: combat.maxHp,
                 maxMp: combat.maxMp,
@@ -702,6 +708,8 @@ export const useGameStore = create<GameState>((set, get) => ({
                     def: hydrated.stats.def || combat.def,
                     spd: hydrated.stats.spd || combat.spd,
                     luck: hydrated.stats.luck || combat.luck,
+                    acc: combat.acc,
+                    eva: combat.eva,
                 },
                 inventory: hydrated.inventory,
                 alloc: {
@@ -1016,6 +1024,8 @@ export const useGameStore = create<GameState>((set, get) => ({
                         def: combat.def,
                         spd: combat.spd,
                         luck: combat.luck,
+                        acc: combat.acc,
+                        eva: combat.eva,
                         maxHp: combat.maxHp,
                         maxMp: combat.maxMp,
                         hp: Math.min(state.player.stats.hp, combat.maxHp),

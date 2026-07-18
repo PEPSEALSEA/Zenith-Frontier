@@ -9,25 +9,37 @@ import {
   drawCuteCritter,
   drawForestDecor,
   drawGolfGreen,
+  drawLabelBelow,
   drawStarTownFloor,
   ensureStarTownObjects,
+  findNearbyGate,
   findNearbyInteractable,
   interactKindOf,
   interactPrompt,
   isInSafeZone,
+  parseNum,
   STAR_TOWN_SPAWN,
 } from '@/lib/starTown'
+import { drawAllTileMaps } from '@/lib/map/tiles'
+import { getZoneAt } from '@/lib/map/mapManifest'
 import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
 import { preloadSheets, updateFx, drawFx } from '@/lib/combat/particles'
 import { updateProjectiles, drawProjectiles } from '@/lib/combat/projectiles'
 import { cycleLock, clearLock, getLocked, type LockState } from '@/lib/combat/targeting'
 import { isStunned, tickDots, clearDeadStatus } from '@/lib/combat/status'
 import { resolveBasicAttack, resolveSkillCast, applyProjectileDamage, type MutableMonster } from '@/lib/combat/resolve'
+import {
+  monsterAccFromAtkSpd,
+  monsterEvaFromSpd,
+  resolveMonsterSkillIds,
+  rollDodge,
+} from '@/lib/combat/hitDodge'
 
 const WORLD_SIZE = 2000
 const CONTACT_RANGE = 36
 const CHASE_RANGE = 220
 const RESPAWN_MS = 4000
+const GATE_COOLDOWN_MS = 900
 
 type LivingMonster = {
   id: string
@@ -40,6 +52,10 @@ type LivingMonster = {
   atk: number
   def: number
   spd: number
+  acc: number
+  eva: number
+  skills: string[]
+  skillCdUntil: number
   color: string
   face: string
   drops: string[]
@@ -47,6 +63,18 @@ type LivingMonster = {
   flashUntil: number
   homeX: number
   homeY: number
+}
+
+type MonsterShot = {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  damage: number
+  acc: number
+  life: number
+  born: number
+  radius: number
 }
 
 type FloatText = {
@@ -237,6 +265,9 @@ export default function GameScene2D() {
   const lastMpRegenAt = useRef(0)
   const mouseWorldRef = useRef({ x: 0, y: 0, ready: false })
   const lastAimAngleRef = useRef(0)
+  const monsterShotsRef = useRef<MonsterShot[]>([])
+  const lastGateWarp = useRef(0)
+  const lastGateId = useRef('')
 
   useEffect(() => {
     preloadSheets()
@@ -273,13 +304,14 @@ export default function GameScene2D() {
       const byId = Object.fromEntries(templates.map((t) => [t.monster_id, t]))
       const objects = ensureStarTownObjects(useGameStore.getState().world.objects)
 
-      const cuteFallback: Record<string, { name: string; hp: number; atk: number; def: number; spd: number; drops: string[]; appearance: { color: string; face: string } }> = {
+      const cuteFallback: Record<string, { name: string; hp: number; atk: number; def: number; spd: number; skills: string[]; drops: string[]; appearance: { color: string; face: string } }> = {
         MON_003: {
           name: 'Fluff Rabbit',
           hp: 28,
           atk: 4,
           def: 1,
           spd: 14,
+          skills: ['hop'],
           drops: ['EQ_004'],
           appearance: { color: '#fda4af', face: 'bunny' },
         },
@@ -289,6 +321,7 @@ export default function GameScene2D() {
           atk: 7,
           def: 3,
           spd: 4,
+          skills: ['spit'],
           drops: ['EQ_004'],
           appearance: { color: '#a8a29e', face: 'sloth' },
         },
@@ -300,6 +333,11 @@ export default function GameScene2D() {
           const tid = String(o.params?.entity_id || o.params?.monster_id || 'MON_003')
           const t = byId[tid] || cuteFallback[tid]
           const hp = t?.hp || 30
+          const spd = t?.spd || 8
+          const atk = t?.atk || 5
+          const skills = (t as { skills?: string[] })?.skills?.length
+            ? (t as { skills: string[] }).skills
+            : (cuteFallback[tid]?.skills || [])
           return {
             id: o.id,
             templateId: tid,
@@ -310,9 +348,13 @@ export default function GameScene2D() {
             homeY: o.y,
             hp,
             maxHp: hp,
-            atk: t?.atk || 5,
+            atk,
             def: t?.def || 1,
-            spd: t?.spd || 8,
+            spd,
+            acc: monsterAccFromAtkSpd(atk, spd),
+            eva: monsterEvaFromSpd(spd),
+            skills,
+            skillCdUntil: 0,
             color: t?.appearance?.color || '#fda4af',
             face: t?.appearance?.face || 'bunny',
             drops: t?.drops || ['EQ_004'],
@@ -324,8 +366,8 @@ export default function GameScene2D() {
       if (fromMap.length === 0) {
         for (const tid of ['MON_003', 'MON_004'] as const) {
           const t = byId[tid] || cuteFallback[tid]
-          const ox = tid === 'MON_003' ? 700 : 820
-          const oy = tid === 'MON_003' ? 260 : 300
+          const ox = tid === 'MON_003' ? 720 : 900
+          const oy = tid === 'MON_003' ? 220 : 280
           fromMap.push({
             id: `runtime_${tid}`,
             templateId: tid,
@@ -339,6 +381,10 @@ export default function GameScene2D() {
             atk: t.atk,
             def: t.def,
             spd: t.spd,
+            acc: monsterAccFromAtkSpd(t.atk, t.spd),
+            eva: monsterEvaFromSpd(t.spd),
+            skills: t.skills || [],
+            skillCdUntil: 0,
             color: t.appearance.color,
             face: t.appearance.face,
             drops: t.drops,
@@ -661,6 +707,29 @@ export default function GameScene2D() {
     const atkNow = playerStatsRef.current.atk * buff.atkMul
     const defNow = playerStatsRef.current.def * buff.defMul
     const luckNow = playerStatsRef.current.luck || 5
+    const accNow = playerStatsRef.current.acc ?? 0.15
+    const evaNow = playerStatsRef.current.eva ?? 0.08
+
+    const applyPlayerHit = (dmg: number, monsterAcc: number) => {
+      if (rollDodge(evaNow, monsterAcc)) {
+        pushFloat(posRef.current.x, posRef.current.y - 30, 'DODGE', '#67e8f9')
+        return
+      }
+      takeDamage(dmg)
+      pushFloat(posRef.current.x, posRef.current.y - 30, `-${dmg}`, '#f87171')
+      sfx.hit()
+      const hp = useGameStore.getState().player.stats.hp
+      if (hp <= 0) {
+        deadUntilRef.current = now + 2500
+        sfx.death()
+        const spawn = findRespawn()
+        setTimeout(() => {
+          posRef.current = { ...spawn }
+          healFull()
+          void syncHpToServer()
+        }, 2000)
+      }
+    }
 
     const onKillMonster = (m: MutableMonster) => {
       const live = m as LivingMonster
@@ -707,6 +776,7 @@ export default function GameScene2D() {
         aimPoint,
         atk: atkNow,
         luck: luckNow,
+        acc: accNow,
         rangeAdd: buff.rangeAdd,
         monsters: monstersRef.current,
         now,
@@ -741,6 +811,7 @@ export default function GameScene2D() {
             aimPoint,
             atk: atkNow,
             luck: luckNow,
+            acc: accNow,
             rangeAdd: buff.rangeAdd,
             monsters: monstersRef.current,
             now,
@@ -798,6 +869,7 @@ export default function GameScene2D() {
           pushFloat,
           onKillMonster,
           h.onHitSfx,
+          accNow,
         )
       }
       updateFx(now, deltaTime)
@@ -818,10 +890,14 @@ export default function GameScene2D() {
       updatePosition(posRef.current.x, posRef.current.y)
       if (!isEditorMode) updateWorldCycle(0.0005 * deltaTime)
       const near = findNearbyInteractable(posRef.current.x, posRef.current.y, objects)
+      const gateNear = findNearbyGate(posRef.current.x, posRef.current.y, objects)
+      const zone = getZoneAt(posRef.current.x, posRef.current.y)
       const lockHint = locked ? ` · Lock: ${locked.id.slice(0, 8)}` : ''
       const nextHint = near && !panelRef.current
         ? `Press E — ${near.name}`
-        : (!playerSafe && !isEditorMode ? `Aim mouse · Tab lock${lockHint}` : '')
+        : gateNear
+          ? `Gate → walk through`
+          : (!playerSafe && !isEditorMode ? `Aim mouse · Tab lock${lockHint}` : '')
       if (nextHint !== hintRef.current) {
         hintRef.current = nextHint
         setHint(nextHint)
@@ -829,6 +905,25 @@ export default function GameScene2D() {
       if (playerSafe !== safeRef.current) {
         safeRef.current = playerSafe
         setSafeBanner(playerSafe)
+      }
+      if (!playerSafe && zone && zone.name) {
+        // banner text handled below via zone name in UI
+      }
+    }
+
+    if (!isEditorMode && !isForgeMode && !isDead) {
+      const gate = findNearbyGate(posRef.current.x, posRef.current.y, objects, 32)
+      if (gate && now - lastGateWarp.current > GATE_COOLDOWN_MS) {
+        if (lastGateId.current !== gate.id || now - lastGateWarp.current > GATE_COOLDOWN_MS) {
+          lastGateWarp.current = now
+          lastGateId.current = gate.id
+          posRef.current.x = parseNum(gate.params?.spawn_x, posRef.current.x)
+          posRef.current.y = parseNum(gate.params?.spawn_y, posRef.current.y)
+          pushFloat(posRef.current.x, posRef.current.y - 36, gate.name, '#facc15')
+          sfx.whoosh()
+        }
+      } else if (!gate) {
+        lastGateId.current = ''
       }
     }
 
@@ -852,6 +947,35 @@ export default function GameScene2D() {
           const step = (m.spd * 0.15) * deltaTime
           m.x += Math.cos(ang) * step
           m.y += Math.sin(ang) * step
+
+          const skillDefs = resolveMonsterSkillIds(m.skills)
+          if (skillDefs.length && now >= m.skillCdUntil && dPlayer < skillDefs[0].range) {
+            const sk = skillDefs[0]
+            m.skillCdUntil = now + sk.cooldownMs
+            if (sk.kind === 'hop') {
+              m.x += Math.cos(ang) * 55
+              m.y += Math.sin(ang) * 55
+              pushFloat(m.x, m.y - 28, 'HOP', '#fda4af')
+              if (dist(posRef.current.x, posRef.current.y, m.x, m.y) < CONTACT_RANGE + 10) {
+                const dmg = Math.max(1, Math.floor(m.atk * sk.power - defNow * 0.3))
+                applyPlayerHit(dmg, m.acc)
+              }
+            } else if (sk.kind === 'spit') {
+              const spd = sk.speed || 2.2
+              monsterShotsRef.current.push({
+                x: m.x,
+                y: m.y,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd,
+                damage: Math.max(1, Math.floor(m.atk * sk.power)),
+                acc: m.acc,
+                life: 1800,
+                born: now,
+                radius: 8,
+              })
+              pushFloat(m.x, m.y - 28, 'SPIT', '#a8a29e')
+            }
+          }
         } else {
           const homeD = dist(m.x, m.y, m.homeX, m.homeY)
           if (homeD > 8) {
@@ -868,20 +992,22 @@ export default function GameScene2D() {
         ) {
           lastContactHit.current = now
           const dmg = Math.max(1, Math.floor(m.atk - defNow * 0.3))
-          takeDamage(dmg)
-          pushFloat(posRef.current.x, posRef.current.y - 30, `-${dmg}`, '#f87171')
-          sfx.hit()
-          const hp = useGameStore.getState().player.stats.hp
-          if (hp <= 0) {
-            deadUntilRef.current = now + 2500
-            sfx.death()
-            const spawn = findRespawn()
-            setTimeout(() => {
-              posRef.current = { ...spawn }
-              healFull()
-              void syncHpToServer()
-            }, 2000)
-          }
+          applyPlayerHit(dmg, m.acc)
+        }
+      }
+
+      for (let i = monsterShotsRef.current.length - 1; i >= 0; i--) {
+        const shot = monsterShotsRef.current[i]
+        shot.x += shot.vx * deltaTime
+        shot.y += shot.vy * deltaTime
+        if (now - shot.born > shot.life) {
+          monsterShotsRef.current.splice(i, 1)
+          continue
+        }
+        if (playerSafe || stealthed || isDead) continue
+        if (dist(posRef.current.x, posRef.current.y, shot.x, shot.y) < shot.radius + 18) {
+          applyPlayerHit(shot.damage, shot.acc)
+          monsterShotsRef.current.splice(i, 1)
         }
       }
     }
@@ -932,62 +1058,58 @@ export default function GameScene2D() {
       if (obj.type === 'town' || obj.type === 'safezone') {
         drawStarTownFloor(ctx, obj)
       }
+    }
+
+    drawAllTileMaps(ctx, camX, camY, width, height)
+
+    for (const obj of objects) {
+      if (obj.type === 'spawner') {
+        ctx.save()
+        ctx.translate(obj.x, obj.y)
+        ctx.strokeStyle = '#64748b88'
+        ctx.strokeRect(-12, -12, 24, 24)
+        ctx.restore()
+      }
+      if (obj.type === 'town') {
+        ctx.fillStyle = 'rgba(226,232,240,0.7)'
+        ctx.font = '700 16px Oxanium, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(obj.name, obj.x, obj.y - zoneLabelOffset(obj) - 20)
+      }
       if (obj.type === 'forest') {
-        ctx.fillStyle = 'rgba(22, 101, 52, 0.12)'
-        ctx.beginPath()
-        ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.fillStyle = 'rgba(134,239,172,0.55)'
+        ctx.font = '600 13px Oxanium, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(obj.name, obj.x, obj.y - obj.radius * 0.35)
       }
     }
 
-    for (const obj of objects) {
-      if (obj.type === 'monster' || obj.type === 'boss') continue
-      if (obj.type === 'town' || obj.type === 'safezone' || obj.type === 'forest' || obj.type === 'spawner') {
-        if (obj.type === 'spawner') {
-          ctx.save()
-          ctx.translate(obj.x, obj.y)
-          ctx.strokeStyle = '#64748b88'
-          ctx.strokeRect(-12, -12, 24, 24)
-          ctx.restore()
-        }
-        ctx.fillStyle = 'rgba(255,255,255,0.75)'
-        ctx.font = '600 12px Oxanium, sans-serif'
-        ctx.textAlign = 'center'
-        if (obj.type === 'town') {
-          ctx.fillStyle = '#fde68a'
-          ctx.font = '700 18px Oxanium, sans-serif'
-          ctx.fillText(obj.name, obj.x, obj.y - zoneLabelOffset(obj) - 16)
-        }
-        continue
-      }
+    const drawables = objects
+      .filter((o) => o.type !== 'monster' && o.type !== 'boss' && o.type !== 'town' && o.type !== 'safezone' && o.type !== 'forest' && o.type !== 'spawner')
+      .sort((a, b) => (a.z || 0) - (b.z || 0) || a.y - b.y)
 
+    for (const obj of drawables) {
       ctx.save()
       ctx.translate(obj.x, obj.y)
       const color = String(obj.params?.color || getObjectColor(obj.type))
-      if (obj.type === 'landmark' && String(obj.params?.kind || '') === 'golf') {
+      const kind = String(obj.params?.kind || '')
+      if (obj.type === 'landmark' && kind === 'golf') {
         drawGolfGreen(ctx, 28)
       } else if (obj.type === 'npc') {
-        ctx.shadowBlur = 14
-        ctx.shadowColor = color
-        ctx.fillStyle = color
+        ctx.strokeStyle = color
+        ctx.lineWidth = 2.4
         ctx.beginPath()
         ctx.arc(0, 0, 14, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
+        ctx.stroke()
         drawFace(ctx, 0, 0, 8, String(obj.params?.face || 'star'))
+      } else if (kind === 'gate') {
+        drawBuilding(ctx, 'landmark', color, 26, 'gate')
+      } else if (kind === 'house') {
+        drawBuilding(ctx, 'house', color, 30, 'house')
       } else {
-        drawBuilding(ctx, obj.type === 'landmark' ? 'landmark' : obj.type, color, 26)
+        drawBuilding(ctx, obj.type === 'landmark' ? 'landmark' : obj.type, color, 26, kind)
       }
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'
-      const label = obj.name
-      ctx.font = '600 10px Outfit, sans-serif'
-      const tw = ctx.measureText(label).width
-      ctx.beginPath()
-      ctx.roundRect(-tw / 2 - 6, -46, tw + 12, 16, 6)
-      ctx.fill()
-      ctx.fillStyle = 'rgba(255,255,255,0.95)'
-      ctx.textAlign = 'center'
-      ctx.fillText(label, 0, -34)
+      drawLabelBelow(ctx, obj.name, kind === 'house' ? 42 : 28)
       ctx.restore()
     }
 
@@ -1009,7 +1131,17 @@ export default function GameScene2D() {
       ctx.fillStyle = 'rgba(255,255,255,0.92)'
       ctx.font = '600 9px Outfit, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(m.name, 0, -36)
+      ctx.fillText(m.name, 0, 26)
+      ctx.restore()
+    }
+
+    for (const shot of monsterShotsRef.current) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(168, 162, 158, 0.9)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(shot.x, shot.y, shot.radius, 0, Math.PI * 2)
+      ctx.stroke()
       ctx.restore()
     }
 
@@ -1090,8 +1222,8 @@ export default function GameScene2D() {
       ctx.arc(pX, pY, radius, 0, Math.PI * 2)
       ctx.fill()
 
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-      ctx.lineWidth = 2
+      ctx.strokeStyle = playerSafe ? 'rgba(251, 191, 36, 0.55)' : 'rgba(52, 211, 153, 0.45)'
+      ctx.lineWidth = 3
       ctx.beginPath()
       ctx.arc(pX, pY, radius - 1, 0, Math.PI * 2)
       ctx.stroke()
@@ -1167,7 +1299,7 @@ export default function GameScene2D() {
                 : 'border-emerald-400/25 text-emerald-100'
             }`}
           >
-            {safeBanner ? '★ Star Town — Safe Zone' : 'Whisperwood Forest'}
+            {safeBanner ? '★ Star Town — Safe Zone' : 'Whisperwood Park'}
           </div>
           {hint ? (
             <div className="rpg-panel animate-soft-bob rounded-xl border-amber-300/25 px-4 py-1.5 text-xs font-semibold tracking-wide text-amber-50 shadow-[0_8px_24px_rgba(0,0,0,0.35)]">

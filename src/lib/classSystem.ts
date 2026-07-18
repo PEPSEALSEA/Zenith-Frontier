@@ -113,6 +113,8 @@ export function combatFromAlloc(alloc: AllocatedStats, jobBonus?: string) {
     luck: 5 + alloc.luk,
     maxHp: 80 + alloc.vit * 8,
     maxMp: 40 + alloc.int * 6,
+    acc: alloc.dex * 0.015,
+    eva: alloc.dex * 0.01 + (8 + alloc.dex * 2) * 0.002,
   }
   if (jobBonus) {
     for (const part of jobBonus.split(',')) {
@@ -128,6 +130,7 @@ export function combatFromAlloc(alloc: AllocatedStats, jobBonus?: string) {
       else if (key === 'mp') base.maxMp += delta
     }
   }
+  base.eva = alloc.dex * 0.01 + base.spd * 0.002
   return base
 }
 

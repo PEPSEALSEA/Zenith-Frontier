@@ -8,12 +8,12 @@ import {
   skillFx,
   spawnBasicAttackFx,
   spawnSkillVisual,
-  styleDelivery,
 } from './fxRegistry'
 import { aimAngle } from './targeting'
 import { applyDot, applyMark, applyStun, markMultiplier } from './status'
 import { spawnAnim, spawnBurst } from './particles'
 import type { Point } from './hitShapes'
+import { rollHit } from './hitDodge'
 
 export type FloatFn = (x: number, y: number, text: string, color: string) => void
 
@@ -28,6 +28,8 @@ export type MutableMonster = {
   atk: number
   drops: string[]
   flashUntil: number
+  eva?: number
+  acc?: number
 }
 
 export type LockTarget = { id: string; x: number; y: number; deadUntil: number } | null
@@ -46,6 +48,7 @@ export function resolveBasicAttack(opts: {
   aimPoint?: { x: number; y: number } | null
   atk: number
   luck: number
+  acc?: number
   rangeAdd: number
   monsters: MutableMonster[]
   now: number
@@ -59,6 +62,7 @@ export function resolveBasicAttack(opts: {
   const angle = aimAngle(opts.origin, opts.facing, opts.locked, opts.aimPoint ?? null)
   const delivery = spawnBasicAttackFx(opts.profile, opts.origin, angle, hard)
   const baseDmg = Math.max(1, Math.floor(opts.atk * mult))
+  const acc = opts.acc ?? 0.15
 
   if (delivery.shape === 'projectile' || delivery.shape === 'volley') {
     fireStyleProjectiles(delivery, opts.origin, angle, baseDmg, range, hard, opts.locked?.id || null)
@@ -72,12 +76,15 @@ export function resolveBasicAttack(opts: {
   }) as MutableMonster[]
 
   for (const m of targets) {
+    let landed = false
     for (let h = 0; h < hits; h++) {
-      applyHit(m, baseDmg, opts.luck, delivery.status === 'crit', opts.now, opts.pushFloat, '#fbbf24')
+      const before = m.hp
+      applyHit(m, baseDmg, opts.luck, delivery.status === 'crit', opts.now, opts.pushFloat, '#fbbf24', acc)
+      if (m.hp < before) landed = true
       if (delivery.status === 'stun' && hard) applyStun(m.id, opts.now, 800)
       if (delivery.status === 'dot') applyDot(m.id, opts.now, Math.max(1, Math.floor(baseDmg * 0.15)), 3000)
     }
-    sfx.hit()
+    if (landed) sfx.hit()
     if (m.hp <= 0) opts.onKill(m)
   }
 }
@@ -90,6 +97,7 @@ export function resolveSkillCast(opts: {
   aimPoint?: { x: number; y: number } | null
   atk: number
   luck: number
+  acc?: number
   rangeAdd: number
   monsters: MutableMonster[]
   now: number
@@ -99,6 +107,7 @@ export function resolveSkillCast(opts: {
   applyBuff: (kind: 'atk' | 'def' | 'range' | 'stealth', power: number, duration: number) => void
   applyDash: (dist: number) => void
 }) {
+  const acc = opts.acc ?? 0.15
   const tags = parseEffect(opts.skill.effect)
   const angle = aimAngle(opts.origin, opts.facing, opts.locked, opts.aimPoint ?? null)
   const fx = skillFx(opts.skill.skill_id)
@@ -121,7 +130,7 @@ export function resolveSkillCast(opts: {
     if (opts.skill.skill_type === 'dash' && opts.skill.power > 0) {
       const targets = monstersInShape(opts.monsters, opts.origin, angle, 70, 'cone', opts.now, { halfAngle: 0.8 }) as MutableMonster[]
       for (const m of targets) {
-        applyHit(m, Math.floor(opts.atk * opts.skill.power), opts.luck, false, opts.now, opts.pushFloat, '#c084fc')
+        applyHit(m, Math.floor(opts.atk * opts.skill.power), opts.luck, false, opts.now, opts.pushFloat, '#c084fc', acc)
         if (m.hp <= 0) opts.onKill(m)
       }
     }
@@ -186,11 +195,11 @@ export function resolveSkillCast(opts: {
     }) as MutableMonster[]
     for (const m of targets) {
       for (let h = 0; h < tags.hits; h++) {
-        applyHit(m, base, opts.luck, tags.crit, opts.now, opts.pushFloat, '#c084fc')
+        applyHit(m, base, opts.luck, tags.crit, opts.now, opts.pushFloat, '#c084fc', acc)
         if (tags.stun) applyStun(m.id, opts.now)
         if (tags.dot) applyDot(m.id, opts.now, Math.max(1, Math.floor(base * 0.2)))
       }
-      sfx.hit()
+      if (m.hp > 0) sfx.hit()
       if (m.hp <= 0) opts.onKill(m)
     }
     return
@@ -203,12 +212,12 @@ export function resolveSkillCast(opts: {
   }) as MutableMonster[]
   for (const m of targets) {
     for (let h = 0; h < tags.hits; h++) {
-      applyHit(m, base, opts.luck, tags.crit, opts.now, opts.pushFloat, '#c084fc')
+      applyHit(m, base, opts.luck, tags.crit, opts.now, opts.pushFloat, '#c084fc', acc)
       if (tags.stun) applyStun(m.id, opts.now)
       if (tags.dot) applyDot(m.id, opts.now, Math.max(1, Math.floor(base * 0.2)))
       if (tags.mark) applyMark(m.id, opts.now)
     }
-    sfx.hit()
+    if (m.hp > 0) sfx.hit()
     if (m.hp <= 0) opts.onKill(m)
   }
 }
@@ -221,7 +230,13 @@ function applyHit(
   now: number,
   pushFloat: FloatFn,
   color: string,
+  acc = 0.15,
 ) {
+  const eva = m.eva ?? 0.08
+  if (!rollHit(acc, eva)) {
+    pushFloat(m.x, m.y - 22, 'MISS', '#94a3b8')
+    return
+  }
   let dmg = Math.max(1, Math.floor(baseDmg * markMultiplier(m.id, now) - m.def * 0.4))
   const crit = rollCrit(luck, forceCrit)
   if (crit) {
@@ -248,9 +263,10 @@ export function applyProjectileDamage(
   pushFloat: FloatFn,
   onKill: (m: MutableMonster) => void,
   onHitSfx?: string,
+  acc = 0.15,
 ) {
   const applyOne = (m: MutableMonster, dmgBase: number) => {
-    applyHit(m, dmgBase, luck, status === 'crit', now, pushFloat, '#c084fc')
+    applyHit(m, dmgBase, luck, status === 'crit', now, pushFloat, '#c084fc', acc)
     if (status === 'stun') applyStun(m.id, now)
     if (status === 'dot') applyDot(m.id, now, Math.max(1, Math.floor(dmgBase * 0.2)))
     if (status === 'mark') applyMark(m.id, now)

@@ -9,9 +9,32 @@ export function parseNum(v: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function parsePolyPts(raw: unknown): { x: number; y: number }[] {
+  const s = String(raw || '')
+  if (!s) return []
+  return s.split('|').map((pair) => {
+    const [a, b] = pair.split(',').map(Number)
+    return { x: a, y: b }
+  }).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+}
+
+function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): boolean {
+  if (pts.length < 3) return false
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x
+    const yi = pts[i].y
+    const xj = pts[j].x
+    const yj = pts[j].y
+    const intersect = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi + 0.0001) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 export function zoneHalfSize(obj: WorldObject): { hw: number; hh: number } {
   const shape = String(obj.params?.shape || 'circle')
-  if (shape === 'rect') {
+  if (shape === 'rect' || shape === 'poly') {
     return {
       hw: parseNum(obj.params?.w, obj.radius * 2) / 2,
       hh: parseNum(obj.params?.h, obj.radius * 2) / 2,
@@ -22,7 +45,11 @@ export function zoneHalfSize(obj: WorldObject): { hw: number; hh: number } {
 
 export function pointInZone(px: number, py: number, obj: WorldObject): boolean {
   const shape = String(obj.params?.shape || 'circle')
-  if (shape === 'rect') {
+  if (shape === 'poly') {
+    const pts = parsePolyPts(obj.params?.pts)
+    if (pts.length >= 3) return pointInPoly(px, py, pts)
+  }
+  if (shape === 'rect' || shape === 'poly') {
     const { hw, hh } = zoneHalfSize(obj)
     return px >= obj.x - hw && px <= obj.x + hw && py >= obj.y - hh && py <= obj.y + hh
   }
@@ -37,7 +64,31 @@ export function isInSafeZone(px: number, py: number, objects: WorldObject[]): bo
   )
 }
 
+export function isGateObject(obj: WorldObject): boolean {
+  return String(obj.params?.kind || '') === 'gate' || String(obj.params?.gate || '') !== ''
+}
+
+export function findNearbyGate(
+  px: number,
+  py: number,
+  objects: WorldObject[],
+  range = 36,
+): WorldObject | null {
+  let best: WorldObject | null = null
+  let bestD = range
+  for (const o of objects) {
+    if (!isGateObject(o)) continue
+    const d = Math.sqrt((px - o.x) ** 2 + (py - o.y) ** 2)
+    if (d < bestD) {
+      bestD = d
+      best = o
+    }
+  }
+  return best
+}
+
 export function interactKindOf(obj: WorldObject): InteractKind | null {
+  if (isGateObject(obj)) return null
   const raw = String(obj.params?.interact || '')
   if (raw === 'talk' || raw === 'shop' || raw === 'rest' || raw === 'heal' || raw === 'golf') {
     return raw
@@ -47,6 +98,7 @@ export function interactKindOf(obj: WorldObject): InteractKind | null {
   if (obj.type === 'hotel') return 'rest'
   if (obj.type === 'landmark' && String(obj.params?.kind || '') === 'heal') return 'heal'
   if (obj.type === 'landmark' && String(obj.params?.kind || '') === 'golf') return 'golf'
+  if (obj.type === 'landmark' && String(obj.params?.kind || '') === 'house') return 'talk'
   return null
 }
 
@@ -104,7 +156,7 @@ export function interactPrompt(obj: WorldObject): { title: string; body: string;
         title: obj.name,
         body: String(
           obj.params?.line ||
-            'Welcome to Star Town! Shops, inns, and healing are safe here. Cute critters live in the forest outside the walls.',
+            'Welcome to Star Town (Town 1)! Shops, inns, and healing are safe here. Take the east gate to Whisperwood Park.',
         ),
       }
   }
@@ -117,21 +169,45 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
     type: 'town',
     x: 400,
     y: 300,
+    z: 0,
     name: 'Star Town',
-    radius: 180,
-    params: { shape: 'rect', w: '360', h: '320', safe: '1' },
+    radius: 220,
+    params: {
+      shape: 'poly',
+      w: '480',
+      h: '400',
+      safe: '1',
+      map_id: 'town1',
+      pts: '220,140|580,140|620,220|620,380|580,460|220,460|180,380|180,220',
+    },
+  },
+  {
+    id: 'player_home',
+    type: 'landmark',
+    x: 400,
+    y: 210,
+    z: 2,
+    name: 'Your House',
+    radius: 42,
+    params: {
+      interact: 'talk',
+      kind: 'house',
+      color: '#f59e0b',
+      line: 'Home sweet home. Safe walls of Town 1.',
+    },
   },
   {
     id: 'npc_stella',
     type: 'npc',
-    x: 400,
-    y: 270,
+    x: 440,
+    y: 280,
+    z: 2,
     name: 'Stella',
     radius: 28,
     params: {
       interact: 'talk',
       entity_id: 'NPC_STELLA',
-      line: 'Hi! This is Star Town — our first city. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. The forest past the east gate has fluffy friends!',
+      line: 'Hi! This is Star Town — Town 1. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. East gate leads to Whisperwood Park!',
       color: '#fbbf24',
       face: 'star',
     },
@@ -139,17 +215,29 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_mart',
     type: 'market',
-    x: 300,
+    x: 280,
     y: 230,
+    z: 2,
     name: 'Star Mart',
     radius: 36,
     params: { interact: 'shop', price: '25', item_id: 'EQ_004', color: '#34d399' },
   },
   {
+    id: 'star_scrolls',
+    type: 'market',
+    x: 240,
+    y: 280,
+    z: 2,
+    name: 'Scroll Stall',
+    radius: 32,
+    params: { interact: 'shop', price: '200', item_id: 'EQ_SCR_001', color: '#c084fc' },
+  },
+  {
     id: 'star_inn',
     type: 'hotel',
-    x: 500,
+    x: 520,
     y: 230,
+    z: 2,
     name: 'Softcloud Inn',
     radius: 36,
     params: { interact: 'rest', price: '10', color: '#60a5fa' },
@@ -157,8 +245,9 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_heal',
     type: 'landmark',
-    x: 300,
-    y: 370,
+    x: 280,
+    y: 380,
+    z: 2,
     name: 'Star Spring',
     radius: 34,
     params: { interact: 'heal', kind: 'heal', color: '#2dd4bf' },
@@ -166,17 +255,65 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_golf',
     type: 'landmark',
-    x: 510,
-    y: 380,
+    x: 520,
+    y: 390,
+    z: 2,
     name: 'Star Golf',
     radius: 40,
     params: { interact: 'golf', kind: 'golf', color: '#86efac' },
   },
   {
+    id: 'gate_town_exit',
+    type: 'landmark',
+    x: 620,
+    y: 300,
+    z: 1,
+    name: 'East Gate',
+    radius: 28,
+    params: {
+      kind: 'gate',
+      gate: 'exit',
+      to: 'park1',
+      sibling: 'gate_park_enter',
+      spawn_x: '660',
+      spawn_y: '300',
+      color: '#facc15',
+    },
+  },
+  {
+    id: 'whisperwood',
+    type: 'forest',
+    x: 760,
+    y: 320,
+    z: 0,
+    name: 'Whisperwood Park',
+    radius: 260,
+    params: { map_id: 'park1' },
+  },
+  {
+    id: 'gate_park_enter',
+    type: 'landmark',
+    x: 600,
+    y: 300,
+    z: 1,
+    name: 'Town Gate',
+    radius: 28,
+    params: {
+      kind: 'gate',
+      gate: 'entrance',
+      to: 'town1',
+      sibling: 'gate_town_exit',
+      spawn_x: '560',
+      spawn_y: '300',
+      color: '#facc15',
+    },
+  },
+  {
     id: 'forest_rabbit_1',
     type: 'monster',
-    x: 700,
-    y: 260,
+    x: 720,
+    y: 220,
+    z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
     params: { entity_id: 'MON_003' },
@@ -184,8 +321,19 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_2',
     type: 'monster',
-    x: 760,
+    x: 860,
     y: 380,
+    z: 1,
+    name: 'Fluff Rabbit',
+    radius: 30,
+    params: { entity_id: 'MON_003' },
+  },
+  {
+    id: 'forest_bunny_3',
+    type: 'monster',
+    x: 780,
+    y: 300,
+    z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
     params: { entity_id: 'MON_003' },
@@ -193,20 +341,12 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_sloth_1',
     type: 'monster',
-    x: 820,
-    y: 300,
+    x: 900,
+    y: 280,
+    z: 1,
     name: 'Sleepy Sloth',
     radius: 34,
     params: { entity_id: 'MON_004' },
-  },
-  {
-    id: 'forest_bunny_3',
-    type: 'monster',
-    x: 680,
-    y: 340,
-    name: 'Fluff Rabbit',
-    radius: 30,
-    params: { entity_id: 'MON_003' },
   },
 ]
 
@@ -229,15 +369,19 @@ export function drawCuteCritter(
   color: string,
   r: number,
 ) {
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)'
+  ctx.lineWidth = 1.8
   ctx.fillStyle = color
   if (face === 'bunny') {
     ctx.beginPath()
     ctx.ellipse(0, 2, r * 0.85, r * 0.75, 0, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
     ctx.beginPath()
     ctx.ellipse(-r * 0.45, -r * 0.85, r * 0.22, r * 0.55, -0.25, 0, Math.PI * 2)
     ctx.ellipse(r * 0.45, -r * 0.85, r * 0.22, r * 0.55, 0.25, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
     ctx.fillStyle = '#fda4af'
     ctx.beginPath()
     ctx.ellipse(-r * 0.45, -r * 0.75, r * 0.1, r * 0.28, -0.25, 0, Math.PI * 2)
@@ -258,6 +402,7 @@ export function drawCuteCritter(
     ctx.beginPath()
     ctx.ellipse(0, 0, r * 0.95, r * 0.8, 0, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
     ctx.fillStyle = '#78716c'
     ctx.beginPath()
     ctx.ellipse(-r * 0.55, -r * 0.15, r * 0.28, r * 0.22, 0, 0, Math.PI * 2)
@@ -278,77 +423,141 @@ export function drawCuteCritter(
   ctx.beginPath()
   ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2)
   ctx.fill()
+  ctx.stroke()
 }
 
+/** Line-art building facades — houses stand out with thicker strokes. */
 export function drawBuilding(
   ctx: CanvasRenderingContext2D,
   type: string,
   color: string,
   size: number,
+  kind?: string,
 ) {
   const s = size
-  ctx.fillStyle = color
-  if (type === 'market' || type === 'shop') {
-    ctx.fillRect(-s * 0.55, -s * 0.2, s * 1.1, s * 0.85)
-    ctx.fillStyle = '#fef3c7'
+  const ink = 'rgba(15, 23, 42, 0.75)'
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  if (kind === 'house' || type === 'house') {
+    const hs = s * 1.35
+    ctx.strokeStyle = color
+    ctx.lineWidth = 3.2
     ctx.beginPath()
-    ctx.moveTo(-s * 0.7, -s * 0.15)
+    ctx.rect(-hs * 0.55, -hs * 0.15, hs * 1.1, hs * 0.95)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(-hs * 0.7, -hs * 0.1)
+    ctx.lineTo(0, -hs * 1.05)
+    ctx.lineTo(hs * 0.7, -hs * 0.1)
+    ctx.stroke()
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 2
+    ctx.strokeRect(-hs * 0.12, hs * 0.25, hs * 0.24, hs * 0.55)
+    ctx.strokeRect(-hs * 0.4, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.strokeRect(hs * 0.2, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.beginPath()
+    ctx.moveTo(hs * 0.35, -hs * 0.85)
+    ctx.lineTo(hs * 0.35, -hs * 0.35)
+    ctx.lineTo(hs * 0.55, -hs * 0.35)
+    ctx.stroke()
+    return
+  }
+
+  if (kind === 'gate') {
+    ctx.strokeStyle = color || '#facc15'
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(-s * 0.55, -s * 0.7, s * 1.1, s * 1.35)
+    ctx.beginPath()
+    ctx.moveTo(0, -s * 0.7)
+    ctx.lineTo(0, s * 0.65)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(s * 0.18, s * 0.05, 3, 0, Math.PI * 2)
+    ctx.stroke()
+    return
+  }
+
+  if (type === 'market' || type === 'shop') {
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2.2
+    ctx.strokeRect(-s * 0.55, -s * 0.15, s * 1.1, s * 0.85)
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.7, -s * 0.1)
     ctx.lineTo(0, -s * 0.85)
-    ctx.lineTo(s * 0.7, -s * 0.15)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillStyle = '#0f766e'
-    ctx.fillRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
+    ctx.lineTo(s * 0.7, -s * 0.1)
+    ctx.stroke()
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 1.6
+    ctx.strokeRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
+    ctx.strokeRect(-s * 0.4, s * 0.05, s * 0.18, s * 0.18)
     return
   }
   if (type === 'hotel') {
-    ctx.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s)
-    ctx.fillStyle = '#bfdbfe'
-    for (let i = 0; i < 3; i++) {
-      ctx.fillRect(-s * 0.4 + i * s * 0.35, -s * 0.15, s * 0.2, s * 0.22)
-      ctx.fillRect(-s * 0.4 + i * s * 0.35, s * 0.2, s * 0.2, s * 0.22)
-    }
-    ctx.fillStyle = '#1e3a8a'
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2.2
+    ctx.strokeRect(-s * 0.6, -s * 0.3, s * 1.2, s)
     ctx.beginPath()
-    ctx.moveTo(-s * 0.75, -s * 0.3)
+    ctx.moveTo(-s * 0.75, -s * 0.25)
     ctx.lineTo(0, -s * 0.95)
-    ctx.lineTo(s * 0.75, -s * 0.3)
-    ctx.closePath()
-    ctx.fill()
+    ctx.lineTo(s * 0.75, -s * 0.25)
+    ctx.stroke()
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 1.5
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeRect(-s * 0.4 + i * s * 0.35, -s * 0.1, s * 0.2, s * 0.2)
+      ctx.strokeRect(-s * 0.4 + i * s * 0.35, s * 0.25, s * 0.2, s * 0.2)
+    }
+    return
+  }
+  if (type === 'landmark' && kind === 'heal') {
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.ellipse(0, s * 0.15, s * 0.7, s * 0.35, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.2, -s * 0.4)
+    ctx.quadraticCurveTo(0, -s * 0.9, s * 0.2, -s * 0.4)
+    ctx.stroke()
     return
   }
   if (type === 'landmark') {
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.arc(0, 0, s * 0.65, 0, Math.PI * 2)
+    ctx.stroke()
     ctx.beginPath()
-    ctx.arc(-s * 0.15, -s * 0.15, s * 0.25, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.arc(-s * 0.15, -s * 0.15, s * 0.2, 0, Math.PI * 2)
+    ctx.stroke()
     return
   }
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2
   ctx.beginPath()
   ctx.arc(0, 0, s * 0.45, 0, Math.PI * 2)
-  ctx.fill()
+  ctx.stroke()
 }
 
 export function drawGolfGreen(ctx: CanvasRenderingContext2D, size: number) {
-  ctx.fillStyle = '#4ade80'
+  ctx.strokeStyle = '#4ade80'
+  ctx.lineWidth = 2
   ctx.beginPath()
   ctx.ellipse(0, 8, size * 1.1, size * 0.7, 0, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.strokeStyle = '#166534'
-  ctx.lineWidth = 2
   ctx.stroke()
-  ctx.fillStyle = '#f8fafc'
-  ctx.fillRect(-2, -size * 0.9, 4, size * 0.95)
-  ctx.fillStyle = '#f43f5e'
+  ctx.strokeStyle = '#166534'
+  ctx.beginPath()
+  ctx.moveTo(0, -size * 0.9)
+  ctx.lineTo(0, 8)
+  ctx.stroke()
   ctx.beginPath()
   ctx.moveTo(2, -size * 0.9)
   ctx.lineTo(size * 0.55, -size * 0.7)
   ctx.lineTo(2, -size * 0.5)
   ctx.closePath()
-  ctx.fill()
+  ctx.strokeStyle = '#f43f5e'
+  ctx.stroke()
 }
 
 export function drawForestDecor(
@@ -364,64 +573,93 @@ export function drawForestDecor(
   ]
   for (const [tx, ty] of trees) {
     if (tx < camX - 40 || tx > camX + width + 40 || ty < camY - 40 || ty > camY + height + 40) continue
-    ctx.fillStyle = '#3f2a14'
-    ctx.fillRect(tx - 4, ty, 8, 18)
-    ctx.fillStyle = '#15803d'
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.4)'
+    ctx.lineWidth = 1.8
     ctx.beginPath()
-    ctx.arc(tx, ty - 8, 16, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#22c55e'
+    ctx.moveTo(tx, ty + 14)
+    ctx.lineTo(tx, ty - 4)
+    ctx.stroke()
     ctx.beginPath()
-    ctx.arc(tx - 6, ty - 14, 10, 0, Math.PI * 2)
-    ctx.arc(tx + 7, ty - 12, 9, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.arc(tx, ty - 12, 14, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(tx - 8, ty - 8, 8, 0, Math.PI * 2)
+    ctx.arc(tx + 9, ty - 10, 7, 0, Math.PI * 2)
+    ctx.stroke()
   }
 }
 
+/** Faint curved rim only — no yellow circle / filled rect branding. */
 export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObject) {
-  const { hw, hh } = zoneHalfSize(obj)
   const shape = String(obj.params?.shape || 'circle')
   ctx.save()
-  if (shape === 'rect') {
-    const g = ctx.createLinearGradient(obj.x - hw, obj.y - hh, obj.x + hw, obj.y + hh)
-    g.addColorStop(0, 'rgba(254, 243, 199, 0.22)')
-    g.addColorStop(0.5, 'rgba(253, 230, 138, 0.16)')
-    g.addColorStop(1, 'rgba(167, 243, 208, 0.2)')
-    ctx.fillStyle = g
-    ctx.fillRect(obj.x - hw, obj.y - hh, hw * 2, hh * 2)
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)'
-    ctx.lineWidth = 3
-    ctx.strokeRect(obj.x - hw, obj.y - hh, hw * 2, hh * 2)
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.12)'
-    for (let gx = obj.x - hw + 20; gx < obj.x + hw; gx += 40) {
-      for (let gy = obj.y - hh + 20; gy < obj.y + hh; gy += 40) {
-        ctx.beginPath()
-        ctx.arc(gx, gy, 2, 0, Math.PI * 2)
-        ctx.fill()
-      }
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.18)'
+  ctx.lineWidth = 2
+  if (shape === 'poly') {
+    const pts = parsePolyPts(obj.params?.pts)
+    if (pts.length >= 3) {
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x, pts[0].y)
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+      ctx.closePath()
+      ctx.stroke()
     }
-  } else {
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'
+  } else if (shape === 'rect') {
+    const { hw, hh } = zoneHalfSize(obj)
+    const r = Math.min(40, hw * 0.2, hh * 0.2)
     ctx.beginPath()
-    ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = '#22c55e66'
-    ctx.setLineDash([10, 10])
-    ctx.beginPath()
-    ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2)
+    ctx.moveTo(obj.x - hw + r, obj.y - hh)
+    ctx.quadraticCurveTo(obj.x, obj.y - hh - 12, obj.x + hw - r, obj.y - hh)
+    ctx.lineTo(obj.x + hw, obj.y - hh + r)
+    ctx.quadraticCurveTo(obj.x + hw + 12, obj.y, obj.x + hw, obj.y + hh - r)
+    ctx.lineTo(obj.x + hw - r, obj.y + hh)
+    ctx.quadraticCurveTo(obj.x, obj.y + hh + 12, obj.x - hw + r, obj.y + hh)
+    ctx.lineTo(obj.x - hw, obj.y + hh - r)
+    ctx.quadraticCurveTo(obj.x - hw - 12, obj.y, obj.x - hw, obj.y - hh + r)
+    ctx.closePath()
     ctx.stroke()
-    ctx.setLineDash([])
   }
   ctx.restore()
+}
+
+export function drawLabelBelow(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  yOffset: number,
+) {
+  ctx.font = '600 10px Outfit, sans-serif'
+  const tw = ctx.measureText(label).width
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.beginPath()
+  ctx.roundRect(-tw / 2 - 6, yOffset, tw + 12, 16, 4)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.textAlign = 'center'
+  ctx.fillText(label, 0, yOffset + 12)
 }
 
 export function ensureStarTownObjects(objects: WorldObject[]): WorldObject[] {
   const hasStar = objects.some((o) => o.id === 'town_start' || o.name === 'Star Town')
   const hasInn = objects.some((o) => o.id === 'star_inn' || o.type === 'hotel')
-  if (hasStar && hasInn) {
+  const hasGate = objects.some((o) => o.id === 'gate_town_exit')
+  const hasHome = objects.some((o) => o.id === 'player_home')
+  if (hasStar && hasInn && hasGate && hasHome) {
     return objects.map((o) =>
       o.id === 'town_start' || o.name === 'Starter Town'
-        ? { ...o, name: 'Star Town', params: { ...o.params, shape: o.params?.shape || 'rect', w: o.params?.w || '360', h: o.params?.h || '320' } }
+        ? {
+            ...o,
+            name: 'Star Town',
+            params: {
+              ...o.params,
+              shape: o.params?.shape || 'poly',
+              w: o.params?.w || '480',
+              h: o.params?.h || '400',
+              map_id: o.params?.map_id || 'town1',
+              pts:
+                o.params?.pts ||
+                '220,140|580,140|620,220|620,380|580,460|220,460|180,380|180,220',
+            },
+          }
         : o,
     )
   }
