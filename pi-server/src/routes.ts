@@ -53,6 +53,43 @@ function getPlayer(db: Db, playerId?: string) {
   return found ? singleRowToText(found) : 'ERROR|PLAYER_NOT_FOUND';
 }
 
+function deleteAllByPlayerId(db: Db, sheetName: string, playerId: string): number {
+  let deleted = 0;
+  while (true) {
+    const idx = findRowIndex(db, sheetName, 'player_id', playerId);
+    if (idx === -1) break;
+    deleteRow(db, sheetName, idx);
+    deleted += 1;
+  }
+  return deleted;
+}
+
+function deletePlayerProgress(db: Db, p: Params) {
+  if (!p.player_id) return 'ERROR|MISSING_PLAYER_ID';
+  const playerId = String(p.player_id);
+  const playerIdx = findRowIndex(db, 'Players', 'player_id', playerId);
+  if (playerIdx === -1) return 'ERROR|PLAYER_NOT_FOUND';
+
+  const sheets = [
+    'PlayerJobs',
+    'PlayerSkills',
+    'SkillCombos',
+    'PlayerInventory',
+    'PlayerTitles',
+    'HiddenParams',
+    'Arcanum',
+    'PlayerQuests',
+    'HolderRecords',
+  ];
+  let total = 0;
+  for (const sheet of sheets) {
+    total += deleteAllByPlayerId(db, sheet, playerId);
+  }
+  deleteRow(db, 'Players', playerIdx);
+  total += 1;
+  return `OK|PLAYER_DELETED|${playerId}|${total}`;
+}
+
 function createPlayer(db: Db, p: Params) {
   if (!p.player_id || !p.name) return 'ERROR|MISSING_REQUIRED_FIELDS';
   if (findRowIndex(db, 'Players', 'player_id', p.player_id) !== -1) {
@@ -1002,6 +1039,7 @@ export function routeGet(db: Db, action: string, p: Params): string {
 export function routePost(db: Db, action: string, p: Params): string {
   switch (action) {
     case 'create_player': return createPlayer(db, p);
+    case 'delete_player': return deletePlayerProgress(db, p);
     case 'update_player_stats': return updatePlayerStats(db, p);
     case 'add_exp': return addExp(db, p);
     case 'add_money': return addMoney(db, p);

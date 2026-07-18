@@ -329,6 +329,7 @@ export interface GameState {
     // Actions
     login: (userData: any) => void
     logout: () => void
+    deleteAllProgress: () => Promise<boolean>
     setEditorMode: (enabled: boolean) => void
     initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job, statsOverride?: Partial<CharacterStats>, inventory?: InventoryItem[]) => void
     hydrateFromServer: (email: string) => Promise<boolean>
@@ -528,6 +529,65 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     logout: () => set({ auth: { user: null, isAuthenticated: false }, isInitialized: false, isEditorMode: false, isAdminDashboard: false }),
+
+    deleteAllProgress: async () => {
+        const { auth, pushToast } = get()
+        const email = auth.user?.email
+        if (!email) return false
+        const { gasService, formatGasError } = await import('@/services/gasService')
+        const res = await gasService.deletePlayer(email)
+        if (!res.startsWith('OK|')) {
+            pushToast({
+                kind: 'info',
+                title: 'Delete failed',
+                detail: formatGasError(res, 'Could not wipe save'),
+            })
+            return false
+        }
+        try {
+            localStorage.removeItem(`zf_item_slots_${email}`)
+        } catch { /* ignore */ }
+        set((state) => ({
+            isInitialized: false,
+            isEditorMode: false,
+            isForgeMode: false,
+            isAdminDashboard: false,
+            player: {
+                ...state.player,
+                name: auth.user?.name || 'Adventurer',
+                appearance: { color: '#10b981', face: 'ghost' },
+                stats: {
+                    hp: 100, maxHp: 100, mp: 50, maxMp: 50,
+                    level: 1, exp: 0, maxExp: 100,
+                    atk: 10, def: 5, spd: 12, luck: 8, money: 100,
+                },
+                alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
+                statPoints: 0,
+                skillSlots: ['', '', '', ''],
+                itemSlots: ['', ''],
+                ownedSkillIds: [],
+                skillCatalog: [],
+                jobMastery: 1,
+                jobMasteryExp: 0,
+                skillCooldowns: {},
+                itemCooldowns: {},
+                pendingLevelUps: 0,
+                jobs: { main: null, sub: null },
+                equipment: { weapon: null, armor: null, accessory: null },
+                inventory: [],
+                titles: [],
+                hiddenParams: { vorpalSoul: 0, karma: 0 },
+                position: { x: 400, y: 300 },
+            },
+            toasts: [],
+        }))
+        pushToast({
+            kind: 'info',
+            title: 'Progress wiped',
+            detail: 'Create a new character to continue',
+        })
+        return true
+    },
 
     setEditorMode: (enabled) => set({ isEditorMode: enabled }),
 

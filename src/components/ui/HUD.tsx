@@ -74,7 +74,10 @@ const HUD = () => {
             >
                 <div
                     className="group relative pointer-events-auto cursor-pointer"
-                    onClick={() => setIsProfileOpen((prev) => !prev)}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        setIsProfileOpen((prev) => !prev)
+                    }}
                 >
                     <div className="rpg-panel rpg-panel-gold animate-soft-bob rounded-2xl p-1.5">
                         <motion.div

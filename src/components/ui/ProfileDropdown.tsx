@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, ADMIN_EMAIL } from '@/store/gameStore'
 import {
@@ -12,6 +12,7 @@ import {
     Star,
     Coins,
     X,
+    Trash2,
 } from 'lucide-react'
 
 interface ProfileDropdownProps {
@@ -20,38 +21,70 @@ interface ProfileDropdownProps {
 }
 
 export default function ProfileDropdown({ isOpen, onClose }: ProfileDropdownProps) {
-    const { auth, player, logout } = useGameStore()
+    const { auth, player, logout, deleteAllProgress } = useGameStore()
     const isAdmin = auth.user?.email === ADMIN_EMAIL
+    const [wipeStep, setWipeStep] = useState(0)
+    const [wiping, setWiping] = useState(false)
+
+    useEffect(() => {
+        if (!isOpen) setWipeStep(0)
+    }, [isOpen])
+
+    if (!auth.user) return null
 
     const handleLogout = () => {
         onClose()
         logout()
     }
 
-    if (!auth.user) return null
+    const handleWipeClick = async () => {
+        if (wiping) return
+        if (wipeStep < 3) {
+            setWipeStep((s) => s + 1)
+            return
+        }
+        setWiping(true)
+        const ok = await deleteAllProgress()
+        setWiping(false)
+        if (ok) {
+            setWipeStep(0)
+            onClose()
+        } else {
+            setWipeStep(0)
+        }
+    }
+
+    const wipeLabel =
+        wipeStep === 0
+            ? 'Delete all progress'
+            : wipeStep === 1
+                ? 'Confirm 1/3 — wipe this save?'
+                : wipeStep === 2
+                    ? 'Confirm 2/3 — cannot be undone'
+                    : wiping
+                        ? 'Deleting…'
+                        : 'Confirm 3/3 — delete this game ID'
 
     return (
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop */}
                     <div
-                        className="fixed inset-0 z-[200]"
+                        className="pointer-events-auto fixed inset-0 z-[200]"
                         onClick={onClose}
                     />
 
-                    {/* Dropdown panel */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.92, y: -8, x: -8 }}
                         animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
                         exit={{ opacity: 0, scale: 0.92, y: -8, x: -8 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="fixed top-28 left-6 z-[201] w-72 rounded-2xl bg-zinc-950/95 backdrop-blur-2xl border border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.8)] overflow-hidden"
-                        onClick={e => e.stopPropagation()}
+                        className="pointer-events-auto fixed top-28 left-6 z-[201] w-72 rounded-2xl bg-zinc-950/95 backdrop-blur-2xl border border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.8)] overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Header */}
                         <div className="relative p-5 border-b border-white/5">
                             <button
+                                type="button"
                                 onClick={onClose}
                                 className="absolute top-3 right-3 p-1 rounded-lg text-white/20 hover:text-white hover:bg-white/10 transition-all"
                             >
@@ -87,7 +120,6 @@ export default function ProfileDropdown({ isOpen, onClose }: ProfileDropdownProp
                             </div>
                         </div>
 
-                        {/* Character stats */}
                         <div className="p-4 border-b border-white/5 space-y-3">
                             <p className="text-[8px] font-black text-white/20 uppercase tracking-widest">Character</p>
 
@@ -115,9 +147,35 @@ export default function ProfileDropdown({ isOpen, onClose }: ProfileDropdownProp
                             </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="p-3">
+                        <div className="p-3 space-y-2">
                             <button
+                                type="button"
+                                onClick={() => void handleWipeClick()}
+                                disabled={wiping}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border transition-all group ${
+                                    wipeStep === 0
+                                        ? 'border-transparent text-white/40 hover:bg-rose-500/10 hover:border-rose-500/20 hover:text-rose-400'
+                                        : wipeStep < 3
+                                            ? 'border-amber-400/35 bg-amber-500/10 text-amber-100'
+                                            : 'border-rose-500/60 bg-rose-600/25 text-rose-100'
+                                }`}
+                            >
+                                <Trash2 className="h-4 w-4 shrink-0" />
+                                <span className="text-[11px] font-bold uppercase tracking-wider leading-snug">
+                                    {wipeLabel}
+                                </span>
+                            </button>
+                            {wipeStep > 0 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setWipeStep(0)}
+                                    className="w-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/30 hover:text-white/60"
+                                >
+                                    Cancel wipe
+                                </button>
+                            ) : null}
+                            <button
+                                type="button"
                                 onClick={handleLogout}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border border-transparent hover:bg-rose-500/10 hover:border-rose-500/20 text-white/40 hover:text-rose-400 transition-all group"
                             >

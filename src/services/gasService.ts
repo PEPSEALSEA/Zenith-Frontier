@@ -351,6 +351,10 @@ class GASService {
         return await this.post('set_main_job', { player_id: playerId, job_id: jobId })
     }
 
+    async deletePlayer(playerId: string) {
+        return await this.post('delete_player', { player_id: playerId })
+    }
+
     async getAllMonsters() {
         const res = await this.get('get_all_monsters', {})
         return parseGASResponse(res).map(m => ({
