@@ -82,6 +82,13 @@ app.post('/', async (c) => {
     const p = { ...query, ...body };
     const action = p.action || '';
     if (!action) return c.text('ERROR|MISSING_ACTION');
+    if (action === 'grant_combat_reward') {
+      const secret = c.req.header('x-combat-grant-secret') || '';
+      const expected = process.env.COMBAT_GRANT_SECRET || process.env.PI_ORIGIN_SECRET || '';
+      if (!expected || secret !== expected) {
+        return c.text('ERROR|UNAUTHORIZED', 401);
+      }
+    }
     const out = routePost(db, action, p);
     return c.text(out);
   } catch (err: unknown) {

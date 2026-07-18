@@ -20,6 +20,10 @@ import {
   resolveMonsterSkillIds,
   rollDodge,
 } from '@/lib/combat/hitDodge'
+import { useZoneSession } from '@/hooks/useZoneSession'
+import { zoneSocket } from '@/services/zoneSocket'
+import type { ZoneEntitySeed } from '@/lib/zoneProtocol'
+import { scenarioForBoss } from '@/lib/worldBosses'
 
 const WORLD_SIZE = 3200
 const CONTACT_RANGE = 36
@@ -49,6 +53,9 @@ type LivingMonster = {
   flashUntil: number
   homeX: number
   homeY: number
+  bossId?: string
+  scenarioKey?: string
+  kind: 'monster' | 'boss'
 }
 
 type MonsterShot = {
@@ -231,6 +238,12 @@ export default function GameScene2D() {
     forgeSelection, addWorldObject, takeDamage, healFull, applyKillRewards, syncHpToServer,
     buyItem, spendMoney, setWorldObjects,
   } = useGameStore()
+  const zoneAuth = useGameStore((s) => s.zone.authoritative)
+  const remotePlayers = useGameStore((s) => s.zone.remotePlayers)
+  const bossesDefeated = useGameStore((s) => s.world.bossesDefeated)
+  const zoneAuthRef = useRef(false)
+  const remotePlayersRef = useRef(remotePlayers)
+  const bossesDefeatedRef = useRef(bossesDefeated)
   const [keys, setKeys] = useState<{ [key: string]: boolean }>({})
   const [panel, setPanel] = useState<PanelState>(null)
   const [hint, setHint] = useState('')
@@ -269,6 +282,77 @@ export default function GameScene2D() {
   const monsterShotsRef = useRef<MonsterShot[]>([])
   const lastGateWarp = useRef(0)
   const lastGateId = useRef('')
+
+  useEffect(() => {
+    const defeated = new Set(bossesDefeated)
+    monstersRef.current = monstersRef.current.filter((m) => !(m.bossId && defeated.has(m.bossId)))
+  }, [bossesDefeated])
+
+  useEffect(() => {
+    zoneAuthRef.current = zoneAuth
+  }, [zoneAuth])
+
+  useEffect(() => {
+    remotePlayersRef.current = remotePlayers
+  }, [remotePlayers])
+
+  useEffect(() => {
+    bossesDefeatedRef.current = bossesDefeated
+  }, [bossesDefeated])
+
+  useZoneSession(!isEditorMode && !isForgeMode && Boolean(player.name), {
+    getPos: () => ({
+      x: posRef.current.x,
+      y: posRef.current.y,
+      facing: facingRef.current,
+    }),
+    getSeeds: () => {
+      const defeated = new Set(bossesDefeatedRef.current)
+      return monstersRef.current
+        .filter((m) => !(m.bossId && defeated.has(m.bossId)))
+        .map((m): ZoneEntitySeed => ({
+          id: m.id,
+          templateId: m.templateId,
+          name: m.name,
+          x: m.homeX,
+          y: m.homeY,
+          hp: m.maxHp,
+          maxHp: m.maxHp,
+          atk: m.atk,
+          def: m.def,
+          spd: m.spd,
+          drops: m.drops,
+          color: m.color,
+          face: m.face,
+          kind: m.kind || (m.bossId ? 'boss' : 'monster'),
+          bossId: m.bossId,
+          scenarioKey: m.scenarioKey || scenarioForBoss(m.bossId),
+        }))
+    },
+    applySnapshot: (entities) => {
+      const byId = new Map(entities.map((e) => [e.id, e]))
+      for (const m of monstersRef.current) {
+        const e = byId.get(m.id)
+        if (!e) continue
+        m.hp = e.hp
+        m.maxHp = e.maxHp
+        m.x = e.x
+        m.y = e.y
+        m.deadUntil = e.deadUntil
+      }
+    },
+    applyDelta: (entities) => {
+      for (const e of entities) {
+        const m = monstersRef.current.find((x) => x.id === e.id)
+        if (!m) continue
+        if (e.hp != null) m.hp = e.hp
+        if (e.maxHp != null) m.maxHp = e.maxHp
+        if (e.x != null) m.x = e.x
+        if (e.y != null) m.y = e.y
+        if (e.deadUntil != null) m.deadUntil = e.deadUntil
+      }
+    },
+  })
 
   useEffect(() => {
     preloadSheets()
@@ -436,10 +520,17 @@ export default function GameScene2D() {
         },
       }
 
+      const defeated = new Set(useGameStore.getState().world.bossesDefeated)
       const fromMap: LivingMonster[] = objects
         .filter((o) => o.type === 'monster' || o.type === 'boss')
         .map((o) => {
           const tid = String(o.params?.entity_id || o.params?.monster_id || 'MON_003')
+          const bossId = o.type === 'boss'
+            ? String(o.params?.boss_id || (tid.startsWith('BOSS_') ? tid : '') || '')
+            : undefined
+          const scenarioKey = bossId
+            ? String(o.params?.scenario_key || o.params?.required_scenario_key || scenarioForBoss(bossId))
+            : undefined
           const t = byId[tid] || cuteFallback[tid]
           const hp = t?.hp || 30
           const spd = t?.spd || 8
@@ -469,8 +560,12 @@ export default function GameScene2D() {
             drops: t?.drops || ['EQ_004'],
             deadUntil: 0,
             flashUntil: 0,
+            bossId: bossId || undefined,
+            scenarioKey: scenarioKey || undefined,
+            kind: (o.type === 'boss' || bossId ? 'boss' : 'monster') as 'monster' | 'boss',
           }
         })
+        .filter((m) => !(m.bossId && defeated.has(m.bossId)))
 
       if (fromMap.length === 0) {
         for (const tid of ['MON_003', 'MON_004'] as const) {
@@ -499,6 +594,7 @@ export default function GameScene2D() {
             drops: t.drops,
             deadUntil: 0,
             flashUntil: 0,
+            kind: 'monster',
           })
         }
       }
@@ -876,15 +972,33 @@ export default function GameScene2D() {
       live.deadUntil = now + RESPAWN_MS
       clearDeadStatus(live.id)
       if (lockRef.current.targetId === live.id) lockRef.current.targetId = null
+      spawnKillSplash(live.x, live.y, live.color || '#fbbf24')
+      pushFloat(live.x, live.y - 70, 'KILL!', '#fb7185')
+      sfx.kill()
+      if (zoneAuthRef.current) return
       const expGain = Math.max(10, Math.floor(live.maxHp / 3))
       const moneyGain = Math.max(4, Math.floor(live.atk * 2 + 6))
       const dropItems = live.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
-      spawnKillSplash(live.x, live.y, live.color || '#fbbf24')
-      pushFloat(live.x, live.y - 70, 'KILL!', '#fb7185')
       pushFloat(live.x, live.y - 40, `+${expGain} EXP`, '#34d399')
       pushFloat(live.x, live.y - 55, `+${moneyGain} G`, '#fbbf24')
-      sfx.kill()
       void applyKillRewards({ exp: expGain, money: moneyGain, items: dropItems.slice(0, 1) })
+    }
+
+    const sendZoneHit = (
+      targetId: string | null | undefined,
+      attackType: 'light' | 'hard' | 'skill',
+      opts?: { skillId?: string; power?: number; range?: number },
+    ) => {
+      if (!zoneAuthRef.current || !targetId || !zoneSocket.connected) return
+      zoneSocket.setPresence(posRef.current.x, posRef.current.y, facingRef.current)
+      zoneSocket.sendAttack({
+        type: 'attack',
+        entityId: targetId,
+        attackType,
+        skillId: opts?.skillId,
+        power: opts?.power,
+        range: opts?.range,
+      })
     }
 
     const locked = getLocked(lockRef.current, monstersRef.current, now)
@@ -908,22 +1022,40 @@ export default function GameScene2D() {
       now - lastAtk.time < atkCd + 50 && lastAtk.type
     ) {
       lastAttackHandled.current = lastAtk.time
-      resolveBasicAttack({
-        profile,
-        type: lastAtk.type,
-        origin: posRef.current,
-        facing: facingRef.current,
-        locked,
-        aimPoint,
-        atk: atkNow,
-        luck: luckNow,
-        acc: accNow,
-        rangeAdd: buff.rangeAdd,
-        monsters: monstersRef.current,
-        now,
-        pushFloat,
-        onKill: onKillMonster,
-      })
+      if (zoneAuthRef.current) {
+        const target =
+          locked ||
+          monstersRef.current.find(
+            (m) =>
+              m.deadUntil <= now &&
+              dist(posRef.current.x, posRef.current.y, m.x, m.y) < (profile.light_range || 70) + 40,
+          )
+        if (target) {
+          sendZoneHit(target.id, lastAtk.type, {
+            power: lastAtk.type === 'hard' ? 1.6 : 1,
+            range: lastAtk.type === 'hard' ? profile.hard_range : profile.light_range,
+          })
+          pushFloat(target.x, target.y - 18, lastAtk.type === 'hard' ? 'HIT!' : '…', '#fde68a')
+          sfx.hit()
+        }
+      } else {
+        resolveBasicAttack({
+          profile,
+          type: lastAtk.type,
+          origin: posRef.current,
+          facing: facingRef.current,
+          locked,
+          aimPoint,
+          atk: atkNow,
+          luck: luckNow,
+          acc: accNow,
+          rangeAdd: buff.rangeAdd,
+          monsters: monstersRef.current,
+          now,
+          pushFloat,
+          onKill: onKillMonster,
+        })
+      }
     }
 
     const lastSkill = world.lastSkillCast
@@ -944,57 +1076,122 @@ export default function GameScene2D() {
           effect: String(raw.effect || ''),
         }
         if (!(playerSafe && skill.skill_type === 'damage')) {
-          resolveSkillCast({
-            skill,
-            origin: { ...posRef.current },
-            facing: facingRef.current,
-            locked,
-            aimPoint,
-            atk: atkNow,
-            luck: luckNow,
-            acc: accNow,
-            rangeAdd: buff.rangeAdd,
-            monsters: monstersRef.current,
-            now,
-            pushFloat,
-            onKill: onKillMonster,
-            applyHeal: (hp, mp) => {
-              useGameStore.setState((s) => ({
-                player: {
-                  ...s.player,
-                  stats: {
-                    ...s.player.stats,
-                    hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + hp),
-                    mp: Math.min(s.player.stats.maxMp, s.player.stats.mp + mp),
+          if (zoneAuthRef.current && skill.skill_type === 'damage') {
+            const target =
+              locked ||
+              monstersRef.current.find(
+                (m) =>
+                  m.deadUntil <= now &&
+                  dist(posRef.current.x, posRef.current.y, m.x, m.y) < skill.range + 40,
+              )
+            if (target) {
+              sendZoneHit(target.id, 'skill', {
+                skillId: skill.skill_id,
+                power: skill.power,
+                range: skill.range,
+              })
+              pushFloat(target.x, target.y - 22, skill.skill_name, '#c4b5fd')
+              sfx.hit()
+            }
+          } else if (!zoneAuthRef.current) {
+            resolveSkillCast({
+              skill,
+              origin: { ...posRef.current },
+              facing: facingRef.current,
+              locked,
+              aimPoint,
+              atk: atkNow,
+              luck: luckNow,
+              acc: accNow,
+              rangeAdd: buff.rangeAdd,
+              monsters: monstersRef.current,
+              now,
+              pushFloat,
+              onKill: onKillMonster,
+              applyHeal: (hp, mp) => {
+                useGameStore.setState((s) => ({
+                  player: {
+                    ...s.player,
+                    stats: {
+                      ...s.player.stats,
+                      hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + hp),
+                      mp: Math.min(s.player.stats.maxMp, s.player.stats.mp + mp),
+                    },
                   },
-                },
-              }))
-            },
-            applyBuff: (kind, power, duration) => {
-              if (kind === 'stealth') {
-                buffRef.current.stealthUntil = now + duration
-                return
-              }
-              if (kind === 'atk') buffRef.current = { ...buffRef.current, atkMul: power, until: now + duration }
-              else if (kind === 'def') buffRef.current = { ...buffRef.current, defMul: power, until: now + duration }
-              else if (kind === 'range') buffRef.current = { ...buffRef.current, rangeAdd: 50, until: now + duration }
-            },
-            applyDash: (d) => {
-              const ang = lastAimAngleRef.current
-              const nx = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
-              const ny = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
-              const next = resolveWalk(posRef.current.x, posRef.current.y, nx, ny)
-              posRef.current.x = next.x
-              posRef.current.y = next.y
-              facingRef.current = Math.cos(ang) >= 0 ? 1 : -1
-            },
-          })
+                }))
+              },
+              applyBuff: (kind, power, duration) => {
+                if (kind === 'stealth') {
+                  buffRef.current.stealthUntil = now + duration
+                  return
+                }
+                if (kind === 'atk') buffRef.current = { ...buffRef.current, atkMul: power, until: now + duration }
+                else if (kind === 'def') buffRef.current = { ...buffRef.current, defMul: power, until: now + duration }
+                else if (kind === 'range') buffRef.current = { ...buffRef.current, rangeAdd: 50, until: now + duration }
+              },
+              applyDash: (d) => {
+                const ang = lastAimAngleRef.current
+                const nx = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
+                const ny = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
+                const next = resolveWalk(posRef.current.x, posRef.current.y, nx, ny)
+                posRef.current.x = next.x
+                posRef.current.y = next.y
+                facingRef.current = Math.cos(ang) >= 0 ? 1 : -1
+              },
+            })
+          } else {
+            resolveSkillCast({
+              skill,
+              origin: { ...posRef.current },
+              facing: facingRef.current,
+              locked,
+              aimPoint,
+              atk: atkNow,
+              luck: luckNow,
+              acc: accNow,
+              rangeAdd: buff.rangeAdd,
+              monsters: [],
+              now,
+              pushFloat,
+              onKill: onKillMonster,
+              applyHeal: (hp, mp) => {
+                useGameStore.setState((s) => ({
+                  player: {
+                    ...s.player,
+                    stats: {
+                      ...s.player.stats,
+                      hp: Math.min(s.player.stats.maxHp, s.player.stats.hp + hp),
+                      mp: Math.min(s.player.stats.maxMp, s.player.stats.mp + mp),
+                    },
+                  },
+                }))
+              },
+              applyBuff: (kind, power, duration) => {
+                if (kind === 'stealth') {
+                  buffRef.current.stealthUntil = now + duration
+                  return
+                }
+                if (kind === 'atk') buffRef.current = { ...buffRef.current, atkMul: power, until: now + duration }
+                else if (kind === 'def') buffRef.current = { ...buffRef.current, defMul: power, until: now + duration }
+                else if (kind === 'range') buffRef.current = { ...buffRef.current, rangeAdd: 50, until: now + duration }
+              },
+              applyDash: (d) => {
+                const ang = lastAimAngleRef.current
+                const nx = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
+                const ny = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
+                const next = resolveWalk(posRef.current.x, posRef.current.y, nx, ny)
+                posRef.current.x = next.x
+                posRef.current.y = next.y
+                facingRef.current = Math.cos(ang) >= 0 ? 1 : -1
+              },
+            })
+          }
         }
       }
     }
 
     // projectiles
-    if (!isEditorMode && !isForgeMode) {
+    if (!isEditorMode && !isForgeMode && !zoneAuthRef.current) {
       const projHits = updateProjectiles(now, deltaTime, monstersRef.current, (id) => {
         const m = monstersRef.current.find((x) => x.id === id)
         return m && m.deadUntil <= now ? { x: m.x, y: m.y } : null
@@ -1028,6 +1225,8 @@ export default function GameScene2D() {
           if (m.hp <= 0) onKillMonster(m)
         })
       }
+    } else if (!isEditorMode && !isForgeMode) {
+      updateFx(now, deltaTime)
     }
 
     if (time % 50 < 16) {
@@ -1071,7 +1270,7 @@ export default function GameScene2D() {
       }
     }
 
-    if (!isEditorMode && !isForgeMode && !isDead) {
+    if (!isEditorMode && !isForgeMode && !isDead && !zoneAuthRef.current) {
       for (const m of monstersRef.current) {
         if (m.deadUntil > now) {
           if (m.deadUntil - now < 50) {
@@ -1152,6 +1351,21 @@ export default function GameScene2D() {
         if (dist(posRef.current.x, posRef.current.y, shot.x, shot.y) < shot.radius + 18) {
           applyPlayerHit(shot.damage, shot.acc)
           monsterShotsRef.current.splice(i, 1)
+        }
+      }
+    }
+
+    if (!isEditorMode && !isForgeMode && !isDead && zoneAuthRef.current) {
+      for (const m of monstersRef.current) {
+        if (m.deadUntil > now || m.hp <= 0) continue
+        if (playerSafe || stealthed) continue
+        if (
+          dist(posRef.current.x, posRef.current.y, m.x, m.y) < CONTACT_RANGE &&
+          now - lastContactHit.current > 700
+        ) {
+          lastContactHit.current = now
+          const dmg = Math.max(1, Math.floor(m.atk - defNow * 0.3))
+          applyPlayerHit(dmg, m.acc)
         }
       }
     }
@@ -1465,6 +1679,33 @@ export default function GameScene2D() {
       ctx.font = '700 11px Oxanium, sans-serif'; ctx.fillStyle = 'white'
       ctx.shadowBlur = 4; ctx.shadowColor = 'black'
       ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 20); ctx.shadowBlur = 0
+    }
+
+    if (!isEditorMode && !isForgeMode) {
+      for (const rp of Object.values(remotePlayersRef.current)) {
+        const rx = rp.x
+        const ry = rp.y
+        const rr = radius * 0.92
+        ctx.save()
+        ctx.globalAlpha = 0.72
+        drawGroundShadow(ctx, rx, ry + rr * 0.62, rr, 0.16)
+        ctx.fillStyle = rp.appearance?.color || '#94a3b8'
+        ctx.beginPath()
+        ctx.arc(rx, ry, rr, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.65)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        drawFace(ctx, rx, ry, rr * 0.52, rp.appearance?.face || 'ghost')
+        ctx.textAlign = 'center'
+        ctx.font = '700 10px Oxanium, sans-serif'
+        ctx.fillStyle = 'rgba(186, 230, 253, 0.95)'
+        ctx.shadowBlur = 3
+        ctx.shadowColor = 'black'
+        ctx.fillText((rp.name || 'Player').toUpperCase(), rx, ry + rr + 18)
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
     }
 
     floatsRef.current = floatsRef.current.filter((f) => now - f.born < (f.text === 'KILL!' || f.text.startsWith('CRIT') ? 1500 : 1100))

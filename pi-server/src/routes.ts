@@ -644,7 +644,43 @@ function killBoss(db: Db, p: Params) {
     lore_unlocked: '1',
   });
   checkWorldProgression(db);
-  return `OK|BOSS_KILLED|${p.boss_id}|LORE_UNLOCKED|${bossRow.lore_text}`;
+  const participants = (p.participant_ids || '').trim();
+  return `OK|BOSS_KILLED|${p.boss_id}|LORE_UNLOCKED|${bossRow.lore_text}${participants ? `|PARTICIPANTS|${participants}` : ''}`;
+}
+
+function grantCombatReward(db: Db, p: Params) {
+  if (!p.grant_id || !p.player_id) return 'ERROR|MISSING_FIELDS';
+  const existing = findRowIndex(db, 'CombatGrants', 'grant_id', p.grant_id);
+  if (existing !== -1) return `ERROR|GRANT_ALREADY|${p.grant_id}`;
+
+  const exp = parseInt(p.exp || '0', 10) || 0;
+  const money = parseInt(p.money || '0', 10) || 0;
+  const items = (p.items || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+  appendRow(db, 'CombatGrants', {
+    grant_id: p.grant_id,
+    player_id: p.player_id,
+    exp: String(exp),
+    money: String(money),
+    items: items.join(','),
+    created_at: now(),
+  });
+
+  let expOut = '';
+  if (exp > 0) {
+    expOut = addExp(db, {
+      player_id: p.player_id,
+      exp_amount: String(exp),
+      mastery_gain: p.mastery_gain || '12',
+    });
+  }
+  if (money) {
+    addMoney(db, { player_id: p.player_id, amount: String(money) });
+  }
+  for (const itemId of items) {
+    addItem(db, { player_id: p.player_id, item_id: itemId, quantity: '1' });
+  }
+  return `OK|COMBAT_GRANT|${p.grant_id}|${expOut || 'NO_EXP'}`;
 }
 
 function getWorldState(db: Db) {
@@ -1055,6 +1091,7 @@ export function routePost(db: Db, action: string, p: Params): string {
     case 'evolve_skill': return evolveSkill(db, p);
     case 'link_skill_combo': return linkSkillCombo(db, p);
     case 'kill_boss': return killBoss(db, p);
+    case 'grant_combat_reward': return grantCombatReward(db, p);
     case 'add_item': return addItem(db, p);
     case 'remove_item': return removeItem(db, p);
     case 'raise_item': return raiseItem(db, p);

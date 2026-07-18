@@ -1,11 +1,19 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { JWT } from 'google-auth-library';
+import { ZoneRoom } from './zoneRoom';
+
+export { ZoneRoom };
 
 /** Minimal KV binding type (avoids pulling Cloudflare types into Next root). */
 interface KVNamespace {
   get(key: string): Promise<string | null>;
   put(key: string, value: string): Promise<void>;
+}
+
+interface DurableObjectNamespace {
+  idFromName(name: string): { toString(): string };
+  get(id: { toString(): string }): { fetch(request: Request): Promise<Response> };
 }
 
 type Bindings = {
@@ -15,6 +23,9 @@ type Bindings = {
   GOOGLE_CLIENT_ID?: string;
   PI_ORIGIN?: KVNamespace;
   PI_ORIGIN_SECRET?: string;
+  COMBAT_GRANT_SECRET?: string;
+  PUBLIC_API_BASE?: string;
+  ZONE_ROOM: DurableObjectNamespace;
 };
 
 type Params = Record<string, string>;
@@ -89,6 +100,7 @@ const SHEET_HEADERS: Record<string, string[]> = {
     'spawner_id', 'monster_id', 'x', 'y', 'z', 'range', 'spawn_rate', 'max_monsters',
   ],
   PlayerQuests: ['player_id', 'quest_id', 'status', 'progress', 'updated_at'],
+  CombatGrants: ['grant_id', 'player_id', 'exp', 'money', 'items', 'created_at'],
 };
 
 let cachedAuthToken: { value: string; expiresAt: number } | null = null;
@@ -927,14 +939,57 @@ async function killBoss(env: Bindings, p: Params) {
   if (!bossRow) return 'ERROR|BOSS_NOT_FOUND';
   if (bossRow.is_alive === '0') return 'ERROR|BOSS_ALREADY_DEAD';
   if (p.scenario_key !== bossRow.required_scenario_key) return 'ERROR|SCENARIO_NOT_UNLOCKED';
+  const killer = p.player_id;
   await updateRowCells(env, 'WorldBoss', rowIdx, {
     is_alive: '0',
-    killer_player_id: p.player_id,
+    killer_player_id: killer,
     killed_at: now(),
     lore_unlocked: '1',
   });
   await checkWorldProgression(env);
-  return `OK|BOSS_KILLED|${p.boss_id}|LORE_UNLOCKED|${bossRow.lore_text}`;
+  const participants = (p.participant_ids || '').trim();
+  return `OK|BOSS_KILLED|${p.boss_id}|LORE_UNLOCKED|${bossRow.lore_text}${participants ? `|PARTICIPANTS|${participants}` : ''}`;
+}
+
+function combatGrantAuthorized(env: Bindings, headerSecret: string | undefined): boolean {
+  const expected = env.COMBAT_GRANT_SECRET || env.PI_ORIGIN_SECRET || '';
+  if (!expected) return false;
+  return Boolean(headerSecret) && headerSecret === expected;
+}
+
+async function grantCombatReward(env: Bindings, p: Params) {
+  if (!p.grant_id || !p.player_id) return 'ERROR|MISSING_FIELDS';
+  const existing = await findRowIndex(env, 'CombatGrants', 'grant_id', p.grant_id);
+  if (existing !== -1) return `ERROR|GRANT_ALREADY|${p.grant_id}`;
+
+  const exp = parseInt(p.exp || '0', 10) || 0;
+  const money = parseInt(p.money || '0', 10) || 0;
+  const items = (p.items || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+  await appendRow(env, 'CombatGrants', {
+    grant_id: p.grant_id,
+    player_id: p.player_id,
+    exp: String(exp),
+    money: String(money),
+    items: items.join(','),
+    created_at: now(),
+  });
+
+  let expOut = '';
+  if (exp > 0) {
+    expOut = await addExp(env, {
+      player_id: p.player_id,
+      exp_amount: String(exp),
+      mastery_gain: p.mastery_gain || '12',
+    });
+  }
+  if (money) {
+    await addMoney(env, { player_id: p.player_id, amount: String(money) });
+  }
+  for (const itemId of items) {
+    await addItem(env, { player_id: p.player_id, item_id: itemId, quantity: '1' });
+  }
+  return `OK|COMBAT_GRANT|${p.grant_id}|${expOut || 'NO_EXP'}`;
 }
 
 async function getWorldState(env: Bindings) {
@@ -1343,6 +1398,7 @@ async function routePost(env: Bindings, action: string, p: Params): Promise<stri
     case 'evolve_skill': return evolveSkill(env, p);
     case 'link_skill_combo': return linkSkillCombo(env, p);
     case 'kill_boss': return killBoss(env, p);
+    case 'grant_combat_reward': return grantCombatReward(env, p);
     case 'add_item': return addItem(env, p);
     case 'remove_item': return removeItem(env, p);
     case 'raise_item': return raiseItem(env, p);
@@ -1407,6 +1463,16 @@ async function parseBodyParams(c: { req: { text: () => Promise<string>; header: 
 
 app.get('/health', (c) => c.text('ok'));
 
+app.get('/ws/zone/:mapId', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') {
+    return c.text('Expected WebSocket', 426);
+  }
+  const mapId = c.req.param('mapId') || 'world';
+  const id = c.env.ZONE_ROOM.idFromName(mapId);
+  const stub = c.env.ZONE_ROOM.get(id);
+  return stub.fetch(c.req.raw);
+});
+
 /** Pi publishes its public trycloudflare (or custom) URL here so the Worker can proxy. */
 app.post('/_pi/origin', async (c) => {
   const secret = c.req.header('x-pi-secret') || '';
@@ -1466,6 +1532,28 @@ async function proxyToPi(c: any): Promise<Response | null> {
   return new Response(res.body, { status: res.status, headers: outHeaders });
 }
 
+async function proxyFormToPi(
+  env: Bindings,
+  p: Params,
+  combatSecret?: string | null,
+): Promise<Response | null> {
+  if (!env.PI_ORIGIN) return null;
+  const origin = await env.PI_ORIGIN.get('url');
+  if (!origin) return null;
+  const headers = new Headers();
+  headers.set('content-type', 'application/x-www-form-urlencoded');
+  if (combatSecret) headers.set('x-combat-grant-secret', combatSecret);
+  const res = await fetch(`${origin.replace(/\/$/, '')}/`, {
+    method: 'POST',
+    headers,
+    body: new URLSearchParams(p).toString(),
+    redirect: 'manual',
+  });
+  const outHeaders = new Headers(res.headers);
+  outHeaders.set('access-control-allow-origin', '*');
+  return new Response(res.body, { status: res.status, headers: outHeaders });
+}
+
 app.get('/', async (c) => {
   const p = queryToParams(c);
   const action = p.action || '';
@@ -1489,13 +1577,19 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
   try {
-    const proxied = await proxyToPi(c);
-    if (proxied) return proxied;
     const body = await parseBodyParams(c);
     const query = queryToParams(c);
     const p: Params = { ...query, ...body };
     const action = p.action || '';
     if (!action) return c.text('ERROR|MISSING_ACTION');
+
+    const secret = c.req.header('x-combat-grant-secret') || '';
+    if (action === 'grant_combat_reward' && !combatGrantAuthorized(c.env, secret)) {
+      return c.text('ERROR|UNAUTHORIZED', 401);
+    }
+
+    const proxied = await proxyFormToPi(c.env, p, secret || null);
+    if (proxied) return proxied;
     const out = await routePost(c.env, action, p);
     return c.text(out);
   } catch (err: any) {
@@ -1504,7 +1598,9 @@ app.post('/', async (c) => {
 });
 
 app.all('*', async (c) => {
-  if (c.req.path.startsWith('/_pi/')) return c.text('not found', 404);
+  if (c.req.path.startsWith('/_pi/') || c.req.path.startsWith('/ws/')) {
+    return c.text('not found', 404);
+  }
   const proxied = await proxyToPi(c);
   if (proxied) return proxied;
   return c.text('not found', 404);

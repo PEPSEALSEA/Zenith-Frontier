@@ -493,6 +493,17 @@ class GASService {
             status
         })
     }
+
+    async getAllBosses() {
+        const res = await this.get('get_all_bosses', {})
+        return parseGASResponse(res)
+    }
+
+    async getBoss(bossId: string) {
+        const res = await this.get('get_boss', { boss_id: bossId })
+        const rows = parseGASResponse(res)
+        return rows[0] || null
+    }
 }
 
 export const gasService = new GASService()

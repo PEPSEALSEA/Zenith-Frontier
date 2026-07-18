@@ -329,6 +329,22 @@ export interface GameState {
     }
     forgeSelection: { type: WorldObjectType, id?: string, name?: string } | null
     toasts: GameToast[]
+    zone: {
+        connected: boolean
+        mapId: string
+        remotePlayers: Record<string, {
+            playerId: string
+            name: string
+            appearance: PlayerAppearance
+            jobMain: string
+            x: number
+            y: number
+            facing: number
+            level: number
+        }>
+        chat: { playerId: string; name: string; text: string; at: number }[]
+        authoritative: boolean
+    }
 
     // Actions
     login: (userData: any) => void
@@ -372,6 +388,16 @@ export interface GameState {
     dismissToast: (id: string) => void
     addMoney: (amount: number) => void
     applyKillRewards: (opts: { exp: number; money: number; items?: string[] }) => Promise<void>
+    applyLootGrant: (opts: { grantId: string; exp: number; money: number; items: string[] }) => Promise<void>
+    setZoneConnected: (connected: boolean, mapId?: string) => void
+    setZoneAuthoritative: (v: boolean) => void
+    upsertRemotePlayer: (p: GameState['zone']['remotePlayers'][string]) => void
+    removeRemotePlayer: (playerId: string) => void
+    setRemotePlayers: (players: GameState['zone']['remotePlayers'][string][]) => void
+    patchRemotePresence: (patches: { playerId: string; x: number; y: number; facing: number }[]) => void
+    pushZoneChat: (msg: { playerId: string; name: string; text: string; at: number }) => void
+    sendZoneChat: (text: string) => void
+    markBossDefeated: (bossId: string, loreText?: string) => void
     syncHpToServer: () => Promise<void>
     addWorldObject: (obj: WorldObject) => void
     removeWorldObject: (id: string) => void
@@ -523,6 +549,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
     forgeSelection: null,
     toasts: [],
+    zone: {
+        connected: false,
+        mapId: 'world',
+        remotePlayers: {},
+        chat: [],
+        authoritative: false,
+    },
 
     login: (userData) => {
         set((state) => ({
@@ -1439,6 +1472,139 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
         for (const id of items || []) {
             await gasService.addItem(email, id, 1)
+        }
+    },
+
+    applyLootGrant: async ({ grantId, exp, money, items }) => {
+        void grantId
+        const { addMoney, addInventoryItem, pushToast, auth } = get()
+        if (!get().player.equipmentCatalog.length) {
+            await get().refreshEquipmentCatalog()
+        }
+        const itemLabel = (id: string) =>
+            get().player.equipmentCatalog.find((e) => e.item_id === id)?.item_name
+            || get().player.inventory.find((i) => i.item_id === id)?.name
+            || id
+
+        get().gainExp(exp)
+        if (money) {
+            addMoney(money)
+            const { sfx } = await import('@/lib/sfx')
+            sfx.coin()
+        }
+        for (const id of items || []) {
+            const title = itemLabel(id)
+            addInventoryItem({ item_id: id, quantity: 1, name: title })
+            pushToast({ kind: 'item', title, detail: 'Party loot' })
+        }
+        pushToast({
+            kind: 'info',
+            title: 'Combat reward',
+            detail: `+${exp} EXP` + (money ? ` · +${money} G` : ''),
+        })
+
+        const email = auth.user?.email
+        if (!email) return
+        try {
+            const { gasService } = await import('@/services/gasService')
+            const row = await gasService.getPlayer(email)
+            if (!row) return
+            const level = Number(row.level) || get().player.stats.level
+            const serverExp = Number(row.exp) || 0
+            const moneyBal = Number(row.money)
+            set((state) => ({
+                player: {
+                    ...state.player,
+                    stats: {
+                        ...state.player.stats,
+                        level,
+                        exp: serverExp,
+                        money: Number.isNaN(moneyBal) ? state.player.stats.money : moneyBal,
+                        maxExp: (() => {
+                            let need = 100
+                            for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
+                            return need
+                        })(),
+                    },
+                },
+            }))
+        } catch {
+            /* ignore */
+        }
+    },
+
+    setZoneConnected: (connected, mapId) => set((state) => ({
+        zone: {
+            ...state.zone,
+            connected,
+            mapId: mapId || state.zone.mapId,
+            ...(connected ? {} : { remotePlayers: {}, authoritative: false }),
+        },
+    })),
+
+    setZoneAuthoritative: (v) => set((state) => ({
+        zone: { ...state.zone, authoritative: v },
+    })),
+
+    upsertRemotePlayer: (p) => set((state) => ({
+        zone: {
+            ...state.zone,
+            remotePlayers: { ...state.zone.remotePlayers, [p.playerId]: p },
+        },
+    })),
+
+    removeRemotePlayer: (playerId) => set((state) => {
+        const next = { ...state.zone.remotePlayers }
+        delete next[playerId]
+        return { zone: { ...state.zone, remotePlayers: next } }
+    }),
+
+    setRemotePlayers: (players) => set((state) => {
+        const remotePlayers: GameState['zone']['remotePlayers'] = {}
+        for (const p of players) remotePlayers[p.playerId] = p
+        return { zone: { ...state.zone, remotePlayers } }
+    }),
+
+    patchRemotePresence: (patches) => set((state) => {
+        const remotePlayers = { ...state.zone.remotePlayers }
+        for (const p of patches) {
+            const cur = remotePlayers[p.playerId]
+            if (!cur) continue
+            remotePlayers[p.playerId] = { ...cur, x: p.x, y: p.y, facing: p.facing }
+        }
+        return { zone: { ...state.zone, remotePlayers } }
+    }),
+
+    pushZoneChat: (msg) => set((state) => ({
+        zone: {
+            ...state.zone,
+            chat: [...state.zone.chat.slice(-40), msg],
+        },
+    })),
+
+    sendZoneChat: (text) => {
+        const cleaned = text.trim()
+        if (!cleaned) return
+        void import('@/services/zoneSocket').then(({ zoneSocket }) => {
+            zoneSocket.sendChat(cleaned)
+        })
+    },
+
+    markBossDefeated: (bossId, loreText) => {
+        set((state) => ({
+            world: {
+                ...state.world,
+                bossesDefeated: state.world.bossesDefeated.includes(bossId)
+                    ? state.world.bossesDefeated
+                    : [...state.world.bossesDefeated, bossId],
+            },
+        }))
+        if (loreText) {
+            get().pushToast({
+                kind: 'info',
+                title: 'World boss fallen',
+                detail: loreText.slice(0, 160),
+            })
         }
     },
 

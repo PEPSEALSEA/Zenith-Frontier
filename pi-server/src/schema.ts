@@ -67,6 +67,7 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'spawner_id', 'monster_id', 'x', 'y', 'z', 'range', 'spawn_rate', 'max_monsters',
   ],
   PlayerQuests: ['player_id', 'quest_id', 'status', 'progress', 'updated_at'],
+  CombatGrants: ['grant_id', 'player_id', 'exp', 'money', 'items', 'created_at'],
 };
 
 export const SHEET_PRIMARY_KEYS: Record<string, string[]> = {
@@ -94,6 +95,7 @@ export const SHEET_PRIMARY_KEYS: Record<string, string[]> = {
   Dialogue: ['dialogue_id'],
   Spawners: ['spawner_id'],
   PlayerQuests: ['player_id', 'quest_id'],
+  CombatGrants: ['grant_id'],
 };
 
 export const SHEET_NAMES = Object.keys(SHEET_HEADERS);

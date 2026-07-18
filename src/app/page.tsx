@@ -7,6 +7,7 @@ import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
 import SessionLoading from '@/components/ui/SessionLoading'
 import GameToasts from '@/components/ui/GameToasts'
+import ZoneChat from '@/components/ui/ZoneChat'
 import MapEditor from '@/components/ui/MapEditor'
 import AdminDashboard from '@/components/ui/AdminDashboard'
 import EntityCreator from '@/components/ui/EntityCreator'
@@ -133,6 +134,7 @@ export default function Home() {
                   <HUD />
                   <Inventory />
                   <GameToasts />
+                  <ZoneChat />
                 </motion.div>
               )}
             </AnimatePresence>
