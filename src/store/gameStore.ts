@@ -61,7 +61,17 @@ export interface AuthState {
     isAuthenticated: boolean
 }
 
-export type WorldObjectType = 'monster' | 'boss' | 'spawner' | 'town' | 'safezone' | 'npc' | 'market'
+export type WorldObjectType =
+    | 'monster'
+    | 'boss'
+    | 'spawner'
+    | 'town'
+    | 'safezone'
+    | 'npc'
+    | 'market'
+    | 'hotel'
+    | 'landmark'
+    | 'forest'
 
 export interface WorldObject {
     id: string
@@ -258,6 +268,8 @@ export interface GameState {
     gainExp: (amount: number) => void
     takeDamage: (amount: number) => void
     healFull: () => void
+    spendMoney: (amount: number) => boolean
+    buyItem: (opts: { itemId: string; price: number; name?: string }) => Promise<boolean>
     setMainJob: (job: Job) => void
     setSubJob: (job: Job) => void
     updatePosition: (x: number, y: number) => void
@@ -470,6 +482,41 @@ export const useGameStore = create<GameState>((set, get) => ({
         },
     })),
 
+    spendMoney: (amount) => {
+        const money = get().player.stats.money
+        if (amount > money) return false
+        set((state) => ({
+            player: {
+                ...state.player,
+                stats: { ...state.player.stats, money: state.player.stats.money - amount },
+            },
+        }))
+        return true
+    },
+
+    buyItem: async ({ itemId, price, name }) => {
+        const { auth, spendMoney, addInventoryItem } = get()
+        if (!spendMoney(price)) return false
+        addInventoryItem({ item_id: itemId, quantity: 1, name })
+        const email = auth.user?.email
+        if (email) {
+            const { gasService } = await import('@/services/gasService')
+            if (price) {
+                const moneyRes = await gasService.addMoney(email, -price)
+                if (moneyRes.startsWith('OK|MONEY_UPDATED|')) {
+                    const m = Number(moneyRes.split('|')[2])
+                    if (!Number.isNaN(m)) {
+                        set((state) => ({
+                            player: { ...state.player, stats: { ...state.player.stats, money: m } },
+                        }))
+                    }
+                }
+            }
+            await gasService.addItem(email, itemId, 1)
+        }
+        return true
+    },
+
     setMainJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, main: job } } })),
     setSubJob: (job) => set((state) => ({ player: { ...state.player, jobs: { ...state.player.jobs, sub: job } } })),
     updatePosition: (x, y) => set((state) => ({ player: { ...state.player, position: { x, y } } })),
@@ -651,9 +698,19 @@ export const useGameStore = create<GameState>((set, get) => ({
                 })
                 objects.push(obj as WorldObject)
             }
-            set((state) => ({ world: { ...state.world, objects } }))
+            const { ensureStarTownObjects } = await import('@/lib/starTown')
+            set((state) => ({ world: { ...state.world, objects: ensureStarTownObjects(objects) } }))
         } catch (e) {
             console.error("Failed to load world:", e)
+            const { ensureStarTownObjects, STAR_TOWN_FALLBACK } = await import('@/lib/starTown')
+            set((state) => ({
+                world: {
+                    ...state.world,
+                    objects: ensureStarTownObjects(
+                        state.world.objects.length ? state.world.objects : STAR_TOWN_FALLBACK,
+                    ),
+                },
+            }))
         }
     },
 

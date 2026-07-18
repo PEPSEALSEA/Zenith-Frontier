@@ -18,17 +18,23 @@ import {
     Edit3,
     CloudUpload,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    BedDouble,
+    Landmark,
+    Trees,
 } from 'lucide-react'
 
 const OBJECT_TYPES: { type: WorldObjectType, icon: any, color: string }[] = [
     { type: 'monster', icon: Skull, color: '#ef4444' },
     { type: 'boss', icon: Skull, color: '#9333ea' },
     { type: 'spawner', icon: Zap, color: '#64748b' },
-    { type: 'town', icon: Home, color: '#22c55e' },
+    { type: 'town', icon: Home, color: '#eab308' },
     { type: 'safezone', icon: Maximize2, color: '#3b82f6' },
     { type: 'npc', icon: User, color: '#f59e0b' },
     { type: 'market', icon: ShoppingBag, color: '#10b981' },
+    { type: 'hotel', icon: BedDouble, color: '#60a5fa' },
+    { type: 'landmark', icon: Landmark, color: '#a78bfa' },
+    { type: 'forest', icon: Trees, color: '#166534' },
 ]
 
 export default function MapEditor() {
@@ -52,8 +58,14 @@ export default function MapEditor() {
             x: player.position.x,
             y: player.position.y,
             name: forgeSelection.name || `New ${forgeSelection.type}`,
-            radius: (forgeSelection.type === 'town' || forgeSelection.type === 'safezone') ? 200 : 30,
-            params: forgeSelection.id ? { entity_id: forgeSelection.id } : {}
+            radius: (forgeSelection.type === 'town' || forgeSelection.type === 'safezone' || forgeSelection.type === 'forest') ? 200 : 30,
+            params: {
+                ...(forgeSelection.id ? { entity_id: forgeSelection.id } : {}),
+                ...(forgeSelection.type === 'town' ? { shape: 'rect', w: '360', h: '320' } : {}),
+                ...(forgeSelection.type === 'hotel' ? { interact: 'rest', price: '10' } : {}),
+                ...(forgeSelection.type === 'market' ? { interact: 'shop', price: '25', item_id: 'EQ_004' } : {}),
+                ...(forgeSelection.type === 'npc' ? { interact: 'talk' } : {}),
+            },
         })
     }
 

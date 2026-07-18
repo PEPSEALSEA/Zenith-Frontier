@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import path from 'node:path';
-import { appendRow, findRowIndex, openDb, type Db } from './db.js';
+import { appendRow, deleteRow, findRowIndex, openDb, upsertRow, type Db } from './db.js';
 import type { Params } from './schema.js';
 
 /**
  * Seed starter catalog rows when tables are empty.
- * Source of truth for sample content: NotUse-google-apps-script.js seedSampleData().
- * Does not wipe existing rows — insert-if-missing by primary key.
+ * MapObjects / Monsters / NPCs / Dialogue upsert so Star Town refreshes on redeploy.
  */
 
 const JOBS: Params[] = [
@@ -85,45 +84,191 @@ const MONSTERS: Params[] = [
     drops: 'EQ_001',
     appearance: '#a3a3a3|skull',
   },
+  {
+    monster_id: 'MON_003',
+    name: 'Fluff Rabbit',
+    hp: '28',
+    atk: '4',
+    def: '1',
+    spd: '14',
+    skills: '',
+    drops: 'EQ_004',
+    appearance: '#fda4af|bunny',
+  },
+  {
+    monster_id: 'MON_004',
+    name: 'Sleepy Sloth',
+    hp: '55',
+    atk: '7',
+    def: '3',
+    spd: '4',
+    skills: '',
+    drops: 'EQ_004',
+    appearance: '#a8a29e|sloth',
+  },
 ];
 
-const STARTER_MAP: Params[] = [
+const DIALOGUE: Params[] = [
   {
-    id: 'spawn_slime_1',
-    type: 'monster',
-    x: '520',
-    y: '340',
-    z: '0',
-    name: 'Slime',
-    radius: '30',
-    params: 'entity_id=MON_001',
+    dialogue_id: 'DLG_STELLA_1',
+    text: 'Welcome to Star Town! Softcloud Inn for rest, Star Mart for potions, Star Spring to heal. Cute critters hop in Whisperwood Forest past the east gate.',
+    options_json: '[]',
   },
+];
+
+const NPCS: Params[] = [
+  {
+    npc_id: 'NPC_STELLA',
+    name: 'Stella',
+    appearance: '#fbbf24|star',
+    initial_dialogue_id: 'DLG_STELLA_1',
+    quest_id: '',
+    is_merchant: '0',
+    is_trader: '0',
+    trade_items: '',
+  },
+  {
+    npc_id: 'NPC_MART',
+    name: 'Miri the Merchant',
+    appearance: '#34d399|heart',
+    initial_dialogue_id: '',
+    quest_id: '',
+    is_merchant: '1',
+    is_trader: '0',
+    trade_items: 'EQ_004',
+  },
+];
+
+const STAR_TOWN_MAP: Params[] = [
   {
     id: 'town_start',
     type: 'town',
     x: '400',
     y: '300',
     z: '0',
-    name: 'Starter Town',
-    radius: '200',
+    name: 'Star Town',
+    radius: '180',
+    params: 'shape=rect;w=360;h=320;safe=1',
+  },
+  {
+    id: 'npc_stella',
+    type: 'npc',
+    x: '400',
+    y: '270',
+    z: '0',
+    name: 'Stella',
+    radius: '28',
+    params:
+      'interact=talk;entity_id=NPC_STELLA;color=#fbbf24;face=star;line=Hi! This is Star Town — our first city. Rest at Softcloud Inn, shop at Star Mart, heal at the spring. Cute friends live in the forest east of town!',
+  },
+  {
+    id: 'star_mart',
+    type: 'market',
+    x: '300',
+    y: '230',
+    z: '0',
+    name: 'Star Mart',
+    radius: '36',
+    params: 'interact=shop;price=25;item_id=EQ_004;color=#34d399',
+  },
+  {
+    id: 'star_inn',
+    type: 'hotel',
+    x: '500',
+    y: '230',
+    z: '0',
+    name: 'Softcloud Inn',
+    radius: '36',
+    params: 'interact=rest;price=10;color=#60a5fa',
+  },
+  {
+    id: 'star_heal',
+    type: 'landmark',
+    x: '300',
+    y: '370',
+    z: '0',
+    name: 'Star Spring',
+    radius: '34',
+    params: 'interact=heal;kind=heal;color=#2dd4bf',
+  },
+  {
+    id: 'star_golf',
+    type: 'landmark',
+    x: '510',
+    y: '380',
+    z: '0',
+    name: 'Star Golf',
+    radius: '40',
+    params: 'interact=golf;kind=golf;color=#86efac',
+  },
+  {
+    id: 'whisperwood',
+    type: 'forest',
+    x: '760',
+    y: '320',
+    z: '0',
+    name: 'Whisperwood Forest',
+    radius: '220',
     params: '',
+  },
+  {
+    id: 'forest_rabbit_1',
+    type: 'monster',
+    x: '700',
+    y: '260',
+    z: '0',
+    name: 'Fluff Rabbit',
+    radius: '30',
+    params: 'entity_id=MON_003',
+  },
+  {
+    id: 'forest_rabbit_2',
+    type: 'monster',
+    x: '760',
+    y: '380',
+    z: '0',
+    name: 'Fluff Rabbit',
+    radius: '30',
+    params: 'entity_id=MON_003',
+  },
+  {
+    id: 'forest_bunny_3',
+    type: 'monster',
+    x: '680',
+    y: '340',
+    z: '0',
+    name: 'Fluff Rabbit',
+    radius: '30',
+    params: 'entity_id=MON_003',
+  },
+  {
+    id: 'forest_sloth_1',
+    type: 'monster',
+    x: '820',
+    y: '300',
+    z: '0',
+    name: 'Sleepy Sloth',
+    radius: '34',
+    params: 'entity_id=MON_004',
   },
 ];
 
-type Catalog = { sheet: string; pk: string; rows: Params[] };
+type Catalog = { sheet: string; pk: string; rows: Params[]; mode: 'insert' | 'upsert' };
 
 const CATALOGS: Catalog[] = [
-  { sheet: 'Jobs', pk: 'job_id', rows: JOBS },
-  { sheet: 'Skills', pk: 'skill_id', rows: SKILLS },
-  { sheet: 'Equipment', pk: 'item_id', rows: EQUIPMENT },
-  { sheet: 'Titles', pk: 'title_id', rows: TITLES },
-  { sheet: 'ArcanumCards', pk: 'card_id', rows: ARCANUM_CARDS },
-  { sheet: 'WorldBoss', pk: 'boss_id', rows: WORLD_BOSSES },
-  { sheet: 'Monsters', pk: 'monster_id', rows: MONSTERS },
-  { sheet: 'MapObjects', pk: 'id', rows: STARTER_MAP },
+  { sheet: 'Jobs', pk: 'job_id', rows: JOBS, mode: 'insert' },
+  { sheet: 'Skills', pk: 'skill_id', rows: SKILLS, mode: 'insert' },
+  { sheet: 'Equipment', pk: 'item_id', rows: EQUIPMENT, mode: 'insert' },
+  { sheet: 'Titles', pk: 'title_id', rows: TITLES, mode: 'insert' },
+  { sheet: 'ArcanumCards', pk: 'card_id', rows: ARCANUM_CARDS, mode: 'insert' },
+  { sheet: 'WorldBoss', pk: 'boss_id', rows: WORLD_BOSSES, mode: 'insert' },
+  { sheet: 'Monsters', pk: 'monster_id', rows: MONSTERS, mode: 'upsert' },
+  { sheet: 'Dialogue', pk: 'dialogue_id', rows: DIALOGUE, mode: 'upsert' },
+  { sheet: 'NPCs', pk: 'npc_id', rows: NPCS, mode: 'upsert' },
+  { sheet: 'MapObjects', pk: 'id', rows: STAR_TOWN_MAP, mode: 'upsert' },
 ];
 
-function seedSheet(db: Db, sheet: string, pk: string, rows: Params[]): { inserted: number; skipped: number } {
+function seedSheetInsert(db: Db, sheet: string, pk: string, rows: Params[]): { inserted: number; skipped: number } {
   let inserted = 0;
   let skipped = 0;
   for (const row of rows) {
@@ -139,15 +284,39 @@ function seedSheet(db: Db, sheet: string, pk: string, rows: Params[]): { inserte
   return { inserted, skipped };
 }
 
+function seedSheetUpsert(db: Db, sheet: string, pk: string, rows: Params[]): { inserted: number; updated: number } {
+  let inserted = 0;
+  let updated = 0;
+  for (const row of rows) {
+    const key = row[pk];
+    if (!key) continue;
+    const existed = findRowIndex(db, sheet, pk, key) !== -1;
+    upsertRow(db, sheet, pk, row);
+    if (existed) updated += 1;
+    else inserted += 1;
+  }
+  return { inserted, updated };
+}
+
 function main() {
   const dataDir = path.resolve(process.env.DATA_DIR || './data');
   const db = openDb(dataDir);
   console.log(`Seeding catalogs into ${dataDir}/zenith.db …`);
   for (const cat of CATALOGS) {
-    const { inserted, skipped } = seedSheet(db, cat.sheet, cat.pk, cat.rows);
-    console.log(`  ${cat.sheet}: +${inserted} inserted, ${skipped} already present`);
+    if (cat.mode === 'upsert') {
+      const { inserted, updated } = seedSheetUpsert(db, cat.sheet, cat.pk, cat.rows);
+      console.log(`  ${cat.sheet}: +${inserted} inserted, ~${updated} upserted`);
+    } else {
+      const { inserted, skipped } = seedSheetInsert(db, cat.sheet, cat.pk, cat.rows);
+      console.log(`  ${cat.sheet}: +${inserted} inserted, ${skipped} already present`);
+    }
   }
-  console.log('Done.');
+  const oldSlime = findRowIndex(db, 'MapObjects', 'id', 'spawn_slime_1');
+  if (oldSlime !== -1) {
+    deleteRow(db, 'MapObjects', oldSlime);
+    console.log('  MapObjects: removed legacy spawn_slime_1');
+  }
+  console.log('Done. Star Town is ready.');
   db.close();
 }
 

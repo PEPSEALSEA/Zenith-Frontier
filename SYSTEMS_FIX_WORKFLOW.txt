@@ -18,6 +18,7 @@ STATUS SNAPSHOT (current)
     (auto POSTs URL to Worker /_pi/origin so workers.dev stays stable)
 - BACKUP: Google Sheets every 3 minutes from Pi (dirty sync). NOT hot path.
 - PLAY: Scene2D walk + attack VFX only — still not a real game loop.
++ PLAY: Scene2D — Star Town (safe square city) + Whisperwood Forest cute critters; E-key shop/inn/heal.
 - ADMIN: Map forge can save MapObjects; EntityCreator/QuestEditor mostly local.
 
 
