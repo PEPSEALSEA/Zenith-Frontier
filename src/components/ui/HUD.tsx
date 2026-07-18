@@ -182,21 +182,32 @@ const HUD = () => {
                         const sk = skillCatalog.find((s) => s.skill_id === id)
                         const cdUntil = id ? (skillCooldowns[id] || 0) : 0
                         const onCd = now < cdUntil
-                        const cdPct = onCd && sk ? Math.max(0, (cdUntil - now) / sk.cooldown_ms) : 0
+                        const cdLeftMs = onCd ? cdUntil - now : 0
+                        const cdPct = onCd && sk ? Math.max(0, Math.min(1, cdLeftMs / sk.cooldown_ms)) : 0
+                        const cdSec = cdLeftMs / 1000
+                        const cdLabel = cdSec >= 10 ? String(Math.ceil(cdSec)) : cdSec.toFixed(1)
                         return (
                             <div
                                 key={slot}
                                 className="relative flex h-12 w-12 flex-col items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-black/45"
                             >
                                 {onCd && (
-                                    <motion.div
-                                        className="absolute inset-0 origin-bottom bg-slate-950/75"
-                                        animate={{ scaleY: cdPct }}
-                                        transition={{ duration: 0.1, ease: 'linear' }}
-                                    />
+                                    <>
+                                        <div
+                                            className="pointer-events-none absolute inset-0 bg-slate-950/70"
+                                            style={{
+                                                clipPath: `inset(0 0 ${100 - cdPct * 100}% 0)`,
+                                            }}
+                                        />
+                                        <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center font-mono text-sm font-bold tabular-nums text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                                            {cdLabel}
+                                        </span>
+                                    </>
                                 )}
-                                <span className="absolute left-1 top-0.5 font-mono text-[9px] tabular-nums text-amber-200/70">{slot}</span>
-                                <span className="relative mt-1 w-11 truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-white/90">
+                                <span className={`absolute left-1 top-0.5 font-mono text-[9px] tabular-nums ${onCd ? 'text-amber-200/40' : 'text-amber-200/70'}`}>
+                                    {slot}
+                                </span>
+                                <span className={`relative mt-1 w-11 truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide ${onCd ? 'text-white/35' : 'text-white/90'}`}>
                                     {sk?.skill_name?.slice(0, 7) || '—'}
                                 </span>
                             </div>
