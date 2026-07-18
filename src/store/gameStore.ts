@@ -909,7 +909,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
     updatePosition: (x, y) => set((state) => ({ player: { ...state.player, position: { x, y } } })),
     addInventoryItem: (item) => set((state) => {
-        const entry: InventoryItem = typeof item === 'string' ? { item_id: item, quantity: 1 } : item
+        const raw: InventoryItem = typeof item === 'string' ? { item_id: item, quantity: 1 } : item
+        const catalogName = state.player.equipmentCatalog.find((e) => e.item_id === raw.item_id)?.item_name
+        const entry: InventoryItem = {
+            ...raw,
+            quantity: raw.quantity || 1,
+            name: raw.name || catalogName || raw.item_id,
+        }
         const existing = state.player.inventory.find((i) => i.item_id === entry.item_id)
         if (existing) {
             return {
@@ -917,7 +923,11 @@ export const useGameStore = create<GameState>((set, get) => ({
                     ...state.player,
                     inventory: state.player.inventory.map((i) =>
                         i.item_id === entry.item_id
-                            ? { ...i, quantity: i.quantity + (entry.quantity || 1) }
+                            ? {
+                                ...i,
+                                quantity: i.quantity + entry.quantity,
+                                name: entry.name || i.name || catalogName || i.item_id,
+                            }
                             : i,
                     ),
                 },
@@ -926,7 +936,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return {
             player: {
                 ...state.player,
-                inventory: [...state.player.inventory, { ...entry, quantity: entry.quantity || 1 }],
+                inventory: [...state.player.inventory, entry],
             },
         }
     }),
@@ -1328,15 +1338,24 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { auth, addMoney, addInventoryItem, pushToast } = get()
         const email = auth.user?.email
 
+        if (!get().player.equipmentCatalog.length) {
+            await get().refreshEquipmentCatalog()
+        }
+
+        const itemLabel = (id: string) =>
+            get().player.equipmentCatalog.find((e) => e.item_id === id)?.item_name
+            || get().player.inventory.find((i) => i.item_id === id)?.name
+            || id
+
         if (!email) {
             get().gainExp(exp)
             if (money) addMoney(money)
             for (const id of items || []) {
-                addInventoryItem({ item_id: id, quantity: 1 })
-                const named = get().player.inventory.find((i) => i.item_id === id)
+                const title = itemLabel(id)
+                addInventoryItem({ item_id: id, quantity: 1, name: title })
                 pushToast({
                     kind: 'item',
-                    title: named?.name || id,
+                    title,
                     detail: 'Item acquired',
                 })
             }
@@ -1345,11 +1364,11 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         if (money) addMoney(money)
         for (const id of items || []) {
-            addInventoryItem({ item_id: id, quantity: 1 })
-            const named = get().player.inventory.find((i) => i.item_id === id)
+            const title = itemLabel(id)
+            addInventoryItem({ item_id: id, quantity: 1, name: title })
             pushToast({
                 kind: 'item',
-                title: named?.name || id,
+                title,
                 detail: 'Item acquired',
             })
         }
