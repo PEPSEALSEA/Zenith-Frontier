@@ -171,21 +171,21 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
     y: 300,
     z: 0,
     name: 'Star Town',
-    radius: 220,
+    radius: 260,
     params: {
       shape: 'poly',
       w: '480',
-      h: '400',
+      h: '380',
       safe: '1',
       map_id: 'town1',
-      pts: '220,140|580,140|620,220|620,380|580,460|220,460|180,380|180,220',
+      pts: '200,110|580,110|630,160|630,440|580,490|200,490|150,440|150,160',
     },
   },
   {
     id: 'player_home',
     type: 'landmark',
     x: 400,
-    y: 210,
+    y: 175,
     z: 2,
     name: 'Your House',
     radius: 42,
@@ -199,8 +199,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'npc_stella',
     type: 'npc',
-    x: 440,
-    y: 280,
+    x: 330,
+    y: 230,
     z: 2,
     name: 'Stella',
     radius: 28,
@@ -215,8 +215,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_mart',
     type: 'market',
-    x: 280,
-    y: 230,
+    x: 230,
+    y: 300,
     z: 2,
     name: 'Star Mart',
     radius: 36,
@@ -225,8 +225,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_scrolls',
     type: 'market',
-    x: 240,
-    y: 280,
+    x: 260,
+    y: 400,
     z: 2,
     name: 'Scroll Stall',
     radius: 32,
@@ -235,8 +235,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_inn',
     type: 'hotel',
-    x: 520,
-    y: 230,
+    x: 540,
+    y: 220,
     z: 2,
     name: 'Softcloud Inn',
     radius: 36,
@@ -245,8 +245,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_heal',
     type: 'landmark',
-    x: 280,
-    y: 380,
+    x: 400,
+    y: 430,
     z: 2,
     name: 'Star Spring',
     radius: 34,
@@ -255,8 +255,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_golf',
     type: 'landmark',
-    x: 520,
-    y: 390,
+    x: 540,
+    y: 410,
     z: 2,
     name: 'Star Golf',
     radius: 40,
@@ -265,7 +265,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'gate_town_exit',
     type: 'landmark',
-    x: 620,
+    x: 630,
     y: 300,
     z: 1,
     name: 'East Gate',
@@ -275,7 +275,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'exit',
       to: 'park1',
       sibling: 'gate_park_enter',
-      spawn_x: '660',
+      spawn_x: '670',
       spawn_y: '300',
       color: '#facc15',
     },
@@ -283,7 +283,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'whisperwood',
     type: 'forest',
-    x: 760,
+    x: 780,
     y: 320,
     z: 0,
     name: 'Whisperwood Park',
@@ -293,7 +293,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'gate_park_enter',
     type: 'landmark',
-    x: 600,
+    x: 610,
     y: 300,
     z: 1,
     name: 'Town Gate',
@@ -303,7 +303,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'entrance',
       to: 'town1',
       sibling: 'gate_town_exit',
-      spawn_x: '560',
+      spawn_x: '570',
       spawn_y: '300',
       color: '#facc15',
     },
@@ -420,6 +420,31 @@ export function drawCuteCritter(
   ctx.fill()
 }
 
+/** Darken a hex color by a fraction (0-1) toward black, for facade shading. */
+function shade(hex: string, amt: number): string {
+  const c = hex.replace('#', '')
+  if (c.length !== 6) return hex
+  const r = Math.max(0, Math.min(255, parseInt(c.slice(0, 2), 16) * (1 - amt)))
+  const g = Math.max(0, Math.min(255, parseInt(c.slice(2, 4), 16) * (1 - amt)))
+  const b = Math.max(0, Math.min(255, parseInt(c.slice(4, 6), 16) * (1 - amt)))
+  return `rgb(${r | 0}, ${g | 0}, ${b | 0})`
+}
+
+const OUTLINE = 'rgba(26, 20, 16, 0.55)'
+
+/** Ground contact shadow so buildings/props feel planted, not floating. */
+function buildingShadow(ctx: CanvasRenderingContext2D, s: number, dy: number) {
+  ctx.save()
+  const grad = ctx.createRadialGradient(0, dy, 0, 0, dy, s * 0.95)
+  grad.addColorStop(0, 'rgba(10, 8, 6, 0.38)')
+  grad.addColorStop(1, 'rgba(10, 8, 6, 0)')
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.ellipse(0, dy, s * 0.85, s * 0.32, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
 /** Filled building facades — house is larger so it reads as home. */
 export function drawBuilding(
   ctx: CanvasRenderingContext2D,
@@ -429,34 +454,61 @@ export function drawBuilding(
   kind?: string,
 ) {
   const s = size
+  ctx.lineJoin = 'round'
 
   if (kind === 'house' || type === 'house') {
     const hs = s * 1.4
-    ctx.fillStyle = color
-    ctx.fillRect(-hs * 0.55, -hs * 0.15, hs * 1.1, hs * 0.95)
-    ctx.fillStyle = '#fef3c7'
+    buildingShadow(ctx, hs, hs * 0.85)
+    ctx.fillStyle = shade(color, 0.15)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.roundRect(-hs * 0.55, -hs * 0.15, hs * 1.1, hs * 0.95, 3)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#fbe4a8'
     ctx.beginPath()
     ctx.moveTo(-hs * 0.72, -hs * 0.1)
     ctx.lineTo(0, -hs * 1.1)
     ctx.lineTo(hs * 0.72, -hs * 0.1)
     ctx.closePath()
     ctx.fill()
-    ctx.fillStyle = '#92400e'
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'
+    ctx.beginPath()
+    ctx.moveTo(-hs * 0.72, -hs * 0.1)
+    ctx.lineTo(0, -hs * 1.1)
+    ctx.lineTo(-hs * 0.1, -hs * 1.02)
+    ctx.lineTo(-hs * 0.58, -hs * 0.14)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#8a4a1e'
     ctx.fillRect(-hs * 0.12, hs * 0.25, hs * 0.24, hs * 0.55)
-    ctx.fillStyle = '#7dd3fc'
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 1
+    ctx.strokeRect(-hs * 0.12, hs * 0.25, hs * 0.24, hs * 0.55)
+    ctx.fillStyle = '#a7e3fb'
     ctx.fillRect(-hs * 0.4, hs * 0.05, hs * 0.2, hs * 0.22)
     ctx.fillRect(hs * 0.2, hs * 0.05, hs * 0.2, hs * 0.22)
-    ctx.fillStyle = '#78716c'
+    ctx.strokeRect(-hs * 0.4, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.strokeRect(hs * 0.2, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.fillStyle = '#57534e'
     ctx.fillRect(hs * 0.32, -hs * 0.9, hs * 0.14, hs * 0.45)
     return
   }
 
   if (kind === 'gate') {
-    ctx.fillStyle = color || '#facc15'
-    ctx.fillRect(-s * 0.55, -s * 0.7, s * 1.1, s * 1.35)
-    ctx.fillStyle = '#78350f'
+    buildingShadow(ctx, s, s * 0.55)
+    ctx.fillStyle = shade(color || '#facc15', 0.1)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.roundRect(-s * 0.55, -s * 0.7, s * 1.1, s * 1.35, 4)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#6b3a13'
     ctx.fillRect(-s * 0.08, -s * 0.55, s * 0.16, s * 1.1)
-    ctx.fillStyle = '#fde68a'
+    ctx.fillStyle = '#fef08a'
     ctx.beginPath()
     ctx.arc(s * 0.22, s * 0.05, 3.5, 0, Math.PI * 2)
     ctx.fill()
@@ -464,23 +516,39 @@ export function drawBuilding(
   }
 
   if (type === 'market' || type === 'shop') {
-    ctx.fillStyle = color
-    ctx.fillRect(-s * 0.55, -s * 0.2, s * 1.1, s * 0.85)
-    ctx.fillStyle = '#fef3c7'
+    buildingShadow(ctx, s, s * 0.7)
+    ctx.fillStyle = shade(color, 0.12)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.roundRect(-s * 0.55, -s * 0.2, s * 1.1, s * 0.85, 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#fbe4a8'
     ctx.beginPath()
     ctx.moveTo(-s * 0.7, -s * 0.15)
     ctx.lineTo(0, -s * 0.85)
     ctx.lineTo(s * 0.7, -s * 0.15)
     ctx.closePath()
     ctx.fill()
+    ctx.stroke()
     ctx.fillStyle = '#0f766e'
     ctx.fillRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 1
+    ctx.strokeRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
     return
   }
   if (type === 'hotel') {
-    ctx.fillStyle = color
-    ctx.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s)
-    ctx.fillStyle = '#bfdbfe'
+    buildingShadow(ctx, s, s * 0.85)
+    ctx.fillStyle = shade(color, 0.12)
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.roundRect(-s * 0.6, -s * 0.35, s * 1.2, s, 3)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#cfe6fb'
     for (let i = 0; i < 3; i++) {
       ctx.fillRect(-s * 0.4 + i * s * 0.35, -s * 0.15, s * 0.2, s * 0.22)
       ctx.fillRect(-s * 0.4 + i * s * 0.35, s * 0.2, s * 0.2, s * 0.22)
@@ -492,13 +560,18 @@ export function drawBuilding(
     ctx.lineTo(s * 0.75, -s * 0.3)
     ctx.closePath()
     ctx.fill()
+    ctx.stroke()
     return
   }
   if (type === 'landmark' && kind === 'heal') {
+    buildingShadow(ctx, s, s * 0.35)
     ctx.fillStyle = color
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
     ctx.beginPath()
     ctx.ellipse(0, s * 0.1, s * 0.75, s * 0.4, 0, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
     ctx.fillStyle = 'rgba(255,255,255,0.45)'
     ctx.beginPath()
     ctx.ellipse(-s * 0.15, 0, s * 0.25, s * 0.15, 0, 0, Math.PI * 2)
@@ -506,20 +579,28 @@ export function drawBuilding(
     return
   }
   if (type === 'landmark') {
+    buildingShadow(ctx, s, s * 0.55)
     ctx.fillStyle = color
+    ctx.strokeStyle = OUTLINE
+    ctx.lineWidth = 2
     ctx.beginPath()
     ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
     ctx.fillStyle = 'rgba(255,255,255,0.55)'
     ctx.beginPath()
     ctx.arc(-s * 0.15, -s * 0.15, s * 0.25, 0, Math.PI * 2)
     ctx.fill()
     return
   }
+  buildingShadow(ctx, s, s * 0.3)
   ctx.fillStyle = color
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = 2
   ctx.beginPath()
   ctx.arc(0, 0, s * 0.45, 0, Math.PI * 2)
   ctx.fill()
+  ctx.stroke()
 }
 
 export function drawGolfGreen(ctx: CanvasRenderingContext2D, size: number) {
@@ -579,22 +660,22 @@ export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObjec
       ctx.moveTo(pts[0].x, pts[0].y)
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
       ctx.closePath()
-      const g = ctx.createLinearGradient(obj.x - 200, obj.y - 160, obj.x + 200, obj.y + 160)
-      g.addColorStop(0, 'rgba(254, 243, 199, 0.28)')
-      g.addColorStop(0.5, 'rgba(253, 230, 138, 0.2)')
-      g.addColorStop(1, 'rgba(167, 243, 208, 0.22)')
+      const g = ctx.createRadialGradient(obj.x, obj.y, 20, obj.x, obj.y, 320)
+      g.addColorStop(0, 'rgba(232, 199, 138, 0.5)')
+      g.addColorStop(0.55, 'rgba(196, 168, 112, 0.42)')
+      g.addColorStop(1, 'rgba(120, 148, 96, 0.3)')
       ctx.fillStyle = g
       ctx.fill()
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)'
-      ctx.lineWidth = 3
+      ctx.strokeStyle = 'rgba(180, 130, 62, 0.6)'
+      ctx.lineWidth = 4
       ctx.stroke()
     }
   } else if (shape === 'rect') {
     const { hw, hh } = zoneHalfSize(obj)
     const g = ctx.createLinearGradient(obj.x - hw, obj.y - hh, obj.x + hw, obj.y + hh)
-    g.addColorStop(0, 'rgba(254, 243, 199, 0.22)')
-    g.addColorStop(0.5, 'rgba(253, 230, 138, 0.16)')
-    g.addColorStop(1, 'rgba(167, 243, 208, 0.2)')
+    g.addColorStop(0, 'rgba(232, 199, 138, 0.45)')
+    g.addColorStop(0.5, 'rgba(213, 180, 120, 0.36)')
+    g.addColorStop(1, 'rgba(120, 148, 96, 0.32)')
     ctx.fillStyle = g
     ctx.beginPath()
     const r = Math.min(36, hw * 0.18, hh * 0.18)
@@ -608,8 +689,8 @@ export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObjec
     ctx.quadraticCurveTo(obj.x - hw - 14, obj.y, obj.x - hw, obj.y - hh + r)
     ctx.closePath()
     ctx.fill()
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'
-    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(180, 130, 62, 0.6)'
+    ctx.lineWidth = 4
     ctx.stroke()
   } else {
     ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'
@@ -625,15 +706,25 @@ export function drawLabelBelow(
   label: string,
   yOffset: number,
 ) {
+  ctx.save()
   ctx.font = '600 10px Outfit, sans-serif'
   const tw = ctx.measureText(label).width
-  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+  ctx.fillStyle = 'rgba(17,15,20,0.78)'
   ctx.beginPath()
-  ctx.roundRect(-tw / 2 - 6, yOffset, tw + 12, 16, 4)
+  ctx.roundRect(-tw / 2 - 7, yOffset, tw + 14, 17, 6)
   ctx.fill()
-  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.fillStyle = '#f5efe0'
   ctx.textAlign = 'center'
-  ctx.fillText(label, 0, yOffset + 12)
+  ctx.fillText(label, 0, yOffset + 12.5)
+  ctx.restore()
 }
 
 export function ensureStarTownObjects(objects: WorldObject[]): WorldObject[] {

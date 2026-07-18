@@ -31,8 +31,8 @@ function row(s: string): string {
 /** Town 1 — curved cobble hub (soft oval rim of wall tiles). */
 export const TOWN1_TILES: TileMapDef = {
   id: 'town1',
-  originX: 160,
-  originY: 100,
+  originX: 150,
+  originY: 110,
   width: 12,
   height: 10,
   cellSize: CELL_SIZE,
@@ -109,49 +109,75 @@ export function drawTileCell(
   ctx.save()
   switch (kind) {
     case 'cobble': {
-      ctx.fillStyle = 'rgba(253, 230, 138, 0.22)'
+      ctx.fillStyle = '#a9a0a6'
       ctx.fillRect(x + pad, y + pad, size - pad * 2, size - pad * 2)
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.12)'
+      ctx.strokeStyle = 'rgba(184, 168, 136, 0.5)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(x + pad, y + pad, size - pad * 2, size - pad * 2)
+      ctx.fillStyle = 'rgba(70, 62, 58, 0.3)'
       ctx.beginPath()
-      ctx.arc(x + size * 0.35, y + size * 0.4, 2.2, 0, Math.PI * 2)
-      ctx.arc(x + size * 0.7, y + size * 0.65, 1.8, 0, Math.PI * 2)
+      ctx.arc(x + size * 0.32, y + size * 0.38, 2.4, 0, Math.PI * 2)
+      ctx.arc(x + size * 0.68, y + size * 0.62, 2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.14)'
+      ctx.beginPath()
+      ctx.arc(x + size * 0.3, y + size * 0.34, 1.3, 0, Math.PI * 2)
       ctx.fill()
       break
     }
     case 'path': {
-      ctx.fillStyle = 'rgba(214, 211, 209, 0.28)'
+      ctx.fillStyle = '#cba36e'
       ctx.beginPath()
-      ctx.roundRect(x + 4, y + 6, size - 8, size - 12, 8)
+      ctx.roundRect(x + 3, y + 5, size - 6, size - 10, 8)
       ctx.fill()
+      ctx.strokeStyle = 'rgba(138, 107, 77, 0.45)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
       break
     }
     case 'grass': {
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.14)'
+      ctx.fillStyle = '#7cb668'
       ctx.fillRect(x + pad, y + pad, size - pad * 2, size - pad * 2)
+      ctx.fillStyle = 'rgba(90, 148, 86, 0.5)'
+      ctx.fillRect(x + pad, y + size - size * 0.32, size - pad * 2, size * 0.32 - pad)
+      ctx.fillStyle = 'rgba(168, 216, 120, 0.35)'
+      ctx.beginPath()
+      ctx.arc(x + size * 0.3, y + size * 0.28, 2, 0, Math.PI * 2)
+      ctx.arc(x + size * 0.65, y + size * 0.45, 1.6, 0, Math.PI * 2)
+      ctx.fill()
       break
     }
     case 'wall': {
-      ctx.fillStyle = 'rgba(180, 83, 9, 0.35)'
+      ctx.fillStyle = '#9c5a30'
       ctx.fillRect(x + 2, y + 2, size - 4, size - 4)
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.45)'
-      ctx.fillRect(x + 4, y + size * 0.55, size - 8, size * 0.28)
+      ctx.strokeStyle = 'rgba(46, 26, 14, 0.55)'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(x + 2, y + 2, size - 4, size - 4)
+      ctx.fillStyle = 'rgba(250, 220, 150, 0.55)'
+      ctx.fillRect(x + 4, y + size * 0.52, size - 8, size * 0.3)
       break
     }
     case 'water': {
-      ctx.fillStyle = 'rgba(14, 165, 233, 0.28)'
+      ctx.fillStyle = 'rgba(74, 159, 216, 0.85)'
       ctx.beginPath()
-      ctx.ellipse(x + size * 0.5, y + size * 0.55, size * 0.38, size * 0.28, 0, 0, Math.PI * 2)
+      ctx.ellipse(x + size * 0.5, y + size * 0.55, size * 0.42, size * 0.32, 0, 0, Math.PI * 2)
       ctx.fill()
-      ctx.fillStyle = 'rgba(125, 211, 252, 0.35)'
+      ctx.strokeStyle = 'rgba(44, 106, 148, 0.6)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(126, 200, 234, 0.7)'
       ctx.beginPath()
-      ctx.ellipse(x + size * 0.42, y + size * 0.48, size * 0.12, size * 0.08, 0, 0, Math.PI * 2)
+      ctx.ellipse(x + size * 0.4, y + size * 0.46, size * 0.14, size * 0.09, 0, 0, Math.PI * 2)
       ctx.fill()
       break
     }
     case 'gate': {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.35)'
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.55)'
       ctx.fillRect(x + 6, y + 4, size - 12, size - 8)
-      ctx.fillStyle = 'rgba(120, 53, 15, 0.55)'
+      ctx.strokeStyle = 'rgba(120, 53, 15, 0.6)'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(x + 6, y + 4, size - 12, size - 8)
+      ctx.fillStyle = 'rgba(120, 53, 15, 0.65)'
       ctx.fillRect(x + size * 0.45, y + 6, 4, size - 12)
       break
     }
