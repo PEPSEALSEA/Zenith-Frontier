@@ -78,8 +78,8 @@ const Inventory = () => {
                                 {/* Header */}
                                 <div className="p-8 border-b border-white/5 flex items-center justify-between">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] uppercase font-bold tracking-[0.4em] text-emerald-500/80 mb-1">SYSTEM OVERLAY</span>
-                                        <h2 className="text-3xl font-black tracking-tighter text-white italic uppercase">{activeTab}</h2>
+                                        <span className="mb-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-500/80">SYSTEM OVERLAY</span>
+                                        <h2 className="font-display text-3xl font-bold uppercase tracking-tight text-white">{activeTab}</h2>
                                     </div>
 
                                     {/* Search Bar Placeholder */}
@@ -169,8 +169,8 @@ const InventoryGrid = () => {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-6 py-4">
-                <span className="text-[10px] font-black tracking-[0.3em] text-amber-400 uppercase">Purse</span>
-                <span className="text-2xl font-black italic text-amber-300">{player.stats.money} G</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-400">Purse</span>
+                <span className="font-display text-2xl font-bold tabular-nums text-amber-300">{player.stats.money} G</span>
             </div>
             <div className="grid grid-cols-6 gap-4">
                 {[...Array(slots)].map((_, i) => {
@@ -223,7 +223,7 @@ const EquipmentGrid = () => {
 
         <div className="col-span-2 bg-black/40 rounded-xl p-8 border border-white/5">
             <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
-                <h4 className="text-xl font-black italic tracking-tight text-white/80 uppercase">Potential</h4>
+                <h4 className="font-display text-xl font-bold uppercase tracking-tight text-white/80">Potential</h4>
                 <span className="text-[10px] font-mono text-emerald-400">PTS {player.statPoints}</span>
             </div>
             <RadarChart alloc={player.alloc} potential={potential} size={200} />
@@ -280,7 +280,7 @@ const JobSystemView = () => {
                 <label className="text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase">Main Occupation</label>
                 <div className="p-8 rounded-2xl bg-gradient-to-br from-emerald-600/20 to-zinc-950 border border-emerald-500/30 flex flex-col items-center justify-center gap-4 relative overflow-hidden">
                     <Zap className="h-16 w-16 text-emerald-400 opacity-60 mb-2" />
-                    <h3 className="text-2xl font-black tracking-tighter text-white uppercase italic">{player.jobs.main?.name || 'TRAINEE'}</h3>
+                    <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-white">{player.jobs.main?.name || 'TRAINEE'}</h3>
                     <span className="text-[10px] font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full uppercase">
                         CHAR LVL {player.stats.level}
                     </span>
@@ -355,7 +355,7 @@ const SkillsView = () => {
                                 className={`p-4 rounded-xl border text-left transition-all ${selectedSlot === slot ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-black/30'}`}
                             >
                                 <div className="text-[9px] font-black text-white/40 tracking-widest">SLOT {slot}</div>
-                                <div className="text-sm font-bold text-white mt-1 uppercase italic">{sk?.skill_name || 'Empty'}</div>
+                                <div className="mt-1 font-display text-sm font-semibold uppercase tracking-wide text-white">{sk?.skill_name || 'Empty'}</div>
                                 {sk && <div className="text-[9px] text-cyan-400/70 mt-1">MP {sk.mp_cost} · {sk.skill_type}</div>}
                                 {id && (
                                     <button
@@ -393,7 +393,7 @@ const SkillsView = () => {
                         <div key={s.skill_id} className="flex items-center gap-4 rounded-xl border border-white/5 bg-black/30 p-4">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <h4 className="text-sm font-black uppercase italic text-white truncate">{s.skill_name}</h4>
+                                    <h4 className="truncate font-display text-sm font-bold uppercase tracking-wide text-white">{s.skill_name}</h4>
                                     <span className="text-[8px] font-bold tracking-widest text-white/30 uppercase">{s.unlock_type}</span>
                                 </div>
                                 <p className="text-[10px] text-white/40 mt-1">{s.description}</p>
@@ -436,7 +436,7 @@ const ArcanumCard = ({ name, description, reverse }: { name: string, description
                 </div>
                 <span className={`text-[10px] font-black tracking-[0.4em] ${reverse ? 'text-rose-500' : 'text-emerald-500'}`}>{reverse ? 'REVERSAL' : 'ACTIVE'}</span>
             </div>
-            <h3 className="text-4xl font-black italic tracking-tighter text-white mb-4 leading-8 uppercase">{name}</h3>
+            <h3 className="mb-4 font-display text-4xl font-bold uppercase leading-8 tracking-tight text-white">{name}</h3>
             <p className="text-xs font-medium text-white/40 leading-relaxed uppercase tracking-wider">{description}</p>
         </div>
 

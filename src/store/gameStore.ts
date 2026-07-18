@@ -62,6 +62,16 @@ export interface AllocatedStats {
     luk: number
 }
 
+export type GameToastKind = 'level' | 'gold' | 'item' | 'exp' | 'info'
+
+export interface GameToast {
+    id: string
+    kind: GameToastKind
+    title: string
+    detail?: string
+    createdAt: number
+}
+
 export interface PlayerAppearance {
     color: string
     face: string
@@ -296,6 +306,7 @@ export interface GameState {
         tags: GameplayTag[]
     }
     forgeSelection: { type: WorldObjectType, id?: string, name?: string } | null
+    toasts: GameToast[]
 
     // Actions
     login: (userData: any) => void
@@ -327,6 +338,8 @@ export interface GameState {
     promoteJob: (jobId: string) => Promise<boolean>
     clearPendingLevelUps: () => void
     refreshSkills: () => Promise<void>
+    pushToast: (toast: Omit<GameToast, 'id' | 'createdAt'> & { id?: string }) => void
+    dismissToast: (id: string) => void
     addMoney: (amount: number) => void
     applyKillRewards: (opts: { exp: number; money: number; items?: string[] }) => Promise<void>
     syncHpToServer: () => Promise<void>
@@ -452,6 +465,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         tags: []
     },
     forgeSelection: null,
+    toasts: [],
 
     login: (userData) => {
         set((state) => ({
@@ -565,30 +579,56 @@ export const useGameStore = create<GameState>((set, get) => ({
         isAdminDashboard: true,
     }),
 
-    gainExp: (amount) => set((state) => {
-        let { exp, level, maxExp } = state.player.stats
-        let statPoints = state.player.statPoints
-        let pending = state.player.pendingLevelUps
-        exp += amount
-        while (exp >= maxExp && level < 99) {
-            exp -= maxExp
-            level++
-            maxExp = Math.floor(maxExp * 1.5)
-            statPoints += STAT_POINTS_PER_LEVEL
-            pending += 1
+    gainExp: (amount) => {
+        const before = get().player.stats.level
+        set((state) => {
+            let { exp, level, maxExp } = state.player.stats
+            let statPoints = state.player.statPoints
+            let pending = state.player.pendingLevelUps
+            exp += amount
+            while (exp >= maxExp && level < 99) {
+                exp -= maxExp
+                level++
+                maxExp = Math.floor(maxExp * 1.5)
+                statPoints += STAT_POINTS_PER_LEVEL
+                pending += 1
+            }
+            return {
+                player: {
+                    ...state.player,
+                    statPoints,
+                    pendingLevelUps: pending,
+                    stats: { ...state.player.stats, exp, level, maxExp },
+                },
+            }
+        })
+        const after = get().player.stats.level
+        if (after > before) {
+            get().pushToast({
+                kind: 'level',
+                title: `LEVEL UP  ${after}`,
+                detail: `+${(after - before) * STAT_POINTS_PER_LEVEL} potential · open Job System`,
+            })
+            get().clearPendingLevelUps()
         }
-        return {
-            player: {
-                ...state.player,
-                statPoints,
-                pendingLevelUps: pending,
-                stats: { ...state.player.stats, exp, level, maxExp },
-            },
-        }
-    }),
+    },
 
     clearPendingLevelUps: () => set((state) => ({
         player: { ...state.player, pendingLevelUps: 0 },
+    })),
+
+    pushToast: (toast) => {
+        const id = toast.id || `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        set((state) => ({
+            toasts: [
+                ...state.toasts.slice(-7),
+                { id, kind: toast.kind, title: toast.title, detail: toast.detail, createdAt: Date.now() },
+            ],
+        }))
+    },
+
+    dismissToast: (id) => set((state) => ({
+        toasts: state.toasts.filter((t) => t.id !== id),
     })),
 
     takeDamage: (amount) => set((state) => ({
@@ -619,9 +659,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     buyItem: async ({ itemId, price, name }) => {
-        const { auth, spendMoney, addInventoryItem } = get()
+        const { auth, spendMoney, addInventoryItem, pushToast } = get()
         if (!spendMoney(price)) return false
         addInventoryItem({ item_id: itemId, quantity: 1, name })
+        pushToast({
+            kind: 'item',
+            title: name || itemId,
+            detail: price > 0 ? `Purchased · −${price} G` : 'Obtained',
+        })
         const email = auth.user?.email
         if (email) {
             const { gasService } = await import('@/services/gasService')
@@ -760,13 +805,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     unlockSkill: async (skillId) => {
-        const { auth } = get()
+        const { auth, pushToast } = get()
         const email = auth.user?.email
         if (!email) return false
         const { gasService } = await import('@/services/gasService')
         const res = await gasService.unlockSkill(email, skillId)
         if (!res.startsWith('OK|')) return false
         await get().refreshSkills()
+        const sk = get().player.skillCatalog.find((s) => s.skill_id === skillId)
+        pushToast({
+            kind: 'info',
+            title: sk?.skill_name || skillId,
+            detail: 'Skill unlocked',
+        })
         const player = await gasService.getPlayer(email)
         if (player?.money !== undefined) {
             set((state) => ({
@@ -780,12 +831,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     useSkillScroll: async (itemId) => {
-        const { auth } = get()
+        const { auth, pushToast } = get()
         const email = auth.user?.email
         if (!email) return false
         const { gasService } = await import('@/services/gasService')
         const res = await gasService.useSkillScroll(email, itemId)
         if (!res.startsWith('OK|')) return false
+        const skillId = res.split('|')[2] || ''
         set((state) => ({
             player: {
                 ...state.player,
@@ -795,11 +847,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             },
         }))
         await get().refreshSkills()
+        const sk = get().player.skillCatalog.find((s) => s.skill_id === skillId)
+        pushToast({
+            kind: 'info',
+            title: sk?.skill_name || skillId || 'Scroll',
+            detail: 'Learned from scroll',
+        })
         return true
     },
 
     promoteJob: async (jobId) => {
-        const { auth } = get()
+        const { auth, pushToast } = get()
         const email = auth.user?.email
         if (!email) return false
         const { gasService } = await import('@/services/gasService')
@@ -816,6 +874,11 @@ export const useGameStore = create<GameState>((set, get) => ({
                     jobMasteryExp: 0,
                 },
             }))
+            pushToast({
+                kind: 'level',
+                title: job.name,
+                detail: 'Job promotion complete',
+            })
         }
         await get().refreshSkills()
         return true
@@ -845,21 +908,49 @@ export const useGameStore = create<GameState>((set, get) => ({
         }))
     },
 
-    addMoney: (amount) => set((state) => ({
-        player: { ...state.player, stats: { ...state.player.stats, money: state.player.stats.money + amount } }
-    })),
+    addMoney: (amount) => {
+        set((state) => ({
+            player: { ...state.player, stats: { ...state.player.stats, money: state.player.stats.money + amount } },
+        }))
+        if (amount > 0) {
+            get().pushToast({
+                kind: 'gold',
+                title: `+${amount.toLocaleString()} Silver`,
+                detail: 'Currency obtained',
+            })
+        }
+    },
 
     applyKillRewards: async ({ exp, money, items }) => {
-        const { auth, addMoney, addInventoryItem } = get()
+        const { auth, addMoney, addInventoryItem, pushToast } = get()
         const email = auth.user?.email
+
         if (!email) {
             get().gainExp(exp)
             if (money) addMoney(money)
-            for (const id of items || []) addInventoryItem({ item_id: id, quantity: 1 })
+            for (const id of items || []) {
+                addInventoryItem({ item_id: id, quantity: 1 })
+                const named = get().player.inventory.find((i) => i.item_id === id)
+                pushToast({
+                    kind: 'item',
+                    title: named?.name || id,
+                    detail: 'Item acquired',
+                })
+            }
             return
         }
+
         if (money) addMoney(money)
-        for (const id of items || []) addInventoryItem({ item_id: id, quantity: 1 })
+        for (const id of items || []) {
+            addInventoryItem({ item_id: id, quantity: 1 })
+            const named = get().player.inventory.find((i) => i.item_id === id)
+            pushToast({
+                kind: 'item',
+                title: named?.name || id,
+                detail: 'Item acquired',
+            })
+        }
+
         const { gasService } = await import('@/services/gasService')
         const expRes = await gasService.addExp(email, exp, 12)
         if (expRes.startsWith('OK|EXP_ADDED|')) {
@@ -877,7 +968,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                         statPoints: Number.isNaN(statPoints) ? state.player.statPoints : statPoints,
                         jobMastery: Number.isNaN(mastery) ? state.player.jobMastery : mastery,
                         jobMasteryExp: Number.isNaN(masteryExp) ? state.player.jobMasteryExp : masteryExp,
-                        pendingLevelUps: state.player.pendingLevelUps + leveled,
+                        pendingLevelUps: 0,
                         stats: {
                             ...state.player.stats,
                             level,
@@ -894,6 +985,11 @@ export const useGameStore = create<GameState>((set, get) => ({
             if (leveled > 0) {
                 const { sfx } = await import('@/lib/sfx')
                 sfx.levelUp()
+                pushToast({
+                    kind: 'level',
+                    title: `LEVEL UP  ${level}`,
+                    detail: `+${leveled * STAT_POINTS_PER_LEVEL} potential · allocate in Job System`,
+                })
             }
         }
         if (money) {

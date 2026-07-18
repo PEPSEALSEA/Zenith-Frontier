@@ -689,11 +689,11 @@ export default function GameScene2D() {
           ctx.restore()
         }
         ctx.fillStyle = 'rgba(255,255,255,0.75)'
-        ctx.font = 'bold 12px Georgia'
+        ctx.font = '600 12px Oxanium, sans-serif'
         ctx.textAlign = 'center'
         if (obj.type === 'town') {
           ctx.fillStyle = '#fde68a'
-          ctx.font = 'bold 18px Georgia'
+          ctx.font = '700 18px Oxanium, sans-serif'
           ctx.fillText(obj.name, obj.x, obj.y - zoneLabelOffset(obj) - 16)
         }
         continue
@@ -717,7 +717,7 @@ export default function GameScene2D() {
         drawBuilding(ctx, obj.type === 'landmark' ? 'landmark' : obj.type, color, 26)
       }
       ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.font = 'bold 10px Georgia'
+      ctx.font = '600 10px Outfit, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(obj.name, 0, -36)
       ctx.restore()
@@ -739,7 +739,7 @@ export default function GameScene2D() {
       ctx.fillStyle = pct > 0.35 ? '#86efac' : '#fb7185'
       ctx.fillRect(-barW / 2, -30, barW * pct, 5)
       ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.font = 'bold 9px Georgia'
+      ctx.font = '600 9px Outfit, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(m.name, 0, -36)
       ctx.restore()
@@ -798,9 +798,9 @@ export default function GameScene2D() {
       ctx.fillStyle = 'rgba(0,0,0,0.7)'
       ctx.beginPath(); ctx.roundRect(pX - 18, badgeY - 10, 36, 18, 4); ctx.fill()
       ctx.strokeStyle = playerSafe ? '#fbbf24' : '#10b981'; ctx.lineWidth = 1.5; ctx.stroke()
-      ctx.fillStyle = playerSafe ? '#fbbf24' : '#10b981'; ctx.font = 'bold 10px Georgia'; ctx.fillText(`LV.${playerStatsRef.current.level}`, pX, badgeY + 3)
+      ctx.fillStyle = playerSafe ? '#fbbf24' : '#10b981'; ctx.font = '700 10px Oxanium, sans-serif'; ctx.fillText(`LV.${playerStatsRef.current.level}`, pX, badgeY + 3)
 
-      ctx.font = 'bold 11px Georgia'; ctx.fillStyle = 'white'
+      ctx.font = '700 11px Oxanium, sans-serif'; ctx.fillStyle = 'white'
       ctx.shadowBlur = 4; ctx.shadowColor = 'black'
       ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 22); ctx.shadowBlur = 0
     }
@@ -810,7 +810,7 @@ export default function GameScene2D() {
       const age = (now - f.born) / 900
       ctx.globalAlpha = 1 - age
       ctx.fillStyle = f.color
-      ctx.font = 'bold 14px Georgia'
+      ctx.font = '700 14px Oxanium, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(f.text, f.x, f.y - age * 40)
       ctx.globalAlpha = 1
@@ -844,44 +844,44 @@ export default function GameScene2D() {
         className={`absolute inset-0 bg-[#020617] ${isEditorMode ? 'cursor-move' : 'cursor-crosshair'}`}
       />
       {!isEditorMode && !isForgeMode && (
-        <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex flex-col items-center gap-2">
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex flex-col items-center gap-2 font-sans">
           <div
-            className={`rounded-full border px-4 py-1.5 text-[11px] font-bold tracking-[0.18em] uppercase shadow-lg backdrop-blur-md ${
+            className={`rounded-full border px-4 py-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.16em] shadow-lg backdrop-blur-md ${
               safeBanner
                 ? 'border-amber-300/40 bg-amber-500/15 text-amber-100'
                 : 'border-emerald-400/30 bg-emerald-900/40 text-emerald-100'
             }`}
           >
-            {safeBanner ? '★ Star Town — Safe Zone' : '🌲 Whisperwood Forest'}
+            {safeBanner ? '★ Star Town — Safe Zone' : 'Whisperwood Forest'}
           </div>
           {hint && (
-            <div className="rounded-lg border border-white/10 bg-black/50 px-3 py-1 text-xs text-white/80 backdrop-blur-sm">
+            <div className="rounded-lg border border-white/10 bg-black/55 px-3.5 py-1.5 text-xs font-medium tracking-wide text-white/85 backdrop-blur-sm">
               {hint}
             </div>
           )}
         </div>
       )}
       {panel && (
-        <div className="pointer-events-auto absolute inset-0 z-30 flex items-end justify-center pb-24 sm:items-center sm:pb-0">
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-end justify-center pb-24 font-sans sm:items-center sm:pb-0">
           <div className="mx-4 w-full max-w-md rounded-2xl border border-amber-200/20 bg-[#1a1520]/95 p-5 shadow-2xl backdrop-blur-xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/80">Star Town</p>
-            <h3 className="mt-1 font-[Georgia] text-2xl text-amber-50">{panel.title}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300/80">Star Town</p>
+            <h3 className="mt-1 font-display text-2xl font-bold tracking-tight text-amber-50">{panel.title}</h3>
             <p className="mt-3 text-sm leading-relaxed text-white/75">{panel.body}</p>
             {panel.cost != null && panel.cost > 0 && (
-              <p className="mt-2 text-sm font-semibold text-amber-200">Cost: {panel.cost} G</p>
+              <p className="mt-2 font-mono text-sm font-semibold tabular-nums text-amber-200">Cost: {panel.cost} G</p>
             )}
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
                 onClick={() => void runInteract()}
-                className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-stone-900 hover:bg-amber-300"
+                className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 font-display text-sm font-bold text-stone-900 hover:bg-amber-300"
               >
                 {panel.kind === 'talk' || panel.kind === 'golf' ? 'OK (E)' : 'Confirm (E)'}
               </button>
               <button
                 type="button"
                 onClick={() => setPanel(null)}
-                className="rounded-xl border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:bg-white/5"
+                className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5"
               >
                 Close
               </button>

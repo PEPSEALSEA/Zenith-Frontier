@@ -5,7 +5,7 @@ import { Suspense, useState } from 'react'
 import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
-import LevelUpModal from '@/components/ui/LevelUpModal'
+import GameToasts from '@/components/ui/GameToasts'
 import MapEditor from '@/components/ui/MapEditor'
 import AdminDashboard from '@/components/ui/AdminDashboard'
 import EntityCreator from '@/components/ui/EntityCreator'
@@ -112,7 +112,7 @@ export default function Home() {
                 >
                   <HUD />
                   <Inventory />
-                  <LevelUpModal />
+                  <GameToasts />
                 </motion.div>
               )}
             </AnimatePresence>
