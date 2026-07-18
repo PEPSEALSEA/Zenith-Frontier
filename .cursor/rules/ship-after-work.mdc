@@ -1,0 +1,42 @@
+---
+description: Auto ship — commit/push + conditional Worker/Pi deploy after finishing work
+alwaysApply: true
+---
+
+# Ship after work (Zenith Frontier)
+
+When finishing intentional code changes for this project (implementation done, or user says เสร็จ / ship / commit / push), run the ship workflow before ending. Do **not** ship for pure Q&A, planning-only, or clearly incomplete mid-debug work.
+
+## 1. GitHub commit + push
+
+- Follow the repo commit protocol (status, diff, log, HEREDOC message, no secrets).
+- Stage only relevant project files. Never commit `.env`, `pi-server/deploy/.pi-credentials`, keys, or credentials.
+- `git push -u origin HEAD` after a successful commit.
+- This project rule **overrides** the global “only commit when asked” preference for Zenith Frontier when the work turn is complete.
+
+## 2. Cloudflare Worker (only if Worker changed)
+
+If this turn changed anything under `worker/` (including `wrangler.toml`):
+
+```powershell
+cd worker
+npx wrangler deploy
+```
+
+Skip if only frontend / docs / unrelated paths changed.
+
+## 3. Raspberry Pi pi-server (only if Pi API changed)
+
+If this turn changed anything under `pi-server/`:
+
+```powershell
+powershell -File pi-server/deploy/push-to-pi.ps1
+```
+
+- Deploys **only** this project’s remote dir (`PI_REMOTE_DIR` in gitignored `.pi-credentials`, typically `~/zenith-frontier-pi`).
+- Do not touch other Pi projects or home folders.
+- Requires SSH key `~/.ssh/zenith_pi` already authorized on the Pi.
+
+## 4. Report
+
+End with: commit hash/URL, whether Worker deploy ran, whether Pi deploy ran (or skipped + why).
