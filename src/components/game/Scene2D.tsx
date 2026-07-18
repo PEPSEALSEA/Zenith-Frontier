@@ -1043,7 +1043,7 @@ export default function GameScene2D() {
     ctx.fillStyle = gradientBg
     ctx.fillRect(camX, camY, width, height)
 
-    ctx.strokeStyle = isEditorMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 41, 59, 0.1)'
+    ctx.strokeStyle = isEditorMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 41, 59, 0.04)'
     ctx.lineWidth = 1
     for (let x = 0; x <= WORLD_SIZE; x += 100) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); ctx.stroke()
@@ -1058,6 +1058,12 @@ export default function GameScene2D() {
       if (obj.type === 'town' || obj.type === 'safezone') {
         drawStarTownFloor(ctx, obj)
       }
+      if (obj.type === 'forest') {
+        ctx.fillStyle = 'rgba(22, 101, 52, 0.1)'
+        ctx.beginPath()
+        ctx.arc(obj.x, obj.y, obj.radius * 0.85, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
 
     drawAllTileMaps(ctx, camX, camY, width, height)
@@ -1071,13 +1077,13 @@ export default function GameScene2D() {
         ctx.restore()
       }
       if (obj.type === 'town') {
-        ctx.fillStyle = 'rgba(226,232,240,0.7)'
-        ctx.font = '700 16px Oxanium, sans-serif'
+        ctx.fillStyle = '#fde68a'
+        ctx.font = '700 18px Oxanium, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(obj.name, obj.x, obj.y - zoneLabelOffset(obj) - 20)
       }
       if (obj.type === 'forest') {
-        ctx.fillStyle = 'rgba(134,239,172,0.55)'
+        ctx.fillStyle = 'rgba(187, 247, 208, 0.85)'
         ctx.font = '600 13px Oxanium, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(obj.name, obj.x, obj.y - obj.radius * 0.35)
@@ -1096,11 +1102,13 @@ export default function GameScene2D() {
       if (obj.type === 'landmark' && kind === 'golf') {
         drawGolfGreen(ctx, 28)
       } else if (obj.type === 'npc') {
-        ctx.strokeStyle = color
-        ctx.lineWidth = 2.4
+        ctx.shadowBlur = 14
+        ctx.shadowColor = color
+        ctx.fillStyle = color
         ctx.beginPath()
         ctx.arc(0, 0, 14, 0, Math.PI * 2)
-        ctx.stroke()
+        ctx.fill()
+        ctx.shadowBlur = 0
         drawFace(ctx, 0, 0, 8, String(obj.params?.face || 'star'))
       } else if (kind === 'gate') {
         drawBuilding(ctx, 'landmark', color, 26, 'gate')

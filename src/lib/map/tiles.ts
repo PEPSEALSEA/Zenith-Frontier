@@ -105,95 +105,68 @@ export function drawTileCell(
   size: number,
 ) {
   if (kind === 'empty') return
-  const ink = 'rgba(226, 232, 240, 0.55)'
-  const soft = 'rgba(148, 163, 184, 0.35)'
+  const pad = 1
   ctx.save()
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  ctx.strokeStyle = ink
-  ctx.lineWidth = 1.6
-
   switch (kind) {
     case 'cobble': {
-      ctx.strokeStyle = soft
-      ctx.strokeRect(x + 3, y + 3, size - 6, size - 6)
+      ctx.fillStyle = 'rgba(253, 230, 138, 0.22)'
+      ctx.fillRect(x + pad, y + pad, size - pad * 2, size - pad * 2)
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.12)'
       ctx.beginPath()
-      ctx.moveTo(x + size * 0.35, y + 6)
-      ctx.lineTo(x + size * 0.35, y + size - 6)
-      ctx.moveTo(x + 6, y + size * 0.55)
-      ctx.lineTo(x + size - 6, y + size * 0.55)
-      ctx.stroke()
+      ctx.arc(x + size * 0.35, y + size * 0.4, 2.2, 0, Math.PI * 2)
+      ctx.arc(x + size * 0.7, y + size * 0.65, 1.8, 0, Math.PI * 2)
+      ctx.fill()
       break
     }
     case 'path': {
+      ctx.fillStyle = 'rgba(214, 211, 209, 0.28)'
       ctx.beginPath()
-      ctx.moveTo(x + 4, y + size * 0.5)
-      ctx.quadraticCurveTo(x + size * 0.5, y + size * 0.35, x + size - 4, y + size * 0.5)
-      ctx.moveTo(x + 6, y + size * 0.62)
-      ctx.quadraticCurveTo(x + size * 0.5, y + size * 0.72, x + size - 6, y + size * 0.58)
-      ctx.stroke()
+      ctx.roundRect(x + 4, y + 6, size - 8, size - 12, 8)
+      ctx.fill()
       break
     }
     case 'grass': {
-      ctx.strokeStyle = 'rgba(134, 239, 172, 0.45)'
-      for (let i = 0; i < 3; i++) {
-        const gx = x + 8 + i * 10
-        ctx.beginPath()
-        ctx.moveTo(gx, y + size - 8)
-        ctx.quadraticCurveTo(gx + 2, y + size * 0.45, gx - 2, y + 10)
-        ctx.stroke()
-      }
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.14)'
+      ctx.fillRect(x + pad, y + pad, size - pad * 2, size - pad * 2)
       break
     }
     case 'wall': {
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)'
-      ctx.lineWidth = 2.2
-      ctx.beginPath()
-      ctx.moveTo(x + 4, y + size - 4)
-      ctx.quadraticCurveTo(x + size * 0.5, y + 4, x + size - 4, y + size - 4)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(x + size * 0.5, y + size * 0.55, 3, 0, Math.PI * 2)
-      ctx.stroke()
+      ctx.fillStyle = 'rgba(180, 83, 9, 0.35)'
+      ctx.fillRect(x + 2, y + 2, size - 4, size - 4)
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.45)'
+      ctx.fillRect(x + 4, y + size * 0.55, size - 8, size * 0.28)
       break
     }
     case 'water': {
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)'
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.28)'
       ctx.beginPath()
-      ctx.moveTo(x + 4, y + size * 0.4)
-      ctx.quadraticCurveTo(x + size * 0.35, y + size * 0.55, x + size * 0.7, y + size * 0.4)
-      ctx.quadraticCurveTo(x + size * 0.85, y + size * 0.32, x + size - 4, y + size * 0.45)
-      ctx.moveTo(x + 6, y + size * 0.65)
-      ctx.quadraticCurveTo(x + size * 0.5, y + size * 0.78, x + size - 6, y + size * 0.62)
-      ctx.stroke()
+      ctx.ellipse(x + size * 0.5, y + size * 0.55, size * 0.38, size * 0.28, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(125, 211, 252, 0.35)'
+      ctx.beginPath()
+      ctx.ellipse(x + size * 0.42, y + size * 0.48, size * 0.12, size * 0.08, 0, 0, Math.PI * 2)
+      ctx.fill()
       break
     }
     case 'gate': {
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)'
-      ctx.lineWidth = 2
-      ctx.strokeRect(x + 8, y + 6, size - 16, size - 10)
-      ctx.beginPath()
-      ctx.moveTo(x + size * 0.5, y + 6)
-      ctx.lineTo(x + size * 0.5, y + size - 4)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(x + size * 0.62, y + size * 0.55, 2.5, 0, Math.PI * 2)
-      ctx.stroke()
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.35)'
+      ctx.fillRect(x + 6, y + 4, size - 12, size - 8)
+      ctx.fillStyle = 'rgba(120, 53, 15, 0.55)'
+      ctx.fillRect(x + size * 0.45, y + 6, 4, size - 12)
       break
     }
     case 'tree': {
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.55)'
+      ctx.fillStyle = '#3f2a14'
+      ctx.fillRect(x + size * 0.45, y + size * 0.45, 6, size * 0.4)
+      ctx.fillStyle = '#15803d'
       ctx.beginPath()
-      ctx.moveTo(x + size * 0.5, y + size - 6)
-      ctx.lineTo(x + size * 0.5, y + size * 0.45)
-      ctx.stroke()
+      ctx.arc(x + size * 0.5, y + size * 0.38, size * 0.28, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#22c55e'
       ctx.beginPath()
-      ctx.arc(x + size * 0.5, y + size * 0.35, size * 0.28, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(x + size * 0.35, y + size * 0.42, size * 0.18, 0, Math.PI * 2)
-      ctx.arc(x + size * 0.65, y + size * 0.4, size * 0.18, 0, Math.PI * 2)
-      ctx.stroke()
+      ctx.arc(x + size * 0.35, y + size * 0.42, size * 0.16, 0, Math.PI * 2)
+      ctx.arc(x + size * 0.65, y + size * 0.4, size * 0.15, 0, Math.PI * 2)
+      ctx.fill()
       break
     }
   }

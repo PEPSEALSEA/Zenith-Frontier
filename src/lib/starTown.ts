@@ -369,19 +369,15 @@ export function drawCuteCritter(
   color: string,
   r: number,
 ) {
-  ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)'
-  ctx.lineWidth = 1.8
   ctx.fillStyle = color
   if (face === 'bunny') {
     ctx.beginPath()
     ctx.ellipse(0, 2, r * 0.85, r * 0.75, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.stroke()
     ctx.beginPath()
     ctx.ellipse(-r * 0.45, -r * 0.85, r * 0.22, r * 0.55, -0.25, 0, Math.PI * 2)
     ctx.ellipse(r * 0.45, -r * 0.85, r * 0.22, r * 0.55, 0.25, 0, Math.PI * 2)
     ctx.fill()
-    ctx.stroke()
     ctx.fillStyle = '#fda4af'
     ctx.beginPath()
     ctx.ellipse(-r * 0.45, -r * 0.75, r * 0.1, r * 0.28, -0.25, 0, Math.PI * 2)
@@ -402,7 +398,6 @@ export function drawCuteCritter(
     ctx.beginPath()
     ctx.ellipse(0, 0, r * 0.95, r * 0.8, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.stroke()
     ctx.fillStyle = '#78716c'
     ctx.beginPath()
     ctx.ellipse(-r * 0.55, -r * 0.15, r * 0.28, r * 0.22, 0, 0, Math.PI * 2)
@@ -423,10 +418,9 @@ export function drawCuteCritter(
   ctx.beginPath()
   ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2)
   ctx.fill()
-  ctx.stroke()
 }
 
-/** Line-art building facades — houses stand out with thicker strokes. */
+/** Filled building facades — house is larger so it reads as home. */
 export function drawBuilding(
   ctx: CanvasRenderingContext2D,
   type: string,
@@ -435,129 +429,116 @@ export function drawBuilding(
   kind?: string,
 ) {
   const s = size
-  const ink = 'rgba(15, 23, 42, 0.75)'
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
 
   if (kind === 'house' || type === 'house') {
-    const hs = s * 1.35
-    ctx.strokeStyle = color
-    ctx.lineWidth = 3.2
+    const hs = s * 1.4
+    ctx.fillStyle = color
+    ctx.fillRect(-hs * 0.55, -hs * 0.15, hs * 1.1, hs * 0.95)
+    ctx.fillStyle = '#fef3c7'
     ctx.beginPath()
-    ctx.rect(-hs * 0.55, -hs * 0.15, hs * 1.1, hs * 0.95)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(-hs * 0.7, -hs * 0.1)
-    ctx.lineTo(0, -hs * 1.05)
-    ctx.lineTo(hs * 0.7, -hs * 0.1)
-    ctx.stroke()
-    ctx.strokeStyle = ink
-    ctx.lineWidth = 2
-    ctx.strokeRect(-hs * 0.12, hs * 0.25, hs * 0.24, hs * 0.55)
-    ctx.strokeRect(-hs * 0.4, hs * 0.05, hs * 0.2, hs * 0.22)
-    ctx.strokeRect(hs * 0.2, hs * 0.05, hs * 0.2, hs * 0.22)
-    ctx.beginPath()
-    ctx.moveTo(hs * 0.35, -hs * 0.85)
-    ctx.lineTo(hs * 0.35, -hs * 0.35)
-    ctx.lineTo(hs * 0.55, -hs * 0.35)
-    ctx.stroke()
+    ctx.moveTo(-hs * 0.72, -hs * 0.1)
+    ctx.lineTo(0, -hs * 1.1)
+    ctx.lineTo(hs * 0.72, -hs * 0.1)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#92400e'
+    ctx.fillRect(-hs * 0.12, hs * 0.25, hs * 0.24, hs * 0.55)
+    ctx.fillStyle = '#7dd3fc'
+    ctx.fillRect(-hs * 0.4, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.fillRect(hs * 0.2, hs * 0.05, hs * 0.2, hs * 0.22)
+    ctx.fillStyle = '#78716c'
+    ctx.fillRect(hs * 0.32, -hs * 0.9, hs * 0.14, hs * 0.45)
     return
   }
 
   if (kind === 'gate') {
-    ctx.strokeStyle = color || '#facc15'
-    ctx.lineWidth = 2.5
-    ctx.strokeRect(-s * 0.55, -s * 0.7, s * 1.1, s * 1.35)
+    ctx.fillStyle = color || '#facc15'
+    ctx.fillRect(-s * 0.55, -s * 0.7, s * 1.1, s * 1.35)
+    ctx.fillStyle = '#78350f'
+    ctx.fillRect(-s * 0.08, -s * 0.55, s * 0.16, s * 1.1)
+    ctx.fillStyle = '#fde68a'
     ctx.beginPath()
-    ctx.moveTo(0, -s * 0.7)
-    ctx.lineTo(0, s * 0.65)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(s * 0.18, s * 0.05, 3, 0, Math.PI * 2)
-    ctx.stroke()
+    ctx.arc(s * 0.22, s * 0.05, 3.5, 0, Math.PI * 2)
+    ctx.fill()
     return
   }
 
   if (type === 'market' || type === 'shop') {
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2.2
-    ctx.strokeRect(-s * 0.55, -s * 0.15, s * 1.1, s * 0.85)
+    ctx.fillStyle = color
+    ctx.fillRect(-s * 0.55, -s * 0.2, s * 1.1, s * 0.85)
+    ctx.fillStyle = '#fef3c7'
     ctx.beginPath()
-    ctx.moveTo(-s * 0.7, -s * 0.1)
+    ctx.moveTo(-s * 0.7, -s * 0.15)
     ctx.lineTo(0, -s * 0.85)
-    ctx.lineTo(s * 0.7, -s * 0.1)
-    ctx.stroke()
-    ctx.strokeStyle = ink
-    ctx.lineWidth = 1.6
-    ctx.strokeRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
-    ctx.strokeRect(-s * 0.4, s * 0.05, s * 0.18, s * 0.18)
+    ctx.lineTo(s * 0.7, -s * 0.15)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#0f766e'
+    ctx.fillRect(-s * 0.15, s * 0.15, s * 0.3, s * 0.5)
     return
   }
   if (type === 'hotel') {
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2.2
-    ctx.strokeRect(-s * 0.6, -s * 0.3, s * 1.2, s)
-    ctx.beginPath()
-    ctx.moveTo(-s * 0.75, -s * 0.25)
-    ctx.lineTo(0, -s * 0.95)
-    ctx.lineTo(s * 0.75, -s * 0.25)
-    ctx.stroke()
-    ctx.strokeStyle = ink
-    ctx.lineWidth = 1.5
+    ctx.fillStyle = color
+    ctx.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s)
+    ctx.fillStyle = '#bfdbfe'
     for (let i = 0; i < 3; i++) {
-      ctx.strokeRect(-s * 0.4 + i * s * 0.35, -s * 0.1, s * 0.2, s * 0.2)
-      ctx.strokeRect(-s * 0.4 + i * s * 0.35, s * 0.25, s * 0.2, s * 0.2)
+      ctx.fillRect(-s * 0.4 + i * s * 0.35, -s * 0.15, s * 0.2, s * 0.22)
+      ctx.fillRect(-s * 0.4 + i * s * 0.35, s * 0.2, s * 0.2, s * 0.22)
     }
+    ctx.fillStyle = '#1e3a8a'
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.75, -s * 0.3)
+    ctx.lineTo(0, -s * 0.95)
+    ctx.lineTo(s * 0.75, -s * 0.3)
+    ctx.closePath()
+    ctx.fill()
     return
   }
   if (type === 'landmark' && kind === 'heal') {
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2
+    ctx.fillStyle = color
     ctx.beginPath()
-    ctx.ellipse(0, s * 0.15, s * 0.7, s * 0.35, 0, 0, Math.PI * 2)
-    ctx.stroke()
+    ctx.ellipse(0, s * 0.1, s * 0.75, s * 0.4, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'
     ctx.beginPath()
-    ctx.moveTo(-s * 0.2, -s * 0.4)
-    ctx.quadraticCurveTo(0, -s * 0.9, s * 0.2, -s * 0.4)
-    ctx.stroke()
+    ctx.ellipse(-s * 0.15, 0, s * 0.25, s * 0.15, 0, 0, Math.PI * 2)
+    ctx.fill()
     return
   }
   if (type === 'landmark') {
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2
+    ctx.fillStyle = color
     ctx.beginPath()
-    ctx.arc(0, 0, s * 0.65, 0, Math.PI * 2)
-    ctx.stroke()
+    ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
     ctx.beginPath()
-    ctx.arc(-s * 0.15, -s * 0.15, s * 0.2, 0, Math.PI * 2)
-    ctx.stroke()
+    ctx.arc(-s * 0.15, -s * 0.15, s * 0.25, 0, Math.PI * 2)
+    ctx.fill()
     return
   }
-  ctx.strokeStyle = color
-  ctx.lineWidth = 2
+  ctx.fillStyle = color
   ctx.beginPath()
   ctx.arc(0, 0, s * 0.45, 0, Math.PI * 2)
-  ctx.stroke()
+  ctx.fill()
 }
 
 export function drawGolfGreen(ctx: CanvasRenderingContext2D, size: number) {
-  ctx.strokeStyle = '#4ade80'
-  ctx.lineWidth = 2
+  ctx.fillStyle = '#4ade80'
   ctx.beginPath()
   ctx.ellipse(0, 8, size * 1.1, size * 0.7, 0, 0, Math.PI * 2)
-  ctx.stroke()
+  ctx.fill()
   ctx.strokeStyle = '#166534'
-  ctx.beginPath()
-  ctx.moveTo(0, -size * 0.9)
-  ctx.lineTo(0, 8)
+  ctx.lineWidth = 2
   ctx.stroke()
+  ctx.fillStyle = '#f8fafc'
+  ctx.fillRect(-2, -size * 0.9, 4, size * 0.95)
+  ctx.fillStyle = '#f43f5e'
   ctx.beginPath()
   ctx.moveTo(2, -size * 0.9)
   ctx.lineTo(size * 0.55, -size * 0.7)
   ctx.lineTo(2, -size * 0.5)
   ctx.closePath()
-  ctx.strokeStyle = '#f43f5e'
-  ctx.stroke()
+  ctx.fill()
 }
 
 export function drawForestDecor(
@@ -573,28 +554,24 @@ export function drawForestDecor(
   ]
   for (const [tx, ty] of trees) {
     if (tx < camX - 40 || tx > camX + width + 40 || ty < camY - 40 || ty > camY + height + 40) continue
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.4)'
-    ctx.lineWidth = 1.8
+    ctx.fillStyle = '#3f2a14'
+    ctx.fillRect(tx - 4, ty, 8, 18)
+    ctx.fillStyle = '#15803d'
     ctx.beginPath()
-    ctx.moveTo(tx, ty + 14)
-    ctx.lineTo(tx, ty - 4)
-    ctx.stroke()
+    ctx.arc(tx, ty - 8, 16, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#22c55e'
     ctx.beginPath()
-    ctx.arc(tx, ty - 12, 14, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(tx - 8, ty - 8, 8, 0, Math.PI * 2)
-    ctx.arc(tx + 9, ty - 10, 7, 0, Math.PI * 2)
-    ctx.stroke()
+    ctx.arc(tx - 6, ty - 14, 10, 0, Math.PI * 2)
+    ctx.arc(tx + 7, ty - 12, 9, 0, Math.PI * 2)
+    ctx.fill()
   }
 }
 
-/** Faint curved rim only — no yellow circle / filled rect branding. */
+/** Warm curved town floor (poly or soft rect) — not yellow circle branding. */
 export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObject) {
   const shape = String(obj.params?.shape || 'circle')
   ctx.save()
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.18)'
-  ctx.lineWidth = 2
   if (shape === 'poly') {
     const pts = parsePolyPts(obj.params?.pts)
     if (pts.length >= 3) {
@@ -602,22 +579,43 @@ export function drawStarTownFloor(ctx: CanvasRenderingContext2D, obj: WorldObjec
       ctx.moveTo(pts[0].x, pts[0].y)
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
       ctx.closePath()
+      const g = ctx.createLinearGradient(obj.x - 200, obj.y - 160, obj.x + 200, obj.y + 160)
+      g.addColorStop(0, 'rgba(254, 243, 199, 0.28)')
+      g.addColorStop(0.5, 'rgba(253, 230, 138, 0.2)')
+      g.addColorStop(1, 'rgba(167, 243, 208, 0.22)')
+      ctx.fillStyle = g
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)'
+      ctx.lineWidth = 3
       ctx.stroke()
     }
   } else if (shape === 'rect') {
     const { hw, hh } = zoneHalfSize(obj)
-    const r = Math.min(40, hw * 0.2, hh * 0.2)
+    const g = ctx.createLinearGradient(obj.x - hw, obj.y - hh, obj.x + hw, obj.y + hh)
+    g.addColorStop(0, 'rgba(254, 243, 199, 0.22)')
+    g.addColorStop(0.5, 'rgba(253, 230, 138, 0.16)')
+    g.addColorStop(1, 'rgba(167, 243, 208, 0.2)')
+    ctx.fillStyle = g
     ctx.beginPath()
+    const r = Math.min(36, hw * 0.18, hh * 0.18)
     ctx.moveTo(obj.x - hw + r, obj.y - hh)
-    ctx.quadraticCurveTo(obj.x, obj.y - hh - 12, obj.x + hw - r, obj.y - hh)
+    ctx.quadraticCurveTo(obj.x, obj.y - hh - 14, obj.x + hw - r, obj.y - hh)
     ctx.lineTo(obj.x + hw, obj.y - hh + r)
-    ctx.quadraticCurveTo(obj.x + hw + 12, obj.y, obj.x + hw, obj.y + hh - r)
+    ctx.quadraticCurveTo(obj.x + hw + 14, obj.y, obj.x + hw, obj.y + hh - r)
     ctx.lineTo(obj.x + hw - r, obj.y + hh)
-    ctx.quadraticCurveTo(obj.x, obj.y + hh + 12, obj.x - hw + r, obj.y + hh)
+    ctx.quadraticCurveTo(obj.x, obj.y + hh + 14, obj.x - hw + r, obj.y + hh)
     ctx.lineTo(obj.x - hw, obj.y + hh - r)
-    ctx.quadraticCurveTo(obj.x - hw - 12, obj.y, obj.x - hw, obj.y - hh + r)
+    ctx.quadraticCurveTo(obj.x - hw - 14, obj.y, obj.x - hw, obj.y - hh + r)
     ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'
+    ctx.lineWidth = 3
     ctx.stroke()
+  } else {
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'
+    ctx.beginPath()
+    ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2)
+    ctx.fill()
   }
   ctx.restore()
 }
