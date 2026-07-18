@@ -13,12 +13,12 @@ const TTL_MS: Record<GameToastKind, number> = {
   info: 3400,
 }
 
-const ACCENT: Record<GameToastKind, { bar: string; glow: string; icon: string }> = {
-  level: { bar: 'from-amber-300 via-yellow-200 to-amber-400', glow: 'rgba(251,191,36,0.45)', icon: 'text-amber-300' },
-  gold: { bar: 'from-yellow-500 to-amber-300', glow: 'rgba(245,158,11,0.35)', icon: 'text-amber-400' },
-  item: { bar: 'from-emerald-400 to-teal-300', glow: 'rgba(52,211,153,0.35)', icon: 'text-emerald-300' },
-  exp: { bar: 'from-sky-400 to-cyan-300', glow: 'rgba(56,189,248,0.3)', icon: 'text-sky-300' },
-  info: { bar: 'from-violet-400 to-fuchsia-300', glow: 'rgba(167,139,250,0.35)', icon: 'text-violet-300' },
+const ACCENT: Record<GameToastKind, { bar: string; icon: string }> = {
+  level: { bar: 'from-amber-300 via-yellow-200 to-amber-400', icon: 'text-amber-300' },
+  gold: { bar: 'from-yellow-500 to-amber-300', icon: 'text-amber-400' },
+  item: { bar: 'from-emerald-400 to-teal-300', icon: 'text-emerald-300' },
+  exp: { bar: 'from-sky-400 to-cyan-300', icon: 'text-sky-300' },
+  info: { bar: 'from-slate-300 to-slate-100', icon: 'text-slate-200' },
 }
 
 function ToastIcon({ kind }: { kind: GameToastKind }) {
@@ -43,32 +43,18 @@ function ToastCard({ toast }: { toast: GameToast }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 64, scale: 0.92 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 48, scale: 0.94, transition: { duration: 0.28, ease: 'easeIn' } }}
-      transition={{ type: 'spring', stiffness: 420, damping: 28, mass: 0.7 }}
-      className={`pointer-events-auto relative overflow-hidden rounded-md border border-white/10 backdrop-blur-xl ${
-        isLevel ? 'min-w-[280px] max-w-[340px]' : 'min-w-[240px] max-w-[300px]'
+      initial={{ opacity: 0, y: 18, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 10, scale: 0.97, transition: { duration: 0.22, ease: 'easeIn' } }}
+      transition={{ type: 'spring', stiffness: 320, damping: 26, mass: 0.75 }}
+      className={`pointer-events-auto rpg-panel relative overflow-hidden rounded-xl ${
+        isLevel ? 'min-w-[260px] max-w-[320px] rpg-panel-gold' : 'min-w-[220px] max-w-[280px]'
       }`}
-      style={{
-        background: 'linear-gradient(105deg, rgba(8,10,14,0.92) 0%, rgba(18,22,28,0.88) 55%, rgba(8,10,14,0.9) 100%)',
-        boxShadow: `0 12px 40px rgba(0,0,0,0.45), 0 0 24px ${accent.glow}`,
-      }}
     >
       <div className={`absolute left-0 top-0 h-full w-[3px] bg-gradient-to-b ${accent.bar}`} />
-      <motion.div
-        className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${accent.bar} opacity-70`}
-        initial={{ scaleX: 0, originX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-      />
 
-      <div className={`flex items-center gap-3 px-4 ${isLevel ? 'py-3.5' : 'py-2.5'}`}>
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/40 ${
-            isLevel ? 'ring-1 ring-amber-400/40' : ''
-          }`}
-        >
+      <div className={`flex items-center gap-3 px-3.5 ${isLevel ? 'py-3' : 'py-2'}`}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/35">
           <ToastIcon kind={toast.kind} />
         </div>
         <div className="min-w-0 flex-1">
@@ -101,7 +87,7 @@ export default function GameToasts() {
   const toasts = useGameStore((s) => s.toasts)
 
   return (
-    <div className="pointer-events-none absolute bottom-8 right-6 z-50 flex flex-col-reverse items-end gap-2.5">
+    <div className="pointer-events-none absolute bottom-24 right-5 z-50 flex flex-col-reverse items-end gap-2">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} />

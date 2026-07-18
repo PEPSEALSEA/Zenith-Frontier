@@ -141,7 +141,10 @@ export default function GameScene2D() {
   const [safeBanner, setSafeBanner] = useState(true)
   const requestRef = useRef<number>(0)
   const posRef = useRef({ x: player.position.x, y: player.position.y })
+  const camRef = useRef({ x: player.position.x, y: player.position.y })
+  const camReady = useRef(false)
   const lastTimeRef = useRef<number>(0)
+  const movingRef = useRef(false)
   const monstersRef = useRef<LivingMonster[]>([])
   const floatsRef = useRef<FloatText[]>([])
   const lastAttackHandled = useRef(0)
@@ -375,8 +378,8 @@ export default function GameScene2D() {
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
-        const camX = posRef.current.x - canvas.width / 2
-        const camY = posRef.current.y - canvas.height / 2
+        const camX = camRef.current.x - canvas.width / 2
+        const camY = camRef.current.y - canvas.height / 2
         const t = forgeSelection.type
         addWorldObject({
           id: `obj_${Date.now()}`,
@@ -466,6 +469,7 @@ export default function GameScene2D() {
 
     posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + dx * deltaTime))
     posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + dy * deltaTime))
+    movingRef.current = dx !== 0 || dy !== 0
 
     const playerSafe = isInSafeZone(posRef.current.x, posRef.current.y, objects)
 
@@ -473,12 +477,7 @@ export default function GameScene2D() {
       updatePosition(posRef.current.x, posRef.current.y)
       if (!isEditorMode) updateWorldCycle(0.0005 * deltaTime)
       const near = findNearbyInteractable(posRef.current.x, posRef.current.y, objects)
-      const nextHint =
-        near && !panelRef.current
-          ? `Press E — ${near.name}`
-          : playerSafe
-            ? 'Star Town · Safe Zone'
-            : 'Whisperwood Forest'
+      const nextHint = near && !panelRef.current ? `Press E — ${near.name}` : ''
       if (nextHint !== hintRef.current) {
         hintRef.current = nextHint
         setHint(nextHint)
@@ -601,7 +600,7 @@ export default function GameScene2D() {
 
         const d = dist(posRef.current.x, posRef.current.y, m.x, m.y)
         if (!playerSafe && d < CHASE_RANGE && d > 4) {
-          const speed = (m.spd * 0.35) * deltaTime
+          const speed = (m.spd * 0.32) * deltaTime
           const nx = m.x + ((posRef.current.x - m.x) / d) * speed
           const ny = m.y + ((posRef.current.y - m.y) / d) * speed
           if (!isInSafeZone(nx, ny, objects)) {
@@ -636,13 +635,22 @@ export default function GameScene2D() {
     const { width, height } = canvas
     ctx.clearRect(0, 0, width, height)
 
-    const camX = posRef.current.x - width / 2
-    const camY = posRef.current.y - height / 2
+    if (!camReady.current) {
+      camRef.current.x = posRef.current.x
+      camRef.current.y = posRef.current.y
+      camReady.current = true
+    }
+    const camLerp = 1 - Math.pow(0.86, deltaTime)
+    camRef.current.x += (posRef.current.x - camRef.current.x) * camLerp
+    camRef.current.y += (posRef.current.y - camRef.current.y) * camLerp
+
+    const camX = camRef.current.x - width / 2
+    const camY = camRef.current.y - height / 2
 
     ctx.save()
     ctx.translate(-camX, -camY)
 
-    const gradientBg = ctx.createRadialGradient(posRef.current.x, posRef.current.y, 40, posRef.current.x, posRef.current.y, 900)
+    const gradientBg = ctx.createRadialGradient(camRef.current.x, camRef.current.y, 40, camRef.current.x, camRef.current.y, 900)
     if (playerSafe) {
       gradientBg.addColorStop(0, '#1a1520')
       gradientBg.addColorStop(0.45, '#0f172a')
@@ -655,7 +663,7 @@ export default function GameScene2D() {
     ctx.fillStyle = gradientBg
     ctx.fillRect(camX, camY, width, height)
 
-    ctx.strokeStyle = isEditorMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 41, 59, 0.18)'
+    ctx.strokeStyle = isEditorMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 41, 59, 0.1)'
     ctx.lineWidth = 1
     for (let x = 0; x <= WORLD_SIZE; x += 100) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); ctx.stroke()
@@ -716,17 +724,28 @@ export default function GameScene2D() {
       } else {
         drawBuilding(ctx, obj.type === 'landmark' ? 'landmark' : obj.type, color, 26)
       }
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      const label = obj.name
       ctx.font = '600 10px Outfit, sans-serif'
+      const tw = ctx.measureText(label).width
+      ctx.beginPath()
+      ctx.roundRect(-tw / 2 - 6, -46, tw + 12, 16, 6)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,255,255,0.95)'
       ctx.textAlign = 'center'
-      ctx.fillText(obj.name, 0, -36)
+      ctx.fillText(label, 0, -34)
       ctx.restore()
     }
 
     for (const m of monstersRef.current) {
       if (m.deadUntil > now) continue
+      const mBob = Math.sin(time * 0.006 + m.x * 0.02) * 1.6
       ctx.save()
-      ctx.translate(m.x, m.y)
+      ctx.translate(m.x, m.y + mBob)
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'
+      ctx.beginPath()
+      ctx.ellipse(0, 14 - mBob, 14, 5, 0, 0, Math.PI * 2)
+      ctx.fill()
       if (m.flashUntil > now) ctx.globalAlpha = 0.5
       ctx.shadowBlur = 10
       ctx.shadowColor = m.color
@@ -738,20 +757,21 @@ export default function GameScene2D() {
       ctx.fillRect(-barW / 2, -30, barW, 5)
       ctx.fillStyle = pct > 0.35 ? '#86efac' : '#fb7185'
       ctx.fillRect(-barW / 2, -30, barW * pct, 5)
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'
       ctx.font = '600 9px Outfit, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(m.name, 0, -36)
       ctx.restore()
     }
 
+    const walkBob = Math.sin(time * (movingRef.current ? 0.018 : 0.007)) * (movingRef.current ? 2.8 : 1.2)
     const pX = posRef.current.x
-    const pY = posRef.current.y
+    const pY = posRef.current.y + walkBob
     const radius = isEditorMode ? 40 : 32
 
     if (isEditorMode) {
       ctx.beginPath()
-      ctx.arc(pX, pY, radius + 10, 0, Math.PI * 2)
+      ctx.arc(pX, posRef.current.y, radius + 10, 0, Math.PI * 2)
       ctx.strokeStyle = '#f59e0b'
       ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([])
     }
@@ -761,25 +781,30 @@ export default function GameScene2D() {
       const progress = attackAge / 350
       const ringRadius = (world.lastAttack.type === 'hard' ? profileRef.current.hard_range : profileRef.current.light_range) * (0.35 + progress * 0.65)
       ctx.beginPath()
-      ctx.arc(pX, pY, ringRadius, 0, Math.PI * 2)
+      ctx.arc(posRef.current.x, posRef.current.y, ringRadius, 0, Math.PI * 2)
       ctx.strokeStyle = world.lastAttack.type === 'hard' ? `rgba(239, 68, 68, ${1 - progress})` : `rgba(255, 255, 255, ${1 - progress})`
       ctx.lineWidth = 3 * (1 - progress); ctx.stroke()
     }
     if (world.lastSkillCast && Date.now() - world.lastSkillCast.time < 400 && !playerSafe) {
       const progress = (Date.now() - world.lastSkillCast.time) / 400
       ctx.beginPath()
-      ctx.arc(pX, pY, 40 + progress * 80, 0, Math.PI * 2)
+      ctx.arc(posRef.current.x, posRef.current.y, 40 + progress * 80, 0, Math.PI * 2)
       ctx.strokeStyle = `rgba(192, 132, 252, ${1 - progress})`
       ctx.lineWidth = 4
       ctx.stroke()
     }
 
-    ctx.shadowBlur = 30
     const playerColor = isForgeMode ? 'transparent' : (isEditorMode ? '#f59e0b' : (isDead ? '#64748b' : player.appearance.color))
-    ctx.shadowColor = playerColor
-    ctx.fillStyle = playerColor
 
     if (!isForgeMode) {
+      ctx.fillStyle = 'rgba(0,0,0,0.32)'
+      ctx.beginPath()
+      ctx.ellipse(posRef.current.x, posRef.current.y + radius * 0.55, radius * 0.72, radius * 0.22, 0, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.shadowBlur = 22
+      ctx.shadowColor = playerColor
+      ctx.fillStyle = playerColor
       ctx.globalAlpha = isDead ? 0.35 : 1
       ctx.beginPath(); ctx.arc(pX, pY, radius, 0, Math.PI * 2); ctx.fill()
 
@@ -794,26 +819,33 @@ export default function GameScene2D() {
 
     if (!isEditorMode && !isForgeMode) {
       ctx.textAlign = 'center'
-      const badgeY = pY - radius - 25
-      ctx.fillStyle = 'rgba(0,0,0,0.7)'
+      const badgeY = pY - radius - 22
+      ctx.fillStyle = 'rgba(0,0,0,0.72)'
       ctx.beginPath(); ctx.roundRect(pX - 18, badgeY - 10, 36, 18, 4); ctx.fill()
-      ctx.strokeStyle = playerSafe ? '#fbbf24' : '#10b981'; ctx.lineWidth = 1.5; ctx.stroke()
-      ctx.fillStyle = playerSafe ? '#fbbf24' : '#10b981'; ctx.font = '700 10px Oxanium, sans-serif'; ctx.fillText(`LV.${playerStatsRef.current.level}`, pX, badgeY + 3)
+      ctx.strokeStyle = playerSafe ? '#fbbf24' : '#34d399'; ctx.lineWidth = 1.5; ctx.stroke()
+      ctx.fillStyle = playerSafe ? '#fbbf24' : '#34d399'; ctx.font = '700 10px Oxanium, sans-serif'; ctx.fillText(`LV.${playerStatsRef.current.level}`, pX, badgeY + 3)
 
       ctx.font = '700 11px Oxanium, sans-serif'; ctx.fillStyle = 'white'
       ctx.shadowBlur = 4; ctx.shadowColor = 'black'
-      ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 22); ctx.shadowBlur = 0
+      ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 20); ctx.shadowBlur = 0
     }
 
-    floatsRef.current = floatsRef.current.filter((f) => now - f.born < 900)
+    floatsRef.current = floatsRef.current.filter((f) => now - f.born < 1100)
     for (const f of floatsRef.current) {
-      const age = (now - f.born) / 900
-      ctx.globalAlpha = 1 - age
+      const age = (now - f.born) / 1100
+      const rise = 1 - Math.pow(1 - Math.min(1, age), 2.2)
+      const pop = age < 0.15 ? 0.85 + (age / 0.15) * 0.35 : 1.05 - age * 0.2
+      ctx.save()
+      ctx.globalAlpha = Math.max(0, 1 - age * 1.05)
+      ctx.translate(f.x, f.y - rise * 52)
+      ctx.scale(pop, pop)
       ctx.fillStyle = f.color
-      ctx.font = '700 14px Oxanium, sans-serif'
+      ctx.font = '700 15px Oxanium, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(f.text, f.x, f.y - age * 40)
-      ctx.globalAlpha = 1
+      ctx.shadowBlur = 6
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'
+      ctx.fillText(f.text, 0, 0)
+      ctx.restore()
     }
 
     ctx.restore()
@@ -841,29 +873,29 @@ export default function GameScene2D() {
     <>
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 bg-[#020617] ${isEditorMode ? 'cursor-move' : 'cursor-crosshair'}`}
+        className={`absolute inset-0 bg-[#020617] ${isEditorMode ? 'cursor-move' : isForgeMode ? 'cursor-crosshair' : 'cursor-default'}`}
       />
       {!isEditorMode && !isForgeMode && (
-        <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex flex-col items-center gap-2 font-sans">
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 font-sans">
           <div
-            className={`rounded-full border px-4 py-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.16em] shadow-lg backdrop-blur-md ${
+            className={`rpg-panel rounded-full px-4 py-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-500 ${
               safeBanner
-                ? 'border-amber-300/40 bg-amber-500/15 text-amber-100'
-                : 'border-emerald-400/30 bg-emerald-900/40 text-emerald-100'
+                ? 'rpg-panel-gold text-amber-100'
+                : 'border-emerald-400/25 text-emerald-100'
             }`}
           >
             {safeBanner ? '★ Star Town — Safe Zone' : 'Whisperwood Forest'}
           </div>
-          {hint && (
-            <div className="rounded-lg border border-white/10 bg-black/55 px-3.5 py-1.5 text-xs font-medium tracking-wide text-white/85 backdrop-blur-sm">
+          {hint ? (
+            <div className="rpg-panel animate-soft-bob rounded-xl border-amber-300/25 px-4 py-1.5 text-xs font-semibold tracking-wide text-amber-50 shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
               {hint}
             </div>
-          )}
+          ) : null}
         </div>
       )}
       {panel && (
-        <div className="pointer-events-auto absolute inset-0 z-30 flex items-end justify-center pb-24 font-sans sm:items-center sm:pb-0">
-          <div className="mx-4 w-full max-w-md rounded-2xl border border-amber-200/20 bg-[#1a1520]/95 p-5 shadow-2xl backdrop-blur-xl">
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-end justify-center bg-black/25 pb-24 font-sans backdrop-blur-[2px] sm:items-center sm:pb-0">
+          <div className="rpg-panel rpg-panel-gold mx-4 w-full max-w-md rounded-2xl p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300/80">Star Town</p>
             <h3 className="mt-1 font-display text-2xl font-bold tracking-tight text-amber-50">{panel.title}</h3>
             <p className="mt-3 text-sm leading-relaxed text-white/75">{panel.body}</p>
@@ -874,14 +906,14 @@ export default function GameScene2D() {
               <button
                 type="button"
                 onClick={() => void runInteract()}
-                className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 font-display text-sm font-bold text-stone-900 hover:bg-amber-300"
+                className="flex-1 rounded-xl bg-amber-400 px-4 py-2.5 font-display text-sm font-bold text-stone-900 transition hover:bg-amber-300 active:scale-[0.98]"
               >
                 {panel.kind === 'talk' || panel.kind === 'golf' ? 'OK (E)' : 'Confirm (E)'}
               </button>
               <button
                 type="button"
                 onClick={() => setPanel(null)}
-                className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5"
+                className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5"
               >
                 Close
               </button>
