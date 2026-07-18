@@ -317,10 +317,18 @@ const WORLD_BOSSES: Params[] = [
 ];
 
 const MONSTERS: Params[] = [
-  { monster_id: 'MON_001', name: 'Slime', hp: '40', atk: '6', def: '1', spd: '6', skills: '', drops: 'EQ_004', appearance: '#22c55e|ghost' },
-  { monster_id: 'MON_002', name: 'Forest Wolf', hp: '70', atk: '12', def: '4', spd: '14', skills: '', drops: 'EQ_001,EQ_SCR_001', appearance: '#a3a3a3|skull' },
+  { monster_id: 'MON_001', name: 'Moss Slime', hp: '40', atk: '6', def: '1', spd: '6', skills: '', drops: 'EQ_004', appearance: '#22c55e|slime' },
+  { monster_id: 'MON_002', name: 'Forest Wolf', hp: '70', atk: '12', def: '4', spd: '14', skills: '', drops: 'EQ_001,EQ_SCR_001', appearance: '#a3a3a3|wolf' },
   { monster_id: 'MON_003', name: 'Fluff Rabbit', hp: '28', atk: '4', def: '1', spd: '14', skills: 'hop', drops: 'EQ_004', appearance: '#fda4af|bunny' },
   { monster_id: 'MON_004', name: 'Sleepy Sloth', hp: '55', atk: '7', def: '3', spd: '4', skills: 'spit', drops: 'EQ_004,EQ_SCR_002', appearance: '#a8a29e|sloth' },
+  { monster_id: 'MON_005', name: 'Moss Fox', hp: '42', atk: '9', def: '2', spd: '16', skills: 'hop', drops: 'EQ_004', appearance: '#fb923c|fox' },
+  { monster_id: 'MON_006', name: 'Puddle Frog', hp: '36', atk: '5', def: '2', spd: '10', skills: 'spit', drops: 'EQ_004', appearance: '#4ade80|frog' },
+  { monster_id: 'MON_007', name: 'Pine Squirrel', hp: '24', atk: '5', def: '1', spd: '18', skills: 'hop', drops: 'EQ_004', appearance: '#c2410c|squirrel' },
+  { monster_id: 'MON_008', name: 'Ember Bird', hp: '32', atk: '8', def: '1', spd: '20', skills: '', drops: 'EQ_004', appearance: '#f87171|bird' },
+  { monster_id: 'MON_009', name: 'Bark Boar', hp: '80', atk: '14', def: '5', spd: '8', skills: '', drops: 'EQ_001', appearance: '#78716c|boar' },
+  { monster_id: 'MON_010', name: 'Honey Bear', hp: '95', atk: '13', def: '6', spd: '7', skills: '', drops: 'EQ_001,EQ_004', appearance: '#92400e|bear' },
+  { monster_id: 'MON_011', name: 'Spore Cap', hp: '45', atk: '7', def: '3', spd: '5', skills: 'spit', drops: 'EQ_004', appearance: '#dc2626|mushroom' },
+  { monster_id: 'MON_012', name: 'Leaf Beetle', hp: '38', atk: '8', def: '4', spd: '11', skills: '', drops: 'EQ_004', appearance: '#65a30d|beetle' },
 ];
 
 const DIALOGUE: Params[] = [
@@ -385,6 +393,24 @@ const STAR_TOWN_MAP: Params[] = [
   { id: 'forest_rabbit_2', type: 'monster', x: '2400', y: '1500', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
   { id: 'forest_bunny_3', type: 'monster', x: '1950', y: '900', z: '1', name: 'Fluff Rabbit', radius: '30', params: 'entity_id=MON_003' },
   { id: 'forest_sloth_1', type: 'monster', x: '2600', y: '700', z: '1', name: 'Sleepy Sloth', radius: '34', params: 'entity_id=MON_004' },
+  { id: 'forest_slime_1', type: 'monster', x: '1550', y: '1100', z: '1', name: 'Moss Slime', radius: '30', params: 'entity_id=MON_001' },
+  { id: 'forest_slime_2', type: 'monster', x: '2200', y: '450', z: '1', name: 'Moss Slime', radius: '30', params: 'entity_id=MON_001' },
+  { id: 'forest_wolf_1', type: 'monster', x: '2500', y: '1200', z: '1', name: 'Forest Wolf', radius: '34', params: 'entity_id=MON_002' },
+  { id: 'forest_wolf_2', type: 'monster', x: '1700', y: '1600', z: '1', name: 'Forest Wolf', radius: '34', params: 'entity_id=MON_002' },
+  { id: 'forest_fox_1', type: 'monster', x: '1800', y: '550', z: '1', name: 'Moss Fox', radius: '30', params: 'entity_id=MON_005' },
+  { id: 'forest_fox_2', type: 'monster', x: '2300', y: '1700', z: '1', name: 'Moss Fox', radius: '30', params: 'entity_id=MON_005' },
+  { id: 'forest_frog_1', type: 'monster', x: '2050', y: '1250', z: '1', name: 'Puddle Frog', radius: '28', params: 'entity_id=MON_006' },
+  { id: 'forest_frog_2', type: 'monster', x: '1250', y: '750', z: '1', name: 'Puddle Frog', radius: '28', params: 'entity_id=MON_006' },
+  { id: 'forest_squirrel_1', type: 'monster', x: '1600', y: '400', z: '1', name: 'Pine Squirrel', radius: '26', params: 'entity_id=MON_007' },
+  { id: 'forest_squirrel_2', type: 'monster', x: '2700', y: '1400', z: '1', name: 'Pine Squirrel', radius: '26', params: 'entity_id=MON_007' },
+  { id: 'forest_bird_1', type: 'monster', x: '2100', y: '300', z: '1', name: 'Ember Bird', radius: '28', params: 'entity_id=MON_008' },
+  { id: 'forest_bird_2', type: 'monster', x: '1450', y: '1500', z: '1', name: 'Ember Bird', radius: '28', params: 'entity_id=MON_008' },
+  { id: 'forest_boar_1', type: 'monster', x: '2450', y: '900', z: '1', name: 'Bark Boar', radius: '36', params: 'entity_id=MON_009' },
+  { id: 'forest_bear_1', type: 'monster', x: '1900', y: '1550', z: '1', name: 'Honey Bear', radius: '38', params: 'entity_id=MON_010' },
+  { id: 'forest_mushroom_1', type: 'monster', x: '1300', y: '1200', z: '1', name: 'Spore Cap', radius: '28', params: 'entity_id=MON_011' },
+  { id: 'forest_mushroom_2', type: 'monster', x: '2550', y: '500', z: '1', name: 'Spore Cap', radius: '28', params: 'entity_id=MON_011' },
+  { id: 'forest_beetle_1', type: 'monster', x: '1750', y: '1050', z: '1', name: 'Leaf Beetle', radius: '26', params: 'entity_id=MON_012' },
+  { id: 'forest_beetle_2', type: 'monster', x: '2150', y: '1450', z: '1', name: 'Leaf Beetle', radius: '26', params: 'entity_id=MON_012' },
 ];
 
 type Catalog = { sheet: string; pk: string; rows: Params[]; mode: 'insert' | 'upsert' };

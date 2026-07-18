@@ -357,6 +357,186 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
     radius: 34,
     params: { entity_id: 'MON_004' },
   },
+  {
+    id: 'forest_slime_1',
+    type: 'monster',
+    x: 1550,
+    y: 1100,
+    z: 1,
+    name: 'Moss Slime',
+    radius: 30,
+    params: { entity_id: 'MON_001' },
+  },
+  {
+    id: 'forest_slime_2',
+    type: 'monster',
+    x: 2200,
+    y: 450,
+    z: 1,
+    name: 'Moss Slime',
+    radius: 30,
+    params: { entity_id: 'MON_001' },
+  },
+  {
+    id: 'forest_wolf_1',
+    type: 'monster',
+    x: 2500,
+    y: 1200,
+    z: 1,
+    name: 'Forest Wolf',
+    radius: 34,
+    params: { entity_id: 'MON_002' },
+  },
+  {
+    id: 'forest_wolf_2',
+    type: 'monster',
+    x: 1700,
+    y: 1600,
+    z: 1,
+    name: 'Forest Wolf',
+    radius: 34,
+    params: { entity_id: 'MON_002' },
+  },
+  {
+    id: 'forest_fox_1',
+    type: 'monster',
+    x: 1800,
+    y: 550,
+    z: 1,
+    name: 'Moss Fox',
+    radius: 30,
+    params: { entity_id: 'MON_005' },
+  },
+  {
+    id: 'forest_fox_2',
+    type: 'monster',
+    x: 2300,
+    y: 1700,
+    z: 1,
+    name: 'Moss Fox',
+    radius: 30,
+    params: { entity_id: 'MON_005' },
+  },
+  {
+    id: 'forest_frog_1',
+    type: 'monster',
+    x: 2050,
+    y: 1250,
+    z: 1,
+    name: 'Puddle Frog',
+    radius: 28,
+    params: { entity_id: 'MON_006' },
+  },
+  {
+    id: 'forest_frog_2',
+    type: 'monster',
+    x: 1250,
+    y: 750,
+    z: 1,
+    name: 'Puddle Frog',
+    radius: 28,
+    params: { entity_id: 'MON_006' },
+  },
+  {
+    id: 'forest_squirrel_1',
+    type: 'monster',
+    x: 1600,
+    y: 400,
+    z: 1,
+    name: 'Pine Squirrel',
+    radius: 26,
+    params: { entity_id: 'MON_007' },
+  },
+  {
+    id: 'forest_squirrel_2',
+    type: 'monster',
+    x: 2700,
+    y: 1400,
+    z: 1,
+    name: 'Pine Squirrel',
+    radius: 26,
+    params: { entity_id: 'MON_007' },
+  },
+  {
+    id: 'forest_bird_1',
+    type: 'monster',
+    x: 2100,
+    y: 300,
+    z: 1,
+    name: 'Ember Bird',
+    radius: 28,
+    params: { entity_id: 'MON_008' },
+  },
+  {
+    id: 'forest_bird_2',
+    type: 'monster',
+    x: 1450,
+    y: 1500,
+    z: 1,
+    name: 'Ember Bird',
+    radius: 28,
+    params: { entity_id: 'MON_008' },
+  },
+  {
+    id: 'forest_boar_1',
+    type: 'monster',
+    x: 2450,
+    y: 900,
+    z: 1,
+    name: 'Bark Boar',
+    radius: 36,
+    params: { entity_id: 'MON_009' },
+  },
+  {
+    id: 'forest_bear_1',
+    type: 'monster',
+    x: 1900,
+    y: 1550,
+    z: 1,
+    name: 'Honey Bear',
+    radius: 38,
+    params: { entity_id: 'MON_010' },
+  },
+  {
+    id: 'forest_mushroom_1',
+    type: 'monster',
+    x: 1300,
+    y: 1200,
+    z: 1,
+    name: 'Spore Cap',
+    radius: 28,
+    params: { entity_id: 'MON_011' },
+  },
+  {
+    id: 'forest_mushroom_2',
+    type: 'monster',
+    x: 2550,
+    y: 500,
+    z: 1,
+    name: 'Spore Cap',
+    radius: 28,
+    params: { entity_id: 'MON_011' },
+  },
+  {
+    id: 'forest_beetle_1',
+    type: 'monster',
+    x: 1750,
+    y: 1050,
+    z: 1,
+    name: 'Leaf Beetle',
+    radius: 26,
+    params: { entity_id: 'MON_012' },
+  },
+  {
+    id: 'forest_beetle_2',
+    type: 'monster',
+    x: 2150,
+    y: 1450,
+    z: 1,
+    name: 'Leaf Beetle',
+    radius: 26,
+    params: { entity_id: 'MON_012' },
+  },
 ]
 
 export const PLACEABLE_TYPES: { type: WorldObjectType; label: string; color: string }[] = [
@@ -422,6 +602,272 @@ export function drawCuteCritter(
     ctx.beginPath()
     ctx.arc(0, r * 0.2, r * 0.22, 0.15 * Math.PI, 0.85 * Math.PI)
     ctx.stroke()
+    return
+  }
+  if (face === 'slime' || face === 'ghost') {
+    ctx.beginPath()
+    ctx.moveTo(-r * 0.9, r * 0.55)
+    ctx.quadraticCurveTo(-r * 1.05, -r * 0.2, -r * 0.35, -r * 0.85)
+    ctx.quadraticCurveTo(0, -r * 1.05, r * 0.35, -r * 0.85)
+    ctx.quadraticCurveTo(r * 1.05, -r * 0.2, r * 0.9, r * 0.55)
+    ctx.quadraticCurveTo(r * 0.45, r * 0.85, 0, r * 0.7)
+    ctx.quadraticCurveTo(-r * 0.45, r * 0.85, -r * 0.9, r * 0.55)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'
+    ctx.beginPath()
+    ctx.ellipse(-r * 0.25, -r * 0.35, r * 0.22, r * 0.28, -0.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.28, -r * 0.05, r * 0.12, 0, Math.PI * 2)
+    ctx.arc(r * 0.28, -r * 0.05, r * 0.12, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.arc(-r * 0.24, -r * 0.1, r * 0.04, 0, Math.PI * 2)
+    ctx.arc(r * 0.32, -r * 0.1, r * 0.04, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'wolf' || face === 'skull') {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.85, r * 0.75, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(-r * 0.75, -r * 0.35)
+    ctx.lineTo(-r * 0.95, -r * 1.05)
+    ctx.lineTo(-r * 0.25, -r * 0.55)
+    ctx.closePath()
+    ctx.moveTo(r * 0.75, -r * 0.35)
+    ctx.lineTo(r * 0.95, -r * 1.05)
+    ctx.lineTo(r * 0.25, -r * 0.55)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = shade(color, 0.25)
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.25, r * 0.42, r * 0.32, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.28, -r * 0.08, r * 0.1, 0, Math.PI * 2)
+    ctx.arc(r * 0.28, -r * 0.08, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#1c1917'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.28, r * 0.12, r * 0.08, 0, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'fox') {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.8, r * 0.72, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(-r * 0.7, -r * 0.3)
+    ctx.lineTo(-r * 0.55, -r * 1.1)
+    ctx.lineTo(-r * 0.15, -r * 0.45)
+    ctx.closePath()
+    ctx.moveTo(r * 0.7, -r * 0.3)
+    ctx.lineTo(r * 0.55, -r * 1.1)
+    ctx.lineTo(r * 0.15, -r * 0.45)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#fff7ed'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.22, r * 0.38, r * 0.28, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.26, -r * 0.05, r * 0.09, 0, Math.PI * 2)
+    ctx.arc(r * 0.26, -r * 0.05, r * 0.09, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.moveTo(0, r * 0.12)
+    ctx.lineTo(-r * 0.1, r * 0.28)
+    ctx.lineTo(r * 0.1, r * 0.28)
+    ctx.closePath()
+    ctx.fill()
+    return
+  }
+  if (face === 'frog') {
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.1, r * 0.95, r * 0.7, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(-r * 0.42, -r * 0.45, r * 0.32, 0, Math.PI * 2)
+    ctx.arc(r * 0.42, -r * 0.45, r * 0.32, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.arc(-r * 0.42, -r * 0.45, r * 0.18, 0, Math.PI * 2)
+    ctx.arc(r * 0.42, -r * 0.45, r * 0.18, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.42, -r * 0.42, r * 0.09, 0, Math.PI * 2)
+    ctx.arc(r * 0.42, -r * 0.42, r * 0.09, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#14532d'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(0, r * 0.25, r * 0.35, 0.1 * Math.PI, 0.9 * Math.PI)
+    ctx.stroke()
+    return
+  }
+  if (face === 'bird') {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.8, r * 0.75, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(0, -r * 0.9)
+    ctx.lineTo(-r * 0.2, -r * 0.35)
+    ctx.lineTo(r * 0.2, -r * 0.35)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#f59e0b'
+    ctx.beginPath()
+    ctx.moveTo(r * 0.55, 0)
+    ctx.lineTo(r * 1.15, r * 0.08)
+    ctx.lineTo(r * 0.55, r * 0.22)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.2, -r * 0.1, r * 0.1, 0, Math.PI * 2)
+    ctx.arc(r * 0.15, -r * 0.1, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'squirrel') {
+    ctx.beginPath()
+    ctx.ellipse(r * 0.55, -r * 0.1, r * 0.45, r * 0.85, 0.4, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.75, r * 0.7, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(-r * 0.45, -r * 0.7, r * 0.22, r * 0.32, -0.3, 0, Math.PI * 2)
+    ctx.ellipse(r * 0.35, -r * 0.7, r * 0.22, r * 0.32, 0.3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.22, -r * 0.05, r * 0.09, 0, Math.PI * 2)
+    ctx.arc(r * 0.22, -r * 0.05, r * 0.09, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fb7185'
+    ctx.beginPath()
+    ctx.arc(0, r * 0.18, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'boar') {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.95, r * 0.75, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(-r * 0.55, -r * 0.55, r * 0.2, r * 0.28, -0.2, 0, Math.PI * 2)
+    ctx.ellipse(r * 0.55, -r * 0.55, r * 0.2, r * 0.28, 0.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fce7f3'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.25, r * 0.4, r * 0.28, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#f8fafc'
+    ctx.beginPath()
+    ctx.moveTo(-r * 0.55, r * 0.15)
+    ctx.lineTo(-r * 0.85, r * 0.45)
+    ctx.lineTo(-r * 0.35, r * 0.35)
+    ctx.closePath()
+    ctx.moveTo(r * 0.55, r * 0.15)
+    ctx.lineTo(r * 0.85, r * 0.45)
+    ctx.lineTo(r * 0.35, r * 0.35)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.28, -r * 0.08, r * 0.1, 0, Math.PI * 2)
+    ctx.arc(r * 0.28, -r * 0.08, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'bear') {
+    ctx.beginPath()
+    ctx.arc(-r * 0.65, -r * 0.55, r * 0.32, 0, Math.PI * 2)
+    ctx.arc(r * 0.65, -r * 0.55, r * 0.32, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r * 0.95, r * 0.85, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fef3c7'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.2, r * 0.45, r * 0.35, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.3, -r * 0.1, r * 0.1, 0, Math.PI * 2)
+    ctx.arc(r * 0.3, -r * 0.1, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#1c1917'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.18, r * 0.14, r * 0.1, 0, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (face === 'mushroom') {
+    ctx.beginPath()
+    ctx.ellipse(0, -r * 0.35, r * 1.05, r * 0.7, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fef3c7'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.35, r * 0.55, r * 0.55, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.beginPath()
+    ctx.arc(-r * 0.35, -r * 0.45, r * 0.18, 0, Math.PI * 2)
+    ctx.arc(r * 0.4, -r * 0.25, r * 0.14, 0, Math.PI * 2)
+    ctx.arc(r * 0.05, -r * 0.65, r * 0.12, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.22, r * 0.25, r * 0.09, 0, Math.PI * 2)
+    ctx.arc(r * 0.22, r * 0.25, r * 0.09, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#92400e'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(0, r * 0.42, r * 0.18, 0.15 * Math.PI, 0.85 * Math.PI)
+    ctx.stroke()
+    return
+  }
+  if (face === 'beetle') {
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.1, r * 0.85, r * 0.95, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = shade(color, 0.35)
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(0, -r * 0.7)
+    ctx.lineTo(0, r * 0.9)
+    ctx.stroke()
+    ctx.fillStyle = shade(color, 0.2)
+    ctx.beginPath()
+    ctx.ellipse(0, -r * 0.55, r * 0.55, r * 0.4, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#1c1917'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(-r * 0.25, -r * 0.85)
+    ctx.lineTo(-r * 0.55, -r * 1.2)
+    ctx.moveTo(r * 0.25, -r * 0.85)
+    ctx.lineTo(r * 0.55, -r * 1.2)
+    ctx.stroke()
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.arc(-r * 0.22, -r * 0.55, r * 0.1, 0, Math.PI * 2)
+    ctx.arc(r * 0.22, -r * 0.55, r * 0.1, 0, Math.PI * 2)
+    ctx.fill()
     return
   }
   ctx.beginPath()
