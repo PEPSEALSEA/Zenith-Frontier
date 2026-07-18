@@ -80,6 +80,8 @@ export interface GameToast {
     title: string
     detail?: string
     createdAt: number
+    count: number
+    stackKey: string
 }
 
 export interface PlayerAppearance {
@@ -428,6 +430,27 @@ function mapSkillRows(rows: Record<string, string>[], ownedIds: Set<string>): Sk
     })
 }
 
+const STACKABLE_TOAST_KINDS = new Set<GameToastKind>(['gold', 'item', 'exp'])
+
+function toastStackKey(kind: GameToastKind, title: string, detail?: string): string {
+    if (kind === 'gold') return 'gold'
+    if (kind === 'exp') return 'exp'
+    if (kind === 'item') return `item:${title}`
+    return `${kind}:${title}:${detail || ''}`
+}
+
+function sumToastAmount(prevTitle: string, nextTitle: string, unit: string): string {
+    const a = Number((prevTitle.match(/[\d,]+/) || ['0'])[0].replace(/,/g, '')) || 0
+    const b = Number((nextTitle.match(/[\d,]+/) || ['0'])[0].replace(/,/g, '')) || 0
+    return `+${(a + b).toLocaleString()} ${unit}`
+}
+
+function mergeStackedTitle(kind: GameToastKind, prevTitle: string, nextTitle: string): string {
+    if (kind === 'gold') return sumToastAmount(prevTitle, nextTitle, 'Silver')
+    if (kind === 'exp') return sumToastAmount(prevTitle, nextTitle, 'EXP')
+    return nextTitle || prevTitle
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
     auth: {
         user: null,
@@ -666,13 +689,42 @@ export const useGameStore = create<GameState>((set, get) => ({
     })),
 
     pushToast: (toast) => {
-        const id = toast.id || `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-        set((state) => ({
-            toasts: [
-                ...state.toasts.slice(-7),
-                { id, kind: toast.kind, title: toast.title, detail: toast.detail, createdAt: Date.now() },
-            ],
-        }))
+        const stackKey = toastStackKey(toast.kind, toast.title, toast.detail)
+        const now = Date.now()
+        set((state) => {
+            if (STACKABLE_TOAST_KINDS.has(toast.kind)) {
+                const idx = state.toasts.findIndex((t) => t.stackKey === stackKey)
+                if (idx !== -1) {
+                    const existing = state.toasts[idx]
+                    const merged: GameToast = {
+                        ...existing,
+                        title: mergeStackedTitle(toast.kind, existing.title, toast.title),
+                        detail: toast.detail ?? existing.detail,
+                        count: existing.count + 1,
+                        createdAt: now,
+                    }
+                    const next = [...state.toasts]
+                    next.splice(idx, 1)
+                    next.push(merged)
+                    return { toasts: next.slice(-6) }
+                }
+            }
+            const id = toast.id || `toast_${now}_${Math.random().toString(36).slice(2, 7)}`
+            return {
+                toasts: [
+                    ...state.toasts.slice(-5),
+                    {
+                        id,
+                        kind: toast.kind,
+                        title: toast.title,
+                        detail: toast.detail,
+                        createdAt: now,
+                        count: 1,
+                        stackKey,
+                    },
+                ],
+            }
+        })
     },
 
     dismissToast: (id) => set((state) => ({

@@ -34,11 +34,12 @@ function ToastCard({ toast }: { toast: GameToast }) {
   const dismissToast = useGameStore((s) => s.dismissToast)
   const accent = ACCENT[toast.kind]
   const isLevel = toast.kind === 'level'
+  const ttl = TTL_MS[toast.kind]
 
   useEffect(() => {
-    const t = window.setTimeout(() => dismissToast(toast.id), TTL_MS[toast.kind])
+    const t = window.setTimeout(() => dismissToast(toast.id), ttl)
     return () => window.clearTimeout(t)
-  }, [toast.id, toast.kind, dismissToast])
+  }, [toast.id, toast.createdAt, ttl, dismissToast])
 
   return (
     <motion.div
@@ -54,8 +55,13 @@ function ToastCard({ toast }: { toast: GameToast }) {
       <div className={`absolute left-0 top-0 h-full w-[3px] bg-gradient-to-b ${accent.bar}`} />
 
       <div className={`flex items-center gap-3 px-3.5 ${isLevel ? 'py-3' : 'py-2'}`}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/35">
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/35">
           <ToastIcon kind={toast.kind} />
+          {toast.count > 1 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-md border border-white/20 bg-black/80 px-1 font-mono text-[9px] font-bold tabular-nums text-amber-200 shadow-sm">
+              ×{toast.count}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div
@@ -74,10 +80,11 @@ function ToastCard({ toast }: { toast: GameToast }) {
       </div>
 
       <motion.div
+        key={toast.createdAt}
         className={`absolute bottom-0 left-0 h-[2px] bg-gradient-to-r ${accent.bar}`}
         initial={{ width: '100%' }}
         animate={{ width: '0%' }}
-        transition={{ duration: TTL_MS[toast.kind] / 1000, ease: 'linear' }}
+        transition={{ duration: ttl / 1000, ease: 'linear' }}
       />
     </motion.div>
   )
