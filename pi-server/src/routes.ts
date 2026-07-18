@@ -365,8 +365,16 @@ function unlockSkill(db: Db, p: Params) {
   const level = parseInt(playerRow.level) || 1;
   const money = parseInt(playerRow.money) || 0;
 
+  const isSubJob = playerRow.sub_job_id === skill.job_id;
+  const isMainJob = playerRow.main_job_id === skill.job_id;
+  if (!isMainJob && !isSubJob && unlockType !== 'scroll') {
+    return 'ERROR|WRONG_JOB';
+  }
+  const maxTier = isSubJob && !isMainJob ? 2 : 3;
+  if (parseInt(skill.tier) > maxTier) return 'ERROR|SKILL_TIER_LOCKED_FOR_SUB_JOB';
+
   if (unlockType === 'starter') {
-    // free if same job or already main
+    // free if same job
   } else if (unlockType === 'mastery') {
     if (mastery < (parseInt(unlockValue) || 1)) return 'ERROR|MASTERY_TOO_LOW';
   } else if (unlockType === 'level') {
@@ -378,14 +386,6 @@ function unlockSkill(db: Db, p: Params) {
   } else if (unlockType === 'scroll') {
     return 'ERROR|USE_SCROLL_ITEM';
   }
-
-  const isSubJob = playerRow.sub_job_id === skill.job_id;
-  const isMainJob = playerRow.main_job_id === skill.job_id;
-  if (!isMainJob && !isSubJob && unlockType !== 'scroll') {
-    return 'ERROR|WRONG_JOB';
-  }
-  const maxTier = isSubJob && !isMainJob ? 2 : 3;
-  if (parseInt(skill.tier) > maxTier) return 'ERROR|SKILL_TIER_LOCKED_FOR_SUB_JOB';
 
   appendRow(db, 'PlayerSkills', {
     player_id: p.player_id,

@@ -553,7 +553,22 @@ export const useGameStore = create<GameState>((set, get) => ({
             skills: [],
         }
         const ownedRows = await gasService.getPlayerSkills(email)
-        const ownedIds = ownedRows.map((r) => String(r.skill_id))
+        let ownedIds = ownedRows.map((r) => String(r.skill_id)).filter(Boolean)
+        let skillSlots = hydrated.skill_slots
+        if (ownedIds.length === 0 && hydrated.main_job_id) {
+            await gasService.setMainJob(email, hydrated.main_job_id)
+            const granted = await gasService.getPlayerSkills(email)
+            ownedIds = granted.map((r) => String(r.skill_id)).filter(Boolean)
+            const refreshed = await gasService.getPlayer(email)
+            if (refreshed) {
+                skillSlots = [
+                    String(refreshed.skill_slot_1 || ''),
+                    String(refreshed.skill_slot_2 || ''),
+                    String(refreshed.skill_slot_3 || ''),
+                    String(refreshed.skill_slot_4 || ''),
+                ]
+            }
+        }
         const catalog = mapSkillRows(await gasService.getAllSkills(), new Set(ownedIds))
         const equipmentRows = await gasService.getAllEquipment()
         const equipmentCatalog = mapEquipmentRows(equipmentRows as Record<string, string>[])
@@ -586,7 +601,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                     luk: hydrated.luk,
                 },
                 statPoints: hydrated.stat_points,
-                skillSlots: hydrated.skill_slots,
+                skillSlots: skillSlots,
                 itemSlots: loadItemSlots(email),
                 ownedSkillIds: ownedIds,
                 skillCatalog: catalog,
@@ -765,14 +780,28 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     castSkillSlot: (slot) => {
         const state = get()
+        const { pushToast } = state
         const skillId = state.player.skillSlots[slot - 1]
-        if (!skillId) return false
+        if (!skillId) {
+            pushToast({ kind: 'info', title: `Skill ${slot}`, detail: 'Empty — equip in Skills' })
+            return false
+        }
         const skill = state.player.skillCatalog.find((s) => s.skill_id === skillId)
-        if (!skill) return false
+        if (!skill) {
+            pushToast({ kind: 'info', title: `Skill ${slot}`, detail: 'Skill data missing — reopen Skills' })
+            return false
+        }
         const now = Date.now()
         const cdUntil = state.player.skillCooldowns[skillId] || 0
-        if (now < cdUntil) return false
-        if (state.player.stats.mp < skill.mp_cost) return false
+        if (now < cdUntil) {
+            const left = ((cdUntil - now) / 1000).toFixed(1)
+            pushToast({ kind: 'info', title: skill.skill_name, detail: `Cooldown ${left}s` })
+            return false
+        }
+        if (state.player.stats.mp < skill.mp_cost) {
+            pushToast({ kind: 'info', title: skill.skill_name, detail: `Need ${skill.mp_cost} MP` })
+            return false
+        }
         set((s) => ({
             player: {
                 ...s.player,
@@ -825,13 +854,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     setSkillSlot: async (slot, skillId) => {
-        const { auth, player } = get()
-        if (skillId && !player.ownedSkillIds.includes(skillId)) return false
+        const { auth, player, pushToast } = get()
+        if (skillId && !player.ownedSkillIds.includes(skillId)) {
+            pushToast({ kind: 'info', title: 'Cannot equip', detail: 'Unlock this skill first' })
+            return false
+        }
         const email = auth.user?.email
         if (email) {
-            const { gasService } = await import('@/services/gasService')
+            const { gasService, formatGasError } = await import('@/services/gasService')
             const res = await gasService.setSkillLoadout(email, slot, skillId)
-            if (!res.startsWith('OK|')) return false
+            if (!res.startsWith('OK|')) {
+                pushToast({ kind: 'info', title: 'Equip failed', detail: formatGasError(res) })
+                return false
+            }
         }
         set((state) => {
             const slots = [...state.player.skillSlots] as [string, string, string, string]
@@ -841,6 +876,14 @@ export const useGameStore = create<GameState>((set, get) => ({
             slots[slot - 1] = skillId
             return { player: { ...state.player, skillSlots: slots } }
         })
+        if (skillId) {
+            const sk = get().player.skillCatalog.find((s) => s.skill_id === skillId)
+            pushToast({
+                kind: 'info',
+                title: sk?.skill_name || skillId,
+                detail: `Equipped to slot ${slot}`,
+            })
+        }
         return true
     },
 
@@ -965,16 +1008,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     unlockSkill: async (skillId) => {
         const { auth, pushToast } = get()
         const email = auth.user?.email
-        if (!email) return false
-        const { gasService } = await import('@/services/gasService')
+        if (!email) {
+            pushToast({ kind: 'info', title: 'Unlock failed', detail: 'Not signed in' })
+            return false
+        }
+        const { gasService, formatGasError } = await import('@/services/gasService')
         const res = await gasService.unlockSkill(email, skillId)
-        if (!res.startsWith('OK|')) return false
+        if (!res.startsWith('OK|')) {
+            pushToast({ kind: 'info', title: 'Unlock failed', detail: formatGasError(res) })
+            return false
+        }
         await get().refreshSkills()
         const sk = get().player.skillCatalog.find((s) => s.skill_id === skillId)
         pushToast({
             kind: 'info',
             title: sk?.skill_name || skillId,
-            detail: 'Skill unlocked',
+            detail: sk?.unlock_type === 'gold' ? 'Purchased' : 'Skill unlocked',
         })
         const player = await gasService.getPlayer(email)
         if (player?.money !== undefined) {
@@ -991,10 +1040,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     useSkillScroll: async (itemId) => {
         const { auth, pushToast } = get()
         const email = auth.user?.email
-        if (!email) return false
-        const { gasService } = await import('@/services/gasService')
+        if (!email) {
+            pushToast({ kind: 'info', title: 'Scroll failed', detail: 'Not signed in' })
+            return false
+        }
+        const { gasService, formatGasError } = await import('@/services/gasService')
         const res = await gasService.useSkillScroll(email, itemId)
-        if (!res.startsWith('OK|')) return false
+        if (!res.startsWith('OK|')) {
+            pushToast({ kind: 'info', title: 'Scroll failed', detail: formatGasError(res) })
+            return false
+        }
         const skillId = res.split('|')[2] || ''
         set((state) => ({
             player: {
@@ -1047,8 +1102,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         const email = auth.user?.email
         if (!email) return
         const { gasService } = await import('@/services/gasService')
-        const ownedRows = await gasService.getPlayerSkills(email)
-        const ownedIds = ownedRows.map((r) => String(r.skill_id))
+        let ownedRows = await gasService.getPlayerSkills(email)
+        let ownedIds = ownedRows.map((r) => String(r.skill_id)).filter(Boolean)
+        const jobId = get().player.jobs.main?.id
+        if (ownedIds.length === 0 && jobId) {
+            await gasService.setMainJob(email, jobId)
+            ownedRows = await gasService.getPlayerSkills(email)
+            ownedIds = ownedRows.map((r) => String(r.skill_id)).filter(Boolean)
+        }
         const catalog = mapSkillRows(await gasService.getAllSkills(), new Set(ownedIds))
         const player = await gasService.getPlayer(email)
         set((state) => ({

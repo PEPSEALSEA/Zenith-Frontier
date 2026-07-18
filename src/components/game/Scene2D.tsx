@@ -224,6 +224,9 @@ export default function GameScene2D() {
   const panelRef = useRef<PanelState>(null)
   const hintRef = useRef('')
   const safeRef = useRef(true)
+  const facingRef = useRef(1)
+  const buffRef = useRef({ atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 })
+  const skillKeyLatch = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     playerStatsRef.current = player.stats
@@ -425,8 +428,21 @@ export default function GameScene2D() {
         }
         const slot = slotMap[e.code]
         if (slot) {
-          if (isInSafeZone(posRef.current.x, posRef.current.y, world.objects)) return
+          if (skillKeyLatch.current.has(e.code)) return
+          skillKeyLatch.current.add(e.code)
           if (deadUntilRef.current > Date.now()) return
+          const state = useGameStore.getState()
+          const skillId = state.player.skillSlots[slot - 1]
+          const skill = state.player.skillCatalog.find((s) => s.skill_id === skillId)
+          const inSafe = isInSafeZone(posRef.current.x, posRef.current.y, world.objects)
+          if (inSafe && skill?.skill_type === 'damage') {
+            state.pushToast({
+              kind: 'info',
+              title: skill.skill_name,
+              detail: 'Leave town to use combat skills',
+            })
+            return
+          }
           castSkillSlot(slot)
         }
         if (e.code === 'KeyZ' || e.code === 'KeyX') {
@@ -443,6 +459,7 @@ export default function GameScene2D() {
     const handleKeyUp = (e: KeyboardEvent) => {
       setKeys((prev) => ({ ...prev, [e.code]: false }))
       if (e.code === 'KeyE') eLatch.current = false
+      skillKeyLatch.current.delete(e.code)
     }
     const handleMouseDown = (e: MouseEvent) => {
       if (isForgeMode && forgeSelection) {
@@ -543,8 +560,16 @@ export default function GameScene2D() {
     posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + dx * deltaTime))
     posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + dy * deltaTime))
     movingRef.current = dx !== 0 || dy !== 0
+    if (dx > 0) facingRef.current = 1
+    else if (dx < 0) facingRef.current = -1
 
     const playerSafe = isInSafeZone(posRef.current.x, posRef.current.y, objects)
+    if (buffRef.current.until > 0 && now > buffRef.current.until) {
+      buffRef.current = { atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 }
+    }
+    const buff = buffRef.current.until > now ? buffRef.current : { atkMul: 1, defMul: 1, rangeAdd: 0, until: 0 }
+    const atkNow = playerStatsRef.current.atk * buff.atkMul
+    const defNow = playerStatsRef.current.def * buff.defMul
 
     if (time % 50 < 16) {
       updatePosition(posRef.current.x, posRef.current.y)
@@ -570,14 +595,14 @@ export default function GameScene2D() {
       now - lastAtk.time < atkCd + 50
     ) {
       lastAttackHandled.current = lastAtk.time
-      const range = lastAtk.type === 'hard' ? profile.hard_range : profile.light_range
+      const range = (lastAtk.type === 'hard' ? profile.hard_range : profile.light_range) + buff.rangeAdd
       const mult = lastAtk.type === 'hard' ? profile.hard_mult : profile.light_mult
       const hits = Math.max(1, profile.hits || 1)
       for (const m of monstersRef.current) {
         if (m.deadUntil > now) continue
         if (dist(posRef.current.x, posRef.current.y, m.x, m.y) > range) continue
         for (let h = 0; h < hits; h++) {
-          const dmg = Math.max(1, Math.floor(playerStatsRef.current.atk * mult - m.def * 0.5))
+          const dmg = Math.max(1, Math.floor(atkNow * mult - m.def * 0.5))
           m.hp -= dmg
           m.flashUntil = now + 120
           pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#fbbf24')
@@ -599,7 +624,7 @@ export default function GameScene2D() {
 
     const lastSkill = world.lastSkillCast
     if (
-      !isEditorMode && !isForgeMode && !isDead && !playerSafe &&
+      !isEditorMode && !isForgeMode && !isDead &&
       lastSkill && lastSkill.time !== lastSkillHandled.current &&
       now - lastSkill.time < 400
     ) {
@@ -623,22 +648,33 @@ export default function GameScene2D() {
           pushFloat(posRef.current.x, posRef.current.y - 40, `+${healAmt}`, '#34d399')
           sfx.levelUp()
         } else if (skill.skill_type === 'dash') {
-          const facing = 1
+          const facing = facingRef.current
           posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + facing * (skill.range || 90)))
           pushFloat(posRef.current.x, posRef.current.y - 30, 'DASH', '#a78bfa')
         } else if (skill.skill_type === 'buff') {
+          const duration = 8000
+          const mul = Math.max(1.1, skill.power || 1.2)
+          if (skill.effect.includes('atk')) {
+            buffRef.current = { ...buffRef.current, atkMul: mul, until: now + duration }
+          } else if (skill.effect.includes('def')) {
+            buffRef.current = { ...buffRef.current, defMul: mul, until: now + duration }
+          } else if (skill.effect.includes('range')) {
+            buffRef.current = { ...buffRef.current, rangeAdd: 40, until: now + duration }
+          } else {
+            buffRef.current = { ...buffRef.current, atkMul: mul, until: now + duration }
+          }
           pushFloat(posRef.current.x, posRef.current.y - 40, skill.effect.toUpperCase() || 'BUFF', '#60a5fa')
-        } else {
+        } else if (!playerSafe) {
           const aoe = skill.effect.includes('aoe')
           const multi = /hits:(\d+)/.exec(skill.effect)
           const hitCount = multi ? parseInt(multi[1]) : 1
+          const skillRange = skill.range + buff.rangeAdd
           for (const m of monstersRef.current) {
             if (m.deadUntil > now) continue
             const d = dist(posRef.current.x, posRef.current.y, m.x, m.y)
-            if (d > skill.range) continue
-            if (!aoe && d > skill.range) continue
+            if (d > skillRange) continue
             for (let h = 0; h < hitCount; h++) {
-              const dmg = Math.max(1, Math.floor(playerStatsRef.current.atk * skill.power - m.def * 0.4))
+              const dmg = Math.max(1, Math.floor(atkNow * skill.power - m.def * 0.4))
               m.hp -= dmg
               m.flashUntil = now + 140
               pushFloat(m.x, m.y - 20 - h * 12, `-${dmg}`, '#c084fc')
@@ -683,7 +719,7 @@ export default function GameScene2D() {
         }
         if (!playerSafe && d < CONTACT_RANGE && now - lastContactHit.current > 700) {
           lastContactHit.current = now
-          const dmg = Math.max(1, m.atk - Math.floor(playerStatsRef.current.def * 0.3))
+          const dmg = Math.max(1, m.atk - Math.floor(defNow * 0.3))
           takeDamage(dmg)
           pushFloat(posRef.current.x, posRef.current.y - 30, `-${dmg}`, '#f87171')
           sfx.hit()

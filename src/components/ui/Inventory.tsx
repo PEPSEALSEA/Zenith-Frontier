@@ -412,6 +412,23 @@ function SkillsPanel() {
         return 'Starter'
     }
 
+    const unlockBlockReason = (s: (typeof jobSkills)[0]): string | null => {
+        if (s.parent_skill_id && !player.ownedSkillIds.includes(s.parent_skill_id)) {
+            const parent = player.skillCatalog.find((p) => p.skill_id === s.parent_skill_id)
+            return `Need ${parent?.skill_name || s.parent_skill_id} first`
+        }
+        if (s.unlock_type === 'mastery' && player.jobMastery < (Number(s.unlock_value) || 1)) {
+            return `Need Mastery ${s.unlock_value}`
+        }
+        if (s.unlock_type === 'level' && player.stats.level < (Number(s.unlock_value) || 1)) {
+            return `Need Lv ${s.unlock_value}`
+        }
+        if (s.unlock_type === 'gold' && player.stats.money < (Number(s.unlock_value) || 0)) {
+            return `Need ${s.unlock_value} G`
+        }
+        return null
+    }
+
     return (
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
             <aside className="space-y-3">
@@ -503,6 +520,10 @@ function SkillsPanel() {
                     )}
                     {jobSkills.map((s) => {
                         const owned = player.ownedSkillIds.includes(s.skill_id)
+                        const block = !owned ? unlockBlockReason(s) : null
+                        const buyLabel = s.unlock_type === 'gold'
+                            ? `Buy ${s.unlock_value} G`
+                            : 'Unlock'
                         return (
                             <div
                                 key={s.skill_id}
@@ -519,6 +540,9 @@ function SkillsPanel() {
                                     <p className="mt-1 font-mono text-[10px] text-white/30">
                                         MP {s.mp_cost} · CD {(s.cooldown_ms / 1000).toFixed(1)}s · {unlockHint(s)}
                                     </p>
+                                    {block && (
+                                        <p className="mt-1 text-[10px] text-amber-200/70">{block}</p>
+                                    )}
                                 </div>
                                 {owned ? (
                                     <button
@@ -533,10 +557,11 @@ function SkillsPanel() {
                                 ) : (
                                     <button
                                         type="button"
+                                        disabled={!!block}
                                         onClick={() => void unlockSkill(s.skill_id)}
-                                        className="shrink-0 rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-500/25"
+                                        className="shrink-0 rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-amber-500/15"
                                     >
-                                        Unlock
+                                        {buyLabel}
                                     </button>
                                 )}
                             </div>

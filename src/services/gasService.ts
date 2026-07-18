@@ -3,6 +3,31 @@ import type { Job, PlayerAppearance, CharacterStats } from '@/store/gameStore'
 
 const GAS_URL = API_URL
 
+const GAS_ERROR_LABELS: Record<string, string> = {
+    NOT_ENOUGH_GOLD: 'Not enough gold',
+    MASTERY_TOO_LOW: 'Job mastery too low',
+    LEVEL_TOO_LOW: 'Level too low',
+    PARENT_SKILL_NOT_UNLOCKED: 'Unlock the parent skill first',
+    WRONG_JOB: 'Wrong job for this skill',
+    SKILL_ALREADY_UNLOCKED: 'Already unlocked',
+    SKILL_NOT_FOUND: 'Skill not found',
+    SKILL_NOT_UNLOCKED: 'Skill not unlocked yet',
+    USE_SCROLL_ITEM: 'Use a skill scroll to learn this',
+    NOT_A_SCROLL: 'That item is not a skill scroll',
+    SCROLL_HAS_NO_SKILL: 'Scroll has no skill linked',
+    ITEM_NOT_FOUND: 'Item not found',
+    PLAYER_NOT_FOUND: 'Player not found',
+    MISSING_FIELDS: 'Missing data',
+    SKILL_TIER_LOCKED_FOR_SUB_JOB: 'Skill tier locked for sub job',
+    INVALID_SLOT: 'Invalid skill slot',
+}
+
+export function formatGasError(res: string, fallback = 'Request failed'): string {
+    if (!res) return fallback
+    const code = res.startsWith('ERROR|') ? res.slice(6).split('|')[0] : res.split('|')[0]
+    return GAS_ERROR_LABELS[code] || code || fallback
+}
+
 /**
  * Custom parser for the "HEADERS|... \n ROW|..." format used by Pi / Worker API.
  */
