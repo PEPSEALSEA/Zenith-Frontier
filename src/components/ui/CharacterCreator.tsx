@@ -75,6 +75,13 @@ export default function CharacterCreator() {
         return () => { cancelled = true }
     }, [])
 
+    useEffect(() => {
+        if (!auth.isAuthenticated || !auth.user) return
+        if (step !== 1) return
+        setName((n) => n || auth.user?.name || 'Adventurer')
+        setStep(2)
+    }, [auth.isAuthenticated, auth.user, step])
+
     const handleSuccess = async (credentialResponse: any) => {
         setIsLoading(true)
         try {
