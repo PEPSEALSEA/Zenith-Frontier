@@ -9,7 +9,7 @@ import { getZoneAt } from '@/lib/map/mapManifest'
 import { drawTownWalls, drawParkGround, drawGatePath, resolveWalk } from '@/lib/map/worldLayout'
 import { preloadSprites, drawSprite } from '@/lib/sprites'
 import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
-import { preloadSheets, updateFx, drawFx } from '@/lib/combat/particles'
+import { preloadSheets, updateFx, drawFx, spawnKillSplash, spawnLockSelectFx, spawnBurst, spawnShockwave, getScreenShake, addScreenShake } from '@/lib/combat/particles'
 import { updateProjectiles, drawProjectiles } from '@/lib/combat/projectiles'
 import { cycleLock, clearLock, getLocked, type LockState } from '@/lib/combat/targeting'
 import { isStunned, tickDots, clearDeadStatus } from '@/lib/combat/status'
@@ -235,6 +235,8 @@ export default function GameScene2D() {
   const [panel, setPanel] = useState<PanelState>(null)
   const [hint, setHint] = useState('')
   const [safeBanner, setSafeBanner] = useState(true)
+  const [deathScreen, setDeathScreen] = useState(false)
+  const awaitingRespawnRef = useRef(false)
   const requestRef = useRef<number>(0)
   const posRef = useRef({ x: player.position.x, y: player.position.y })
   const camRef = useRef({ x: player.position.x, y: player.position.y })
@@ -520,6 +522,22 @@ export default function GameScene2D() {
     return safe ? { x: safe.x, y: safe.y } : { ...STAR_TOWN_SPAWN }
   }
 
+  const doRespawn = useCallback(() => {
+    if (!awaitingRespawnRef.current) return
+    awaitingRespawnRef.current = false
+    deadUntilRef.current = 0
+    setDeathScreen(false)
+    const spawn = findRespawn()
+    posRef.current = { ...spawn }
+    camRef.current = { ...spawn }
+    healFull()
+    void syncHpToServer()
+    spawnBurst(spawn.x, spawn.y, '#34d399', 24)
+    spawnShockwave(spawn.x, spawn.y, '#fbbf24', 80, 500)
+    pushFloat(spawn.x, spawn.y - 40, 'RESPAWN', '#fbbf24')
+    sfx.levelUp()
+  }, [healFull, syncHpToServer, world.objects])
+
   const runInteract = useCallback(async () => {
     if (isEditorMode || isForgeMode) return
     if (deadUntilRef.current > Date.now()) return
@@ -588,9 +606,19 @@ export default function GameScene2D() {
         void runInteract()
       }
       if (e.code === 'Escape') setPanel(null)
+      if (awaitingRespawnRef.current && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE')) {
+        e.preventDefault()
+        doRespawn()
+        return
+      }
       if (e.code === 'Tab' && !isEditorMode && !isForgeMode) {
         e.preventDefault()
-        cycleLock(lockRef.current, monstersRef.current, posRef.current, Date.now())
+        if (awaitingRespawnRef.current) return
+        const id = cycleLock(lockRef.current, monstersRef.current, posRef.current, Date.now())
+        if (id) {
+          const m = monstersRef.current.find((x) => x.id === id)
+          if (m) spawnLockSelectFx(posRef.current.x, posRef.current.y, m.x, m.y)
+        }
         return
       }
       if (!isEditorMode && !isForgeMode) {
@@ -748,7 +776,7 @@ export default function GameScene2D() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('contextmenu', handleContextMenu)
     }
-  }, [attack, castSkillSlot, useItemSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
+  }, [attack, castSkillSlot, useItemSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects, doRespawn])
 
   const animate = (time: number) => {
     if (!lastTimeRef.current) lastTimeRef.current = time
@@ -831,15 +859,14 @@ export default function GameScene2D() {
       pushFloat(posRef.current.x, posRef.current.y - 30, `-${dmg}`, '#f87171')
       sfx.hit()
       const hp = useGameStore.getState().player.stats.hp
-      if (hp <= 0) {
-        deadUntilRef.current = now + 2500
+      if (hp <= 0 && !awaitingRespawnRef.current) {
+        awaitingRespawnRef.current = true
+        deadUntilRef.current = Number.MAX_SAFE_INTEGER
+        setDeathScreen(true)
         sfx.death()
-        const spawn = findRespawn()
-        setTimeout(() => {
-          posRef.current = { ...spawn }
-          healFull()
-          void syncHpToServer()
-        }, 2000)
+        addScreenShake(10, 420)
+        spawnBurst(posRef.current.x, posRef.current.y, '#ef4444', 28)
+        spawnShockwave(posRef.current.x, posRef.current.y, '#7f1d1d', 100, 600)
       }
     }
 
@@ -852,6 +879,8 @@ export default function GameScene2D() {
       const expGain = Math.max(10, Math.floor(live.maxHp / 3))
       const moneyGain = Math.max(4, Math.floor(live.atk * 2 + 6))
       const dropItems = live.drops.filter((d) => d.startsWith('EQ_') || d.startsWith('ITEM_'))
+      spawnKillSplash(live.x, live.y, live.color || '#fbbf24')
+      pushFloat(live.x, live.y - 70, 'KILL!', '#fb7185')
       pushFloat(live.x, live.y - 40, `+${expGain} EXP`, '#34d399')
       pushFloat(live.x, live.y - 55, `+${moneyGain} G`, '#fbbf24')
       sfx.kill()
@@ -1141,9 +1170,10 @@ export default function GameScene2D() {
 
     const camX = camRef.current.x - width / 2
     const camY = camRef.current.y - height / 2
+    const shake = getScreenShake(now)
 
     ctx.save()
-    ctx.translate(-camX, -camY)
+    ctx.translate(-camX + shake.x, -camY + shake.y)
 
     const gradientBg = ctx.createRadialGradient(camRef.current.x, camRef.current.y, 40, camRef.current.x, camRef.current.y, 900)
     if (playerSafe) {
@@ -1321,22 +1351,70 @@ export default function GameScene2D() {
     drawFx(ctx, now)
 
     if (locked && locked.deadUntil <= now) {
-      const pulse = 0.55 + Math.sin(time * 0.012) * 0.2
+      const pulse = 0.6 + Math.sin(time * 0.014) * 0.25
+      const spin = time * 0.004
+      const lx = locked.x
+      const ly = locked.y
+      const px = posRef.current.x
+      const py = posRef.current.y
+
+      ctx.save()
+      const beam = ctx.createLinearGradient(px, py, lx, ly)
+      beam.addColorStop(0, `rgba(251, 191, 36, ${0.15 + pulse * 0.25})`)
+      beam.addColorStop(0.5, `rgba(253, 224, 71, ${0.55 * pulse})`)
+      beam.addColorStop(1, `rgba(255, 255, 255, ${0.85 * pulse})`)
+      ctx.strokeStyle = beam
+      ctx.lineWidth = 3.5
+      ctx.shadowBlur = 12
+      ctx.shadowColor = 'rgba(251, 191, 36, 0.8)'
       ctx.beginPath()
-      ctx.arc(locked.x, locked.y, 22, 0, Math.PI * 2)
+      ctx.moveTo(px, py)
+      ctx.lineTo(lx, ly)
+      ctx.stroke()
+      ctx.lineWidth = 1.2
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 * pulse})`
+      ctx.beginPath()
+      ctx.moveTo(px, py)
+      ctx.lineTo(lx, ly)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+
+      for (let i = 0; i < 3; i++) {
+        const t = ((time * 0.002 + i / 3) % 1)
+        const bx = px + (lx - px) * t
+        const by = py + (ly - py) * t
+        ctx.fillStyle = `rgba(254, 243, 199, ${0.9 - t * 0.7})`
+        ctx.beginPath()
+        ctx.arc(bx, by, 3.5 - t * 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
       ctx.strokeStyle = `rgba(251, 191, 36, ${pulse})`
-      ctx.lineWidth = 2
-      ctx.stroke()
+      ctx.lineWidth = 2.5
       ctx.beginPath()
-      ctx.moveTo(locked.x - 28, locked.y)
-      ctx.lineTo(locked.x - 16, locked.y)
-      ctx.moveTo(locked.x + 16, locked.y)
-      ctx.lineTo(locked.x + 28, locked.y)
-      ctx.moveTo(locked.x, locked.y - 28)
-      ctx.lineTo(locked.x, locked.y - 16)
-      ctx.moveTo(locked.x, locked.y + 16)
-      ctx.lineTo(locked.x, locked.y + 28)
+      ctx.arc(lx, ly, 26 + Math.sin(time * 0.02) * 3, 0, Math.PI * 2)
       ctx.stroke()
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 * pulse})`
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(lx, ly, 34 + Math.sin(time * 0.018 + 1) * 4, spin, spin + Math.PI * 1.4)
+      ctx.stroke()
+
+      const br = 30
+      ctx.strokeStyle = `rgba(253, 224, 71, ${0.75 + pulse * 0.25})`
+      ctx.lineWidth = 3
+      ctx.lineCap = 'square'
+      const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]]
+      for (const [cx, cy] of corners) {
+        const ox = lx + cx * br
+        const oy = ly + cy * br
+        ctx.beginPath()
+        ctx.moveTo(ox, oy - cy * 12)
+        ctx.lineTo(ox, oy)
+        ctx.lineTo(ox - cx * 12, oy)
+        ctx.stroke()
+      }
+      ctx.restore()
     }
 
     const playerColor = isForgeMode ? 'transparent' : (isEditorMode ? '#f59e0b' : (isDead ? '#64748b' : player.appearance.color))
@@ -1389,20 +1467,21 @@ export default function GameScene2D() {
       ctx.fillText(player.name.toUpperCase(), pX, pY + radius + 20); ctx.shadowBlur = 0
     }
 
-    floatsRef.current = floatsRef.current.filter((f) => now - f.born < 1100)
+    floatsRef.current = floatsRef.current.filter((f) => now - f.born < (f.text === 'KILL!' || f.text.startsWith('CRIT') ? 1500 : 1100))
     for (const f of floatsRef.current) {
-      const age = (now - f.born) / 1100
+      const life = f.text === 'KILL!' || f.text.startsWith('CRIT') ? 1500 : 1100
+      const age = (now - f.born) / life
       const rise = 1 - Math.pow(1 - Math.min(1, age), 2.2)
-      const pop = age < 0.15 ? 0.85 + (age / 0.15) * 0.35 : 1.05 - age * 0.2
+      const pop = age < 0.12 ? 0.7 + (age / 0.12) * 0.55 : f.text === 'KILL!' ? 1.35 - age * 0.25 : 1.05 - age * 0.2
       ctx.save()
       ctx.globalAlpha = Math.max(0, 1 - age * 1.05)
-      ctx.translate(f.x, f.y - rise * 52)
+      ctx.translate(f.x, f.y - rise * (f.text === 'KILL!' ? 72 : 52))
       ctx.scale(pop, pop)
       ctx.fillStyle = f.color
-      ctx.font = '700 15px Oxanium, sans-serif'
+      ctx.font = f.text === 'KILL!' ? '900 22px Oxanium, sans-serif' : '700 15px Oxanium, sans-serif'
       ctx.textAlign = 'center'
-      ctx.shadowBlur = 6
-      ctx.shadowColor = 'rgba(0,0,0,0.55)'
+      ctx.shadowBlur = f.text === 'KILL!' ? 14 : 6
+      ctx.shadowColor = f.text === 'KILL!' ? 'rgba(251, 113, 133, 0.85)' : 'rgba(0,0,0,0.55)'
       ctx.fillText(f.text, 0, 0)
       ctx.restore()
     }
@@ -1477,6 +1556,51 @@ export default function GameScene2D() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {deathScreen && (
+        <div
+          className="pointer-events-auto absolute inset-0 z-40 flex cursor-pointer items-center justify-center font-sans"
+          onClick={() => doRespawn()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') doRespawn()
+          }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(127,29,29,0.55)_0%,rgba(2,6,23,0.92)_70%)]" />
+          <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.45)_100%)]" />
+          <div className="relative mx-4 max-w-lg text-center">
+            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.35em] text-red-300/80">
+              Whisperwood claims another
+            </p>
+            <h2
+              className="mt-3 font-display text-6xl font-black tracking-tight text-red-50 sm:text-7xl"
+              style={{
+                textShadow:
+                  '0 0 28px rgba(239,68,68,0.85), 0 0 60px rgba(185,28,28,0.55), 0 4px 0 #7f1d1d',
+              }}
+            >
+              YOU DIED
+            </h2>
+            <div className="mx-auto mt-5 h-px w-48 bg-gradient-to-r from-transparent via-red-400/80 to-transparent" />
+            <p className="mt-5 text-sm font-semibold tracking-wide text-amber-100/90 sm:text-base">
+              Click to respawn at closest town
+            </p>
+            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/45">
+              Space · Enter · E
+            </p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                doRespawn()
+              }}
+              className="mt-8 rounded-full border border-amber-300/40 bg-amber-400/15 px-8 py-3 font-display text-sm font-bold uppercase tracking-[0.18em] text-amber-100 shadow-[0_0_40px_rgba(251,191,36,0.25)] transition hover:bg-amber-400/30 hover:shadow-[0_0_50px_rgba(251,191,36,0.4)] active:scale-[0.98]"
+            >
+              Respawn
+            </button>
           </div>
         </div>
       )}

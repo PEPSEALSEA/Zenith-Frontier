@@ -11,7 +11,7 @@ import {
 } from './fxRegistry'
 import { aimAngle } from './targeting'
 import { applyDot, applyMark, applyStun, markMultiplier } from './status'
-import { spawnAnim, spawnBurst } from './particles'
+import { spawnAnim, spawnBurst, spawnHitSplash } from './particles'
 import type { Point } from './hitShapes'
 import { rollHit } from './hitDodge'
 
@@ -186,8 +186,9 @@ export function resolveSkillCast(opts: {
     const at = opts.locked
       ? { x: opts.locked.x, y: opts.locked.y }
       : { x: opts.origin.x + Math.cos(angle) * Math.min(range, 100), y: opts.origin.y + Math.sin(angle) * Math.min(range, 100) }
-    spawnAnim(fx.explodeSheet || 'explosion', at.x, at.y, { scale: 1.5, life: 450, frames: 8 })
-    spawnBurst(at.x, at.y, fx.trailColor, 16)
+    spawnAnim(fx.explodeSheet || 'explosion', at.x, at.y, { scale: 1.85, life: 520, frames: 8 })
+    spawnBurst(at.x, at.y, fx.trailColor, 28)
+    spawnBurst(at.x, at.y, '#ffffff', 12)
     if (fx.sfx === 'explode' || tags.fire) sfx.explode()
     const targets = monstersInShape(opts.monsters, opts.origin, angle, range, 'aoe', opts.now, {
       aoeAt: at,
@@ -243,8 +244,10 @@ function applyHit(
     dmg = Math.floor(dmg * 1.75)
     sfx.crit()
     pushFloat(m.x, m.y - 28, `CRIT -${dmg}`, '#f472b6')
+    spawnHitSplash(m.x, m.y, '#f472b6', true)
   } else {
     pushFloat(m.x, m.y - 20, `-${dmg}`, color)
+    spawnHitSplash(m.x, m.y, color, false)
   }
   m.hp -= dmg
   m.flashUntil = now + 140

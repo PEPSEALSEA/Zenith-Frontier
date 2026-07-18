@@ -240,11 +240,12 @@ export function spawnBasicAttackFx(
   const scale = hard ? 1.35 : 1
   spawnAnim(d.sheet, origin.x + Math.cos(angle) * 28, origin.y + Math.sin(angle) * 28, {
     angle,
-    scale,
-    life: 280,
+    scale: scale * (hard ? 1.15 : 1),
+    life: hard ? 340 : 280,
     frames: 6,
   })
-  spawnBurst(origin.x, origin.y, d.trailColor, hard ? 8 : 5)
+  spawnBurst(origin.x, origin.y, d.trailColor, hard ? 16 : 10)
+  spawnBurst(origin.x + Math.cos(angle) * 36, origin.y + Math.sin(angle) * 36, '#ffffff', hard ? 8 : 4)
   playDeliverySfx(d.sfx)
   return d
 }

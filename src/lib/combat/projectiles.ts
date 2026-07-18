@@ -117,8 +117,8 @@ export function updateProjectiles(
       })
       p.pierced++
       if (p.aoe > 0) {
-        spawnAnim(p.explodeSheet || 'explosion', p.x, p.y, { scale: 1.2, life: 400, frames: 8 })
-        spawnBurst(p.x, p.y, p.trailColor, 14)
+        spawnAnim(p.explodeSheet || 'explosion', p.x, p.y, { scale: 1.55, life: 450, frames: 8 })
+        spawnBurst(p.x, p.y, p.trailColor, 22)
       }
       if (p.pierced > p.maxPierce) {
         consumed = true
