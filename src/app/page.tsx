@@ -5,6 +5,7 @@ import { Suspense, useState } from 'react'
 import HUD from '@/components/ui/HUD'
 import Inventory from '@/components/ui/Inventory'
 import CharacterCreator from '@/components/ui/CharacterCreator'
+import SessionLoading from '@/components/ui/SessionLoading'
 import GameToasts from '@/components/ui/GameToasts'
 import MapEditor from '@/components/ui/MapEditor'
 import AdminDashboard from '@/components/ui/AdminDashboard'
@@ -21,21 +22,28 @@ const GameScene2D = dynamic(() => import('@/components/game/Scene2D'), {
 type AdminTool = 'map' | 'monster' | 'npc' | 'quest' | null
 
 export default function Home() {
-  const { isInitialized, isEditorMode, auth, isAdminDashboard, exitAdminDashboard, enterForgeMode, initializeCharacter } = useGameStore()
+  const {
+    isInitialized,
+    isEditorMode,
+    auth,
+    isAdminDashboard,
+    authBootComplete,
+    isHydratingSession,
+    exitAdminDashboard,
+  } = useGameStore()
   const [adminTool, setAdminTool] = useState<AdminTool>(null)
 
-  // Restore saved login from localStorage on mount
   useAuthPersistence()
 
   const isAdmin = auth.user?.email === ADMIN_EMAIL
+  const showSessionLoading = !isInitialized && (!authBootComplete || isHydratingSession)
+  const showCreator = !isInitialized && authBootComplete && !isHydratingSession && !(isAdmin && isAdminDashboard)
 
   const handleAdminToolSelect = (tool: AdminTool) => {
     if (tool === 'map') {
-      // enterForgeMode is called inside AdminDashboard already
       exitAdminDashboard()
       setAdminTool(null)
     } else if (tool === null) {
-      // "Play as Player" — exit dashboard, proceed to character creator
       exitAdminDashboard()
       setAdminTool(null)
     } else {
@@ -51,7 +59,6 @@ export default function Home() {
     <main className="relative w-screen h-screen overflow-hidden bg-black font-sans text-white select-none">
       <AnimatePresence mode="wait">
 
-        {/* ── Admin Dashboard or Entity Creator ── */}
         {isAdmin && isAdminDashboard && !isInitialized && (
           <motion.div
             key="admin"
@@ -73,8 +80,23 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* ── Character Creator (login / player setup) ── */}
-        {!isInitialized && !(isAdmin && isAdminDashboard) && (
+        {showSessionLoading && (
+          <motion.div
+            key="session-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="z-50"
+          >
+            <SessionLoading
+              name={auth.user?.name}
+              picture={auth.user?.picture}
+              detail={auth.user ? 'Loading character…' : 'Checking saved login…'}
+            />
+          </motion.div>
+        )}
+
+        {showCreator && (
           <motion.div
             key="creator"
             initial={{ opacity: 0 }}
@@ -86,7 +108,6 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* ── Game World ── */}
         {isInitialized && (
           <motion.div
             key="game"
@@ -102,7 +123,6 @@ export default function Home() {
               <GameScene2D />
             </Suspense>
 
-            {/* Overlays - Hidden in Editor Mode for focus */}
             <AnimatePresence>
               {!isEditorMode && (
                 <motion.div
@@ -123,7 +143,6 @@ export default function Home() {
 
       </AnimatePresence>
 
-      {/* Editor Grid Overlay (Visual Only) */}
       {isEditorMode && (
         <div className="pointer-events-none absolute inset-0 z-10 border-[20px] border-amber-500/10 opacity-50">
           <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-black px-6 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl border-2 border-black">

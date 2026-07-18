@@ -266,6 +266,8 @@ export interface Spawner {
 export interface GameState {
     auth: AuthState
     isInitialized: boolean
+    authBootComplete: boolean
+    isHydratingSession: boolean
     isEditorMode: boolean
     isForgeMode: boolean
     isAdminDashboard: boolean
@@ -330,6 +332,8 @@ export interface GameState {
     login: (userData: any) => void
     logout: () => void
     deleteAllProgress: () => Promise<boolean>
+    setAuthBootComplete: (v: boolean) => void
+    setHydratingSession: (v: boolean) => void
     setEditorMode: (enabled: boolean) => void
     initializeCharacter: (name: string, appearance: PlayerAppearance, job: Job, statsOverride?: Partial<CharacterStats>, inventory?: InventoryItem[]) => void
     hydrateFromServer: (email: string) => Promise<boolean>
@@ -462,6 +466,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         isAuthenticated: false,
     },
     isInitialized: false,
+    authBootComplete: false,
+    isHydratingSession: false,
     isEditorMode: false,
     isForgeMode: false,
     isAdminDashboard: false,
@@ -528,7 +534,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshEquipmentCatalog()
     },
 
-    logout: () => set({ auth: { user: null, isAuthenticated: false }, isInitialized: false, isEditorMode: false, isAdminDashboard: false }),
+    logout: () => set({
+        auth: { user: null, isAuthenticated: false },
+        isInitialized: false,
+        isEditorMode: false,
+        isAdminDashboard: false,
+        isHydratingSession: false,
+        authBootComplete: true,
+    }),
 
     deleteAllProgress: async () => {
         const { auth, pushToast } = get()
@@ -552,6 +565,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             isEditorMode: false,
             isForgeMode: false,
             isAdminDashboard: false,
+            isHydratingSession: false,
+            authBootComplete: true,
             player: {
                 ...state.player,
                 name: auth.user?.name || 'Adventurer',
@@ -588,6 +603,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         })
         return true
     },
+
+    setAuthBootComplete: (v) => set({ authBootComplete: v }),
+    setHydratingSession: (v) => set({ isHydratingSession: v }),
 
     setEditorMode: (enabled) => set({ isEditorMode: enabled }),
 

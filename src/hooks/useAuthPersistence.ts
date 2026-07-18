@@ -20,33 +20,49 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
  * Restores Google login from localStorage, then hydrates player from Pi.
  */
 export function useAuthPersistence() {
-    const { auth, login, enterAdminDashboard, hydrateFromServer, isInitialized } = useGameStore()
+    const {
+        auth,
+        login,
+        enterAdminDashboard,
+        hydrateFromServer,
+        isInitialized,
+        setAuthBootComplete,
+        setHydratingSession,
+    } = useGameStore()
     const hydrating = useRef(false)
+    const bootDone = useRef(false)
 
     useEffect(() => {
-        if (auth.isAuthenticated) return
+        if (bootDone.current) return
+        bootDone.current = true
 
         try {
             const raw = localStorage.getItem(STORAGE_KEY)
-            if (!raw) return
+            if (!raw) {
+                setAuthBootComplete(true)
+                return
+            }
 
             const saved: PersistedAuth = JSON.parse(raw)
             const age = Date.now() - (saved.timestamp || 0)
 
-            if (age > SESSION_TTL_MS) {
+            if (age > SESSION_TTL_MS || !saved.user?.email) {
                 localStorage.removeItem(STORAGE_KEY)
+                setAuthBootComplete(true)
                 return
             }
 
-            if (!saved.user?.email) return
-
+            setHydratingSession(true)
             login(saved.user)
 
             if (saved.user.email === ADMIN_EMAIL) {
                 enterAdminDashboard()
+                setHydratingSession(false)
+                setAuthBootComplete(true)
             }
         } catch {
             localStorage.removeItem(STORAGE_KEY)
+            setAuthBootComplete(true)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -57,10 +73,21 @@ export function useAuthPersistence() {
         if (isInitialized || hydrating.current) return
 
         hydrating.current = true
-        hydrateFromServer(auth.user.email).finally(() => {
-            hydrating.current = false
-        })
-    }, [auth.isAuthenticated, auth.user?.email, isInitialized, hydrateFromServer])
+        setHydratingSession(true)
+        hydrateFromServer(auth.user.email)
+            .finally(() => {
+                hydrating.current = false
+                setHydratingSession(false)
+                setAuthBootComplete(true)
+            })
+    }, [
+        auth.isAuthenticated,
+        auth.user?.email,
+        isInitialized,
+        hydrateFromServer,
+        setAuthBootComplete,
+        setHydratingSession,
+    ])
 
     useEffect(() => {
         if (!auth.isAuthenticated || !auth.user) return

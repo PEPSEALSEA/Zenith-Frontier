@@ -16,9 +16,9 @@ import {
     DraftingCompass,
     Heart,
     LogOut,
-    Loader2,
     Ghost
 } from 'lucide-react'
+import SessionLoading from '@/components/ui/SessionLoading'
 
 const FACES: FaceKey[] = ['ghost', 'skull', 'fire', 'bolt', 'star', 'crown', 'swords', 'target', 'shield', 'heart']
 const COLORS = [
@@ -45,13 +45,24 @@ const FALLBACK_JOBS: (Job & { icon: any; stat_bonus?: string })[] = [
 ]
 
 export default function CharacterCreator() {
-    const { auth, login, logout, initializeCharacter, hydrateFromServer, enterForgeMode, enterAdminDashboard } = useGameStore()
+    const {
+        auth,
+        login,
+        logout,
+        initializeCharacter,
+        hydrateFromServer,
+        enterForgeMode,
+        enterAdminDashboard,
+        setHydratingSession,
+        setAuthBootComplete,
+    } = useGameStore()
     const [name, setName] = useState('')
     const [appearance, setAppearance] = useState<PlayerAppearance>({ color: COLORS[0], face: FACES[0] })
     const [jobs, setJobs] = useState<(Job & { icon: any; stat_bonus?: string })[]>(FALLBACK_JOBS)
     const [selectedJob, setSelectedJob] = useState<Job>(FALLBACK_JOBS[0])
     const [step, setStep] = useState(1)
     const [isLoading, setIsLoading] = useState(false)
+    const [loginAsName, setLoginAsName] = useState('')
 
     useEffect(() => {
         let cancelled = false
@@ -87,25 +98,33 @@ export default function CharacterCreator() {
         try {
             const decoded: any = jwtDecode(credentialResponse.credential)
             const email = decoded.email
+            const displayName = decoded.name || 'Adventurer'
+            setLoginAsName(displayName)
 
             login({
-                name: decoded.name,
+                name: displayName,
                 email: email,
                 picture: decoded.picture
             })
 
             if (email === ADMIN_EMAIL) {
                 enterAdminDashboard()
+                setAuthBootComplete(true)
                 return
             }
 
+            setHydratingSession(true)
             const ok = await hydrateFromServer(email)
+            setHydratingSession(false)
+            setAuthBootComplete(true)
             if (ok) return
 
-            setName(decoded.name)
+            setName(displayName)
             setStep(2)
         } catch (e) {
             console.error(e)
+            setHydratingSession(false)
+            setAuthBootComplete(true)
         } finally {
             setIsLoading(false)
         }
@@ -139,8 +158,12 @@ export default function CharacterCreator() {
     return (
         <div className="flex min-h-screen items-center justify-center bg-[#020617] p-4 lg:p-8">
             {isLoading && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md">
-                    <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
+                <div className="fixed inset-0 z-[100]">
+                    <SessionLoading
+                        name={loginAsName || auth.user?.name}
+                        picture={auth.user?.picture}
+                        detail="Loading character…"
+                    />
                 </div>
             )}
 
