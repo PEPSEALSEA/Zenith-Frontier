@@ -282,6 +282,48 @@ export default function GameScene2D() {
   const monsterShotsRef = useRef<MonsterShot[]>([])
   const lastGateWarp = useRef(0)
   const lastGateId = useRef('')
+  const pendingHitsRef = useRef<Map<string, number>>(new Map())
+  const remoteNetRef = useRef<Record<string, {
+    playerId: string
+    name: string
+    appearance: { color: string; face: string }
+    level: number
+    x: number
+    y: number
+    facing: number
+  }>>({})
+  const remoteRenderRef = useRef<Record<string, {
+    playerId: string
+    name: string
+    appearance: { color: string; face: string }
+    level: number
+    x: number
+    y: number
+    facing: number
+  }>>({})
+
+  const predictZoneDamage = (atk: number, def: number, power: number) => {
+    const p = Math.max(0.4, Math.min(4, power))
+    const raw = atk * p - def * 0.35
+    return Math.max(1, Math.floor(Math.max(1, Math.min(atk * 4 + 40, raw))))
+  }
+
+  const reconcileEntityHp = (
+    m: LivingMonster,
+    serverHp: number,
+    extras?: { maxHp?: number; x?: number; y?: number; deadUntil?: number },
+  ) => {
+    pendingHitsRef.current.delete(m.id)
+    m.hp = serverHp
+    if (extras?.maxHp != null) m.maxHp = extras.maxHp
+    if (extras?.x != null) m.x = extras.x
+    if (extras?.y != null) m.y = extras.y
+    if (extras?.deadUntil != null) {
+      m.deadUntil = extras.deadUntil
+    } else if (serverHp > 0) {
+      m.deadUntil = 0
+    }
+  }
 
   useEffect(() => {
     const defeated = new Set(bossesDefeated)
@@ -294,11 +336,58 @@ export default function GameScene2D() {
 
   useEffect(() => {
     remotePlayersRef.current = remotePlayers
+    const net = remoteNetRef.current
+    const render = remoteRenderRef.current
+    const seen = new Set<string>()
+    for (const rp of Object.values(remotePlayers)) {
+      seen.add(rp.playerId)
+      const prev = net[rp.playerId]
+      net[rp.playerId] = {
+        playerId: rp.playerId,
+        name: rp.name,
+        appearance: rp.appearance,
+        level: rp.level,
+        x: rp.x,
+        y: rp.y,
+        facing: rp.facing,
+      }
+      if (!render[rp.playerId] || !prev) {
+        render[rp.playerId] = {
+          playerId: rp.playerId,
+          name: rp.name,
+          appearance: rp.appearance,
+          level: rp.level,
+          x: rp.x,
+          y: rp.y,
+          facing: rp.facing,
+        }
+      } else {
+        render[rp.playerId] = {
+          ...render[rp.playerId],
+          name: rp.name,
+          appearance: rp.appearance,
+          level: rp.level,
+        }
+      }
+    }
+    for (const id of Object.keys(net)) {
+      if (!seen.has(id)) {
+        delete net[id]
+        delete render[id]
+      }
+    }
   }, [remotePlayers])
 
   useEffect(() => {
     bossesDefeatedRef.current = bossesDefeated
   }, [bossesDefeated])
+
+  useEffect(() => {
+    if (zoneAuth) return
+    pendingHitsRef.current.clear()
+    remoteNetRef.current = {}
+    remoteRenderRef.current = {}
+  }, [zoneAuth])
 
   useZoneSession(!isEditorMode && !isForgeMode && Boolean(player.name), {
     getPos: () => ({
@@ -334,22 +423,31 @@ export default function GameScene2D() {
       for (const m of monstersRef.current) {
         const e = byId.get(m.id)
         if (!e) continue
-        m.hp = e.hp
-        m.maxHp = e.maxHp
-        m.x = e.x
-        m.y = e.y
-        m.deadUntil = e.deadUntil
+        reconcileEntityHp(m, e.hp, {
+          maxHp: e.maxHp,
+          x: e.x,
+          y: e.y,
+          deadUntil: e.deadUntil,
+        })
       }
     },
     applyDelta: (entities) => {
       for (const e of entities) {
         const m = monstersRef.current.find((x) => x.id === e.id)
         if (!m) continue
-        if (e.hp != null) m.hp = e.hp
-        if (e.maxHp != null) m.maxHp = e.maxHp
-        if (e.x != null) m.x = e.x
-        if (e.y != null) m.y = e.y
-        if (e.deadUntil != null) m.deadUntil = e.deadUntil
+        if (e.hp != null) {
+          reconcileEntityHp(m, e.hp, {
+            maxHp: e.maxHp,
+            x: e.x,
+            y: e.y,
+            deadUntil: e.deadUntil,
+          })
+        } else {
+          if (e.maxHp != null) m.maxHp = e.maxHp
+          if (e.x != null) m.x = e.x
+          if (e.y != null) m.y = e.y
+          if (e.deadUntil != null) m.deadUntil = e.deadUntil
+        }
       }
     },
   })
@@ -913,6 +1011,40 @@ export default function GameScene2D() {
     if (dx > 0) facingRef.current = 1
     else if (dx < 0) facingRef.current = -1
 
+    {
+      const net = remoteNetRef.current
+      const render = remoteRenderRef.current
+      const follow = Math.min(1, 0.18 * deltaTime)
+      const snapDist = 220
+      for (const id of Object.keys(net)) {
+        const t = net[id]
+        let r = render[id]
+        if (!r) {
+          render[id] = { ...t }
+          continue
+        }
+        const dxr = t.x - r.x
+        const dyr = t.y - r.y
+        const d = Math.sqrt(dxr * dxr + dyr * dyr)
+        if (d > snapDist) {
+          r.x = t.x
+          r.y = t.y
+        } else {
+          r.x += dxr * follow
+          r.y += dyr * follow
+        }
+        if (Math.abs(dxr) > 0.4) r.facing = dxr >= 0 ? 1 : -1
+        else r.facing = t.facing
+        r.name = t.name
+        r.appearance = t.appearance
+        r.level = t.level
+        render[id] = r
+      }
+      for (const id of Object.keys(render)) {
+        if (!net[id]) delete render[id]
+      }
+    }
+
     // Passive mana regen (casters rely on MP for basic attacks)
     if (!isEditorMode && !isForgeMode && !isDead && now - lastMpRegenAt.current > 250) {
       lastMpRegenAt.current = now
@@ -990,6 +1122,29 @@ export default function GameScene2D() {
       opts?: { skillId?: string; power?: number; range?: number },
     ) => {
       if (!zoneAuthRef.current || !targetId || !zoneSocket.connected) return
+      const target = monstersRef.current.find((m) => m.id === targetId)
+      if (!target || target.deadUntil > now || target.hp <= 0) return
+
+      const power = opts?.power ?? (attackType === 'hard' ? 1.6 : 1)
+      const dmg = predictZoneDamage(atkNow, target.def, power)
+      target.hp = Math.max(0, target.hp - dmg)
+      target.flashUntil = now + 80
+      pendingHitsRef.current.set(
+        targetId,
+        (pendingHitsRef.current.get(targetId) || 0) + dmg,
+      )
+      pushFloat(target.x, target.y - 18, `-${dmg}`, '#fde68a')
+      sfx.hit()
+
+      if (target.hp <= 0) {
+        target.deadUntil = target.kind === 'boss' ? Number.MAX_SAFE_INTEGER : now + RESPAWN_MS
+        clearDeadStatus(target.id)
+        if (lockRef.current.targetId === target.id) lockRef.current.targetId = null
+        spawnKillSplash(target.x, target.y, target.color || '#fbbf24')
+        pushFloat(target.x, target.y - 70, 'KILL!', '#fb7185')
+        sfx.kill()
+      }
+
       zoneSocket.setPresence(posRef.current.x, posRef.current.y, facingRef.current)
       zoneSocket.sendAttack({
         type: 'attack',
@@ -1035,8 +1190,6 @@ export default function GameScene2D() {
             power: lastAtk.type === 'hard' ? 1.6 : 1,
             range: lastAtk.type === 'hard' ? profile.hard_range : profile.light_range,
           })
-          pushFloat(target.x, target.y - 18, lastAtk.type === 'hard' ? 'HIT!' : '…', '#fde68a')
-          sfx.hit()
         }
       } else {
         resolveBasicAttack({
@@ -1090,8 +1243,7 @@ export default function GameScene2D() {
                 power: skill.power,
                 range: skill.range,
               })
-              pushFloat(target.x, target.y - 22, skill.skill_name, '#c4b5fd')
-              sfx.hit()
+              pushFloat(target.x, target.y - 36, skill.skill_name, '#c4b5fd')
             }
           } else if (!zoneAuthRef.current) {
             resolveSkillCast({
@@ -1682,7 +1834,7 @@ export default function GameScene2D() {
     }
 
     if (!isEditorMode && !isForgeMode) {
-      for (const rp of Object.values(remotePlayersRef.current)) {
+      for (const rp of Object.values(remoteRenderRef.current)) {
         const rx = rp.x
         const ry = rp.y
         const rr = radius * 0.92
