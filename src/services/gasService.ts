@@ -198,6 +198,14 @@ class GASService {
         })
     }
 
+    async removeItem(playerId: string, itemId: string, quantity = 1) {
+        return await this.post('remove_item', {
+            player_id: playerId,
+            item_id: itemId,
+            quantity: String(quantity),
+        })
+    }
+
     async getAllJobs(): Promise<(Job & {
         stat_bonus?: string
         description?: string

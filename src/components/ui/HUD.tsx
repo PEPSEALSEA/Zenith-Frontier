@@ -48,7 +48,7 @@ function useLaggingPercent(target: number, lagMs = 380) {
 
 const HUD = () => {
     const { player, world, auth } = useGameStore()
-    const { stats, jobs, skillSlots, skillCatalog, skillCooldowns, statPoints } = player
+    const { stats, jobs, skillSlots, skillCatalog, skillCooldowns, itemSlots, inventory, equipmentCatalog, itemCooldowns, statPoints } = player
     const [isProfileOpen, setIsProfileOpen] = useState(false)
     const [, setTick] = useState(0)
 
@@ -190,7 +190,7 @@ const HUD = () => {
                             >
                                 {onCd && (
                                     <motion.div
-                                        className="absolute inset-0 bg-slate-950/75 origin-bottom"
+                                        className="absolute inset-0 origin-bottom bg-slate-950/75"
                                         animate={{ scaleY: cdPct }}
                                         transition={{ duration: 0.1, ease: 'linear' }}
                                     />
@@ -199,6 +199,33 @@ const HUD = () => {
                                 <span className="relative mt-1 w-11 truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-white/90">
                                     {sk?.skill_name?.slice(0, 7) || '—'}
                                 </span>
+                            </div>
+                        )
+                    })}
+                    <div className="mx-0.5 h-10 w-px bg-white/10" />
+                    {([1, 2] as const).map((slot) => {
+                        const id = itemSlots[slot - 1]
+                        const inv = inventory.find((i) => i.item_id === id)
+                        const def = equipmentCatalog.find((e) => e.item_id === id)
+                        const key = slot === 1 ? 'Z' : 'X'
+                        const cdUntil = id ? (itemCooldowns[id] || 0) : 0
+                        const onCd = now < cdUntil
+                        const label = def?.item_name || inv?.name || '—'
+                        return (
+                            <div
+                                key={`item-${slot}`}
+                                className="relative flex h-12 w-12 flex-col items-center justify-center overflow-hidden rounded-xl border border-amber-300/25 bg-amber-500/10"
+                            >
+                                {onCd && <div className="absolute inset-0 bg-slate-950/60" />}
+                                <span className="absolute left-1 top-0.5 font-mono text-[9px] text-amber-200/80">{key}</span>
+                                <span className="relative mt-1 w-11 truncate text-center text-[8px] font-semibold leading-tight text-white/90">
+                                    {id ? label.slice(0, 7) : '—'}
+                                </span>
+                                {inv && (
+                                    <span className="absolute bottom-0.5 right-1 font-mono text-[8px] text-emerald-300">
+                                        ×{inv.quantity}
+                                    </span>
+                                )}
                             </div>
                         )
                     })}

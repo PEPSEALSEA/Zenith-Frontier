@@ -12,7 +12,6 @@ import {
     Sword,
     Shield,
     X,
-    Plus,
     Sparkles,
     Coins,
 } from 'lucide-react'
@@ -22,6 +21,7 @@ import { ALLOC_STATS, masteryExpToNext, parsePotential } from '@/lib/classSystem
 import type { AllocatedStats } from '@/store/gameStore'
 import { FACES_MAP, FaceKey } from '@/store/gameStore'
 import { Ghost } from 'lucide-react'
+import { isConsumableType, isSkillScrollType } from '@/lib/items'
 
 type TabId = 'character' | 'bag' | 'skills' | 'job' | 'arcanum' | 'admin'
 
@@ -253,18 +253,102 @@ function CharacterPanel() {
 }
 
 function BagPanel() {
-    const { player } = useGameStore()
+    const { player, useItem, setItemSlot } = useGameStore()
     const items = player.inventory
-    const slots = Math.max(20, Math.ceil(items.length / 5) * 5)
+    const [selectedId, setSelectedId] = useState<string | null>(null)
+
+    const selected = items.find((i) => i.item_id === selectedId) || null
+    const selectedDef = selected
+        ? player.equipmentCatalog.find((e) => e.item_id === selected.item_id)
+        : null
+    const canUse = selected
+        ? isConsumableType(selectedDef?.item_type || (selected.item_id === 'EQ_004' ? 'consumable' : ''))
+            || isSkillScrollType(selectedDef?.item_type || (selected.item_id.startsWith('EQ_SCR_') ? 'skill_scroll' : ''))
+        : false
+    const canQuick = selected
+        ? isConsumableType(selectedDef?.item_type || (selected.item_id === 'EQ_004' ? 'consumable' : ''))
+        : false
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h3 className="font-display text-lg font-bold text-white">Bag</h3>
-                    <p className="text-xs text-white/40">{items.length} items · {player.stats.money.toLocaleString()} G</p>
+                    <p className="text-xs text-white/40">
+                        {items.length} items · Select an item to use or assign to Z / X
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    {([1, 2] as const).map((slot) => {
+                        const id = player.itemSlots[slot - 1]
+                        const inv = player.inventory.find((i) => i.item_id === id)
+                        const def = player.equipmentCatalog.find((e) => e.item_id === id)
+                        const key = slot === 1 ? 'Z' : 'X'
+                        return (
+                            <div key={slot} className="rpg-panel min-w-[88px] rounded-xl px-2.5 py-2 text-center">
+                                <div className="font-mono text-[10px] text-amber-200/70">{key}</div>
+                                <div className="truncate text-[11px] font-semibold text-white">
+                                    {def?.item_name || inv?.name || (id ? id : 'Empty')}
+                                </div>
+                                <div className="font-mono text-[10px] text-white/40">
+                                    {inv ? `×${inv.quantity}` : '—'}
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
+
+            {selected && (
+                <div className="rpg-panel flex flex-wrap items-center gap-2 rounded-xl p-3">
+                    <div className="min-w-0 flex-1">
+                        <div className="font-display text-sm font-bold text-white">
+                            {selectedDef?.item_name || selected.name || selected.item_id}
+                        </div>
+                        <div className="text-xs text-white/45">
+                            {selectedDef?.description || selectedDef?.item_type || 'Item'} · ×{selected.quantity}
+                        </div>
+                    </div>
+                    {canUse && (
+                        <button
+                            type="button"
+                            onClick={() => void useItem(selected.item_id)}
+                            className="rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30"
+                        >
+                            Use
+                        </button>
+                    )}
+                    {canQuick && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setItemSlot(1, selected.item_id)}
+                                className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 ring-1 ring-amber-400/30 hover:bg-amber-500/25"
+                            >
+                                Set Z
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setItemSlot(2, selected.item_id)}
+                                className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 ring-1 ring-amber-400/30 hover:bg-amber-500/25"
+                            >
+                                Set X
+                            </button>
+                        </>
+                    )}
+                    {player.itemSlots[0] === selected.item_id && (
+                        <button type="button" onClick={() => setItemSlot(1, '')} className="text-xs text-white/40 hover:text-white/70">
+                            Clear Z
+                        </button>
+                    )}
+                    {player.itemSlots[1] === selected.item_id && (
+                        <button type="button" onClick={() => setItemSlot(2, '')} className="text-xs text-white/40 hover:text-white/70">
+                            Clear X
+                        </button>
+                    )}
+                </div>
+            )}
+
             {items.length === 0 ? (
                 <div className="rpg-panel flex flex-col items-center justify-center rounded-xl px-6 py-16 text-center">
                     <Backpack className="mb-3 h-10 w-10 text-white/20" />
@@ -273,32 +357,36 @@ function BagPanel() {
                 </div>
             ) : (
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
-                    {[...Array(slots)].map((_, i) => {
-                        const item = items[i]
+                    {items.map((item, i) => {
+                        const def = player.equipmentCatalog.find((e) => e.item_id === item.item_id)
+                        const active = selectedId === item.item_id
+                        const onZ = player.itemSlots[0] === item.item_id
+                        const onX = player.itemSlots[1] === item.item_id
                         return (
-                            <div
-                                key={item ? `${item.item_id}-${i}` : `empty-${i}`}
-                                title={item?.name || item?.item_id}
-                                className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border p-2 ${
-                                    item
-                                        ? 'border-amber-300/25 bg-amber-500/5 hover:border-amber-300/45'
-                                        : 'border-white/5 bg-black/25'
+                            <button
+                                key={`${item.item_id}-${i}`}
+                                type="button"
+                                title={def?.item_name || item.name || item.item_id}
+                                onClick={() => setSelectedId(item.item_id)}
+                                className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border p-2 text-left transition ${
+                                    active
+                                        ? 'border-amber-300/50 bg-amber-500/15'
+                                        : 'border-amber-300/20 bg-amber-500/5 hover:border-amber-300/40'
                                 }`}
                             >
-                                {item ? (
-                                    <>
-                                        <Zap className="mb-1 h-5 w-5 text-amber-300/90" />
-                                        <span className="line-clamp-2 w-full text-center text-[9px] font-semibold leading-tight text-white/80">
-                                            {item.name || item.item_id}
-                                        </span>
-                                        <span className="absolute bottom-1 right-1.5 font-mono text-[10px] text-emerald-300">
-                                            ×{item.quantity}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <Plus className="h-3.5 w-3.5 text-white/10" />
+                                <Zap className="mb-1 h-5 w-5 text-amber-300/90" />
+                                <span className="line-clamp-2 w-full text-center text-[9px] font-semibold leading-tight text-white/80">
+                                    {def?.item_name || item.name || item.item_id}
+                                </span>
+                                <span className="absolute bottom-1 right-1.5 font-mono text-[10px] text-emerald-300">
+                                    ×{item.quantity}
+                                </span>
+                                {(onZ || onX) && (
+                                    <span className="absolute left-1 top-1 rounded bg-black/60 px-1 font-mono text-[8px] text-amber-200">
+                                        {onZ ? 'Z' : ''}{onZ && onX ? '/' : ''}{onX ? 'X' : ''}
+                                    </span>
                                 )}
-                            </div>
+                            </button>
                         )
                     })}
                 </div>

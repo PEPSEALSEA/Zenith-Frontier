@@ -1,5 +1,15 @@
 import { create } from 'zustand'
 import { API_URL } from '@/lib/config'
+import {
+    type EquipmentDef,
+    isConsumableType,
+    isQuickSlotItem,
+    isSkillScrollType,
+    loadItemSlots,
+    mapEquipmentRows,
+    parseConsumableEffects,
+    saveItemSlots,
+} from '@/lib/items'
 
 export interface InventoryItem {
     item_id: string
@@ -261,11 +271,14 @@ export interface GameState {
         alloc: AllocatedStats
         statPoints: number
         skillSlots: [string, string, string, string]
+        itemSlots: [string, string]
         ownedSkillIds: string[]
         skillCatalog: SkillInfo[]
+        equipmentCatalog: EquipmentDef[]
         jobMastery: number
         jobMasteryExp: number
         skillCooldowns: Record<string, number>
+        itemCooldowns: Record<string, number>
         pendingLevelUps: number
         jobs: {
             main: Job | null
@@ -333,11 +346,15 @@ export interface GameState {
     castSkillSlot: (slot: 1 | 2 | 3 | 4) => boolean
     allocateStat: (stat: keyof AllocatedStats) => Promise<boolean>
     setSkillSlot: (slot: 1 | 2 | 3 | 4, skillId: string) => Promise<boolean>
+    setItemSlot: (slot: 1 | 2, itemId: string) => boolean
+    useItem: (itemId: string) => Promise<boolean>
+    useItemSlot: (slot: 1 | 2) => Promise<boolean>
     unlockSkill: (skillId: string) => Promise<boolean>
     useSkillScroll: (itemId: string) => Promise<boolean>
     promoteJob: (jobId: string) => Promise<boolean>
     clearPendingLevelUps: () => void
     refreshSkills: () => Promise<void>
+    refreshEquipmentCatalog: () => Promise<void>
     pushToast: (toast: Omit<GameToast, 'id' | 'createdAt'> & { id?: string }) => void
     dismissToast: (id: string) => void
     addMoney: (amount: number) => void
@@ -434,11 +451,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         alloc: { str: 5, dex: 5, int: 5, vit: 5, luk: 5 },
         statPoints: 0,
         skillSlots: ['', '', '', ''],
+        itemSlots: ['', ''],
         ownedSkillIds: [],
         skillCatalog: [],
+        equipmentCatalog: [],
         jobMastery: 1,
         jobMasteryExp: 0,
         skillCooldowns: {},
+        itemCooldowns: {},
         pendingLevelUps: 0,
         jobs: { main: null, sub: null },
         equipment: { weapon: null, armor: null, accessory: null },
@@ -470,9 +490,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     login: (userData) => {
         set((state) => ({
             auth: { user: userData, isAuthenticated: true },
-            player: { ...state.player, name: userData.name || state.player.name }
+            player: {
+                ...state.player,
+                name: userData.name || state.player.name,
+                itemSlots: loadItemSlots(userData.email),
+            },
         }))
         get().loadWorldFromGAS()
+        void get().refreshEquipmentCatalog()
     },
 
     logout: () => set({ auth: { user: null, isAuthenticated: false }, isInitialized: false, isEditorMode: false, isAdminDashboard: false }),
@@ -482,33 +507,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     enterAdminDashboard: () => set({ isAdminDashboard: true }),
     exitAdminDashboard: () => set({ isAdminDashboard: false }),
 
-    initializeCharacter: (name, appearance, job, statsOverride, inventory) => set((state) => {
-        const alloc = { str: 5, dex: 5, int: 5, vit: 5, luk: 5 }
-        const combat = combatFromAlloc(alloc, (job as any).stat_bonus || job.stat_bonus)
-        const base = statsOverride ? { ...state.player.stats, ...statsOverride } : {
-            ...state.player.stats,
-            atk: combat.atk,
-            def: combat.def,
-            spd: combat.spd,
-            luck: combat.luck,
-            maxHp: combat.maxHp,
-            hp: combat.maxHp,
-            maxMp: combat.maxMp,
-            mp: combat.maxMp,
-        }
-        return {
-            isInitialized: true,
-            player: {
-                ...state.player,
-                name,
-                appearance,
-                jobs: { ...state.player.jobs, main: job },
-                stats: base,
-                alloc,
-                inventory: inventory || state.player.inventory,
-            },
-        }
-    }),
+    initializeCharacter: (name, appearance, job, statsOverride, inventory) => {
+        set((state) => {
+            const alloc = { str: 5, dex: 5, int: 5, vit: 5, luk: 5 }
+            const combat = combatFromAlloc(alloc, (job as any).stat_bonus || job.stat_bonus)
+            const base = statsOverride ? { ...state.player.stats, ...statsOverride } : {
+                ...state.player.stats,
+                atk: combat.atk,
+                def: combat.def,
+                spd: combat.spd,
+                luck: combat.luck,
+                maxHp: combat.maxHp,
+                hp: combat.maxHp,
+                maxMp: combat.maxMp,
+                mp: combat.maxMp,
+            }
+            return {
+                isInitialized: true,
+                player: {
+                    ...state.player,
+                    name,
+                    appearance,
+                    jobs: { ...state.player.jobs, main: job },
+                    stats: base,
+                    alloc,
+                    inventory: inventory || state.player.inventory,
+                    itemSlots: loadItemSlots(state.auth.user?.email),
+                },
+            }
+        })
+        void get().refreshEquipmentCatalog()
+    },
 
     hydrateFromServer: async (email) => {
         const { gasService } = await import('@/services/gasService')
@@ -526,6 +555,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         const ownedRows = await gasService.getPlayerSkills(email)
         const ownedIds = ownedRows.map((r) => String(r.skill_id))
         const catalog = mapSkillRows(await gasService.getAllSkills(), new Set(ownedIds))
+        const equipmentRows = await gasService.getAllEquipment()
+        const equipmentCatalog = mapEquipmentRows(equipmentRows as Record<string, string>[])
         const combat = combatFromAlloc(
             { str: hydrated.str, dex: hydrated.dex, int: hydrated.int, vit: hydrated.vit, luk: hydrated.luk },
             job.stat_bonus,
@@ -556,8 +587,10 @@ export const useGameStore = create<GameState>((set, get) => ({
                 },
                 statPoints: hydrated.stat_points,
                 skillSlots: hydrated.skill_slots,
+                itemSlots: loadItemSlots(email),
                 ownedSkillIds: ownedIds,
                 skillCatalog: catalog,
+                equipmentCatalog,
                 jobMastery: hydrated.job_mastery,
                 jobMasteryExp: hydrated.job_mastery_exp,
             },
@@ -659,14 +692,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     buyItem: async ({ itemId, price, name }) => {
-        const { auth, spendMoney, addInventoryItem, pushToast } = get()
+        const { auth, spendMoney, addInventoryItem, pushToast, player, setItemSlot } = get()
         if (!spendMoney(price)) return false
-        addInventoryItem({ item_id: itemId, quantity: 1, name })
+        const catalogName = player.equipmentCatalog.find((e) => e.item_id === itemId)?.item_name
+        const label = name || catalogName || itemId
+        addInventoryItem({ item_id: itemId, quantity: 1, name: label })
         pushToast({
             kind: 'item',
-            title: name || itemId,
+            title: label,
             detail: price > 0 ? `Purchased · −${price} G` : 'Obtained',
         })
+        const def = player.equipmentCatalog.find((e) => e.item_id === itemId)
+        if (isConsumableType(def?.item_type || (itemId === 'EQ_004' ? 'consumable' : ''))) {
+            if (!player.itemSlots[0]) setItemSlot(1, itemId)
+            else if (!player.itemSlots[1] && player.itemSlots[0] !== itemId) setItemSlot(2, itemId)
+        }
         const email = auth.user?.email
         if (email) {
             const { gasService } = await import('@/services/gasService')
@@ -804,6 +844,124 @@ export const useGameStore = create<GameState>((set, get) => ({
         return true
     },
 
+    setItemSlot: (slot, itemId) => {
+        const { auth, player, pushToast } = get()
+        if (itemId) {
+            const inv = player.inventory.find((i) => i.item_id === itemId)
+            if (!inv || inv.quantity < 1) {
+                pushToast({ kind: 'info', title: 'No item', detail: 'Not in bag' })
+                return false
+            }
+            const def = player.equipmentCatalog.find((e) => e.item_id === itemId)
+            const allowed = def
+                ? isQuickSlotItem(def)
+                : itemId === 'EQ_004' || String(inv.name || '').toLowerCase().includes('potion')
+            if (!allowed) {
+                pushToast({ kind: 'info', title: 'Cannot assign', detail: 'Only consumables on Z / X' })
+                return false
+            }
+        }
+        set((state) => {
+            const slots = [...state.player.itemSlots] as [string, string]
+            slots[slot - 1] = itemId
+            saveItemSlots(slots, auth.user?.email)
+            return { player: { ...state.player, itemSlots: slots } }
+        })
+        if (itemId) {
+            const name = get().player.equipmentCatalog.find((e) => e.item_id === itemId)?.item_name
+                || get().player.inventory.find((i) => i.item_id === itemId)?.name
+                || itemId
+            pushToast({ kind: 'info', title: `Slot ${slot === 1 ? 'Z' : 'X'}`, detail: name })
+        }
+        return true
+    },
+
+    useItem: async (itemId) => {
+        const state = get()
+        const { auth, pushToast, syncHpToServer } = state
+        const inv = state.player.inventory.find((i) => i.item_id === itemId)
+        if (!inv || inv.quantity < 1) {
+            pushToast({ kind: 'info', title: 'Empty', detail: 'No more of this item' })
+            return false
+        }
+
+        const now = Date.now()
+        const cdUntil = state.player.itemCooldowns[itemId] || 0
+        if (now < cdUntil) return false
+
+        const def = state.player.equipmentCatalog.find((e) => e.item_id === itemId)
+        const itemType = def?.item_type || (itemId.startsWith('EQ_SCR_') ? 'skill_scroll' : itemId === 'EQ_004' ? 'consumable' : '')
+        const name = def?.item_name || inv.name || itemId
+
+        if (isSkillScrollType(itemType)) {
+            return get().useSkillScroll(itemId)
+        }
+
+        if (!isConsumableType(itemType)) {
+            pushToast({ kind: 'info', title: name, detail: 'This item cannot be used' })
+            return false
+        }
+
+        const effects = parseConsumableEffects(def?.base_stats || (itemId === 'EQ_004' ? 'heal+50' : ''))
+        if (effects.heal <= 0 && effects.mp <= 0) {
+            pushToast({ kind: 'info', title: name, detail: 'No usable effect' })
+            return false
+        }
+
+        const { hp, maxHp, mp, maxMp } = state.player.stats
+        if (effects.heal > 0 && hp >= maxHp && effects.mp <= 0) {
+            pushToast({ kind: 'info', title: name, detail: 'HP already full' })
+            return false
+        }
+        if (effects.mp > 0 && mp >= maxMp && effects.heal <= 0) {
+            pushToast({ kind: 'info', title: name, detail: 'MP already full' })
+            return false
+        }
+
+        const healed = Math.min(effects.heal, Math.max(0, maxHp - hp))
+        const restored = Math.min(effects.mp, Math.max(0, maxMp - mp))
+
+        set((s) => ({
+            player: {
+                ...s.player,
+                inventory: s.player.inventory
+                    .map((i) => (i.item_id === itemId ? { ...i, quantity: i.quantity - 1 } : i))
+                    .filter((i) => i.quantity > 0),
+                stats: {
+                    ...s.player.stats,
+                    hp: Math.min(maxHp, s.player.stats.hp + effects.heal),
+                    mp: Math.min(maxMp, s.player.stats.mp + effects.mp),
+                },
+                itemCooldowns: {
+                    ...s.player.itemCooldowns,
+                    [itemId]: now + 700,
+                },
+            },
+        }))
+
+        const parts: string[] = []
+        if (healed > 0) parts.push(`+${healed} HP`)
+        if (restored > 0) parts.push(`+${restored} MP`)
+        pushToast({ kind: 'item', title: name, detail: parts.join(' · ') || 'Used' })
+
+        const email = auth.user?.email
+        if (email) {
+            const { gasService } = await import('@/services/gasService')
+            await gasService.removeItem(email, itemId, 1)
+            await syncHpToServer()
+        }
+        return true
+    },
+
+    useItemSlot: async (slot) => {
+        const itemId = get().player.itemSlots[slot - 1]
+        if (!itemId) {
+            get().pushToast({ kind: 'info', title: `Slot ${slot === 1 ? 'Z' : 'X'}`, detail: 'Empty — assign in Bag' })
+            return false
+        }
+        return get().useItem(itemId)
+    },
+
     unlockSkill: async (skillId) => {
         const { auth, pushToast } = get()
         const email = auth.user?.email
@@ -906,6 +1064,26 @@ export const useGameStore = create<GameState>((set, get) => ({
                 ] : state.player.skillSlots,
             },
         }))
+    },
+
+    refreshEquipmentCatalog: async () => {
+        try {
+            const { gasService } = await import('@/services/gasService')
+            const rows = await gasService.getAllEquipment()
+            const equipmentCatalog = mapEquipmentRows(rows as Record<string, string>[])
+            set((state) => ({
+                player: {
+                    ...state.player,
+                    equipmentCatalog,
+                    inventory: state.player.inventory.map((i) => ({
+                        ...i,
+                        name: equipmentCatalog.find((e) => e.item_id === i.item_id)?.item_name || i.name || i.item_id,
+                    })),
+                },
+            }))
+        } catch {
+            /* catalog optional offline */
+        }
     },
 
     addMoney: (amount) => {

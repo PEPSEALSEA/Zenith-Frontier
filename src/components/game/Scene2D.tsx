@@ -195,7 +195,7 @@ function dist(ax: number, ay: number, bx: number, by: number) {
 export default function GameScene2D() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const {
-    player, updatePosition, world, updateWorldCycle, attack, castSkillSlot, isEditorMode, isForgeMode,
+    player, updatePosition, world, updateWorldCycle, attack, castSkillSlot, useItemSlot, isEditorMode, isForgeMode,
     forgeSelection, addWorldObject, takeDamage, healFull, applyKillRewards, syncHpToServer,
     buyItem, spendMoney, setWorldObjects,
   } = useGameStore()
@@ -429,6 +429,15 @@ export default function GameScene2D() {
           if (deadUntilRef.current > Date.now()) return
           castSkillSlot(slot)
         }
+        if (e.code === 'KeyZ' || e.code === 'KeyX') {
+          if (deadUntilRef.current > Date.now()) return
+          if (panelRef.current) return
+          const itemSlot = e.code === 'KeyZ' ? 1 : 2
+          void useItemSlot(itemSlot).then((ok) => {
+            if (!ok) return
+            pushFloat(posRef.current.x, posRef.current.y - 42, 'ITEM', '#86efac')
+          })
+        }
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -501,7 +510,7 @@ export default function GameScene2D() {
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('contextmenu', handleContextMenu)
     }
-  }, [attack, castSkillSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
+  }, [attack, castSkillSlot, useItemSlot, isEditorMode, isForgeMode, forgeSelection, addWorldObject, runInteract, world.objects])
 
   const animate = (time: number) => {
     if (!lastTimeRef.current) lastTimeRef.current = time
