@@ -1,3 +1,5 @@
+import { drawSprite } from '@/lib/sprites'
+
 export const CELL_SIZE = 40
 
 export type TileKind = 'empty' | 'path' | 'grass' | 'cobble' | 'wall' | 'water' | 'gate' | 'tree'
@@ -182,17 +184,22 @@ export function drawTileCell(
       break
     }
     case 'tree': {
-      ctx.fillStyle = '#3f2a14'
-      ctx.fillRect(x + size * 0.45, y + size * 0.45, 6, size * 0.4)
-      ctx.fillStyle = '#15803d'
-      ctx.beginPath()
-      ctx.arc(x + size * 0.5, y + size * 0.38, size * 0.28, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#22c55e'
-      ctx.beginPath()
-      ctx.arc(x + size * 0.35, y + size * 0.42, size * 0.16, 0, Math.PI * 2)
-      ctx.arc(x + size * 0.65, y + size * 0.4, size * 0.15, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.save()
+      ctx.translate(x + size * 0.5, y + size * 0.5)
+      if (!drawSprite(ctx, 'tree', size * 1.5, size * 0.28)) {
+        ctx.fillStyle = '#3f2a14'
+        ctx.fillRect(-3, -size * 0.05, 6, size * 0.4)
+        ctx.fillStyle = '#15803d'
+        ctx.beginPath()
+        ctx.arc(0, -size * 0.12, size * 0.28, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#22c55e'
+        ctx.beginPath()
+        ctx.arc(-size * 0.15, -size * 0.08, size * 0.16, 0, Math.PI * 2)
+        ctx.arc(size * 0.15, -size * 0.1, size * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
       break
     }
   }

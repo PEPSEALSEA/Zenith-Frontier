@@ -1,4 +1,5 @@
 import type { WorldObject, WorldObjectType } from '@/store/gameStore'
+import { drawSprite } from '@/lib/sprites'
 
 export const STAR_TOWN_SPAWN = { x: 400, y: 300 }
 
@@ -634,18 +635,30 @@ export function drawForestDecor(
     [900, 240], [650, 480], [820, 460], [920, 400], [600, 320],
   ]
   for (const [tx, ty] of trees) {
-    if (tx < camX - 40 || tx > camX + width + 40 || ty < camY - 40 || ty > camY + height + 40) continue
-    ctx.fillStyle = '#3f2a14'
-    ctx.fillRect(tx - 4, ty, 8, 18)
-    ctx.fillStyle = '#15803d'
+    if (tx < camX - 50 || tx > camX + width + 50 || ty < camY - 60 || ty > camY + height + 50) continue
+    ctx.save()
+    ctx.translate(tx, ty)
+    const grad = ctx.createRadialGradient(0, 4, 0, 0, 4, 22)
+    grad.addColorStop(0, 'rgba(8, 6, 5, 0.35)')
+    grad.addColorStop(1, 'rgba(8, 6, 5, 0)')
+    ctx.fillStyle = grad
     ctx.beginPath()
-    ctx.arc(tx, ty - 8, 16, 0, Math.PI * 2)
+    ctx.ellipse(0, 4, 20, 7, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#22c55e'
-    ctx.beginPath()
-    ctx.arc(tx - 6, ty - 14, 10, 0, Math.PI * 2)
-    ctx.arc(tx + 7, ty - 12, 9, 0, Math.PI * 2)
-    ctx.fill()
+    if (!drawSprite(ctx, 'tree', 56, 6)) {
+      ctx.fillStyle = '#3f2a14'
+      ctx.fillRect(-4, 0, 8, 18)
+      ctx.fillStyle = '#15803d'
+      ctx.beginPath()
+      ctx.arc(0, -8, 16, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#22c55e'
+      ctx.beginPath()
+      ctx.arc(-6, -14, 10, 0, Math.PI * 2)
+      ctx.arc(7, -12, 9, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
   }
 }
 

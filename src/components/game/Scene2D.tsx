@@ -22,6 +22,7 @@ import {
 } from '@/lib/starTown'
 import { drawAllTileMaps } from '@/lib/map/tiles'
 import { getZoneAt } from '@/lib/map/mapManifest'
+import { preloadSprites, drawSprite, type SpriteName } from '@/lib/sprites'
 import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
 import { preloadSheets, updateFx, drawFx } from '@/lib/combat/particles'
 import { updateProjectiles, drawProjectiles } from '@/lib/combat/projectiles'
@@ -219,6 +220,19 @@ function drawGroundShadow(
   ctx.fill()
 }
 
+/** Soft contact shadow drawn under sprite-based buildings, at their base y-offset. */
+function buildingGroundShadow(ctx: CanvasRenderingContext2D, rx: number, dy: number) {
+  ctx.save()
+  const grad = ctx.createRadialGradient(0, dy, 0, 0, dy, rx)
+  grad.addColorStop(0, 'rgba(8, 6, 5, 0.4)')
+  grad.addColorStop(1, 'rgba(8, 6, 5, 0)')
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.ellipse(0, dy, rx, rx * 0.34, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
 function dist(ax: number, ay: number, bx: number, by: number) {
   const dx = ax - bx
   const dy = ay - by
@@ -271,6 +285,7 @@ export default function GameScene2D() {
 
   useEffect(() => {
     preloadSheets()
+    preloadSprites()
   }, [])
 
   useEffect(() => {
@@ -1099,6 +1114,7 @@ export default function GameScene2D() {
       ctx.translate(obj.x, obj.y)
       const color = String(obj.params?.color || getObjectColor(obj.type))
       const kind = String(obj.params?.kind || '')
+      let labelOffset = 28
       if (obj.type === 'landmark' && kind === 'golf') {
         drawGolfGreen(ctx, 28)
       } else if (obj.type === 'npc') {
@@ -1111,13 +1127,25 @@ export default function GameScene2D() {
         ctx.shadowBlur = 0
         drawFace(ctx, 0, 0, 8, String(obj.params?.face || 'star'))
       } else if (kind === 'gate') {
-        drawBuilding(ctx, 'landmark', color, 26, 'gate')
+        buildingGroundShadow(ctx, 34, 14)
+        if (!drawSprite(ctx, 'gate', 68, 28)) drawBuilding(ctx, 'landmark', color, 26, 'gate')
+        labelOffset = 20
       } else if (kind === 'house') {
-        drawBuilding(ctx, 'house', color, 30, 'house')
+        buildingGroundShadow(ctx, 46, 30)
+        if (!drawSprite(ctx, 'house', 108, 30)) drawBuilding(ctx, 'house', color, 30, 'house')
+        labelOffset = 32
+      } else if (obj.type === 'market') {
+        buildingGroundShadow(ctx, 38, 24)
+        if (!drawSprite(ctx, 'market', 82, 24)) drawBuilding(ctx, 'market', color, 26, kind)
+        labelOffset = 26
+      } else if (obj.type === 'hotel') {
+        buildingGroundShadow(ctx, 44, 28)
+        if (!drawSprite(ctx, 'inn', 96, 28)) drawBuilding(ctx, 'hotel', color, 26, kind)
+        labelOffset = 30
       } else {
         drawBuilding(ctx, obj.type === 'landmark' ? 'landmark' : obj.type, color, 26, kind)
       }
-      drawLabelBelow(ctx, obj.name, kind === 'house' ? 42 : 28)
+      drawLabelBelow(ctx, obj.name, labelOffset)
       ctx.restore()
     }
 
