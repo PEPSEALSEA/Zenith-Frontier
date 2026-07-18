@@ -1,7 +1,7 @@
 import type { WorldObject, WorldObjectType } from '@/store/gameStore'
 import { drawSprite } from '@/lib/sprites'
 
-export const STAR_TOWN_SPAWN = { x: 400, y: 300 }
+export const STAR_TOWN_SPAWN = { x: 370, y: 300 }
 
 export type InteractKind = 'talk' | 'shop' | 'rest' | 'heal' | 'golf'
 
@@ -168,24 +168,24 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'town_start',
     type: 'town',
-    x: 400,
+    x: 370,
     y: 300,
     z: 0,
     name: 'Star Town',
     radius: 260,
     params: {
       shape: 'poly',
-      w: '480',
-      h: '380',
+      w: '420',
+      h: '340',
       safe: '1',
       map_id: 'town1',
-      pts: '200,110|580,110|630,160|630,440|580,490|200,490|150,440|150,160',
+      pts: '180,130|560,130|580,160|580,440|560,470|180,470|160,440|160,160',
     },
   },
   {
     id: 'player_home',
     type: 'landmark',
-    x: 400,
+    x: 370,
     y: 175,
     z: 2,
     name: 'Your House',
@@ -200,8 +200,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'npc_stella',
     type: 'npc',
-    x: 330,
-    y: 230,
+    x: 300,
+    y: 240,
     z: 2,
     name: 'Stella',
     radius: 28,
@@ -216,7 +216,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_mart',
     type: 'market',
-    x: 230,
+    x: 220,
     y: 300,
     z: 2,
     name: 'Star Mart',
@@ -226,7 +226,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_scrolls',
     type: 'market',
-    x: 260,
+    x: 250,
     y: 400,
     z: 2,
     name: 'Scroll Stall',
@@ -236,8 +236,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_inn',
     type: 'hotel',
-    x: 540,
-    y: 220,
+    x: 500,
+    y: 210,
     z: 2,
     name: 'Softcloud Inn',
     radius: 36,
@@ -246,8 +246,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_heal',
     type: 'landmark',
-    x: 400,
-    y: 430,
+    x: 370,
+    y: 420,
     z: 2,
     name: 'Star Spring',
     radius: 34,
@@ -256,8 +256,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'star_golf',
     type: 'landmark',
-    x: 540,
-    y: 410,
+    x: 500,
+    y: 400,
     z: 2,
     name: 'Star Golf',
     radius: 40,
@@ -266,7 +266,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'gate_town_exit',
     type: 'landmark',
-    x: 630,
+    x: 580,
     y: 300,
     z: 1,
     name: 'East Gate',
@@ -276,7 +276,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'exit',
       to: 'park1',
       sibling: 'gate_park_enter',
-      spawn_x: '670',
+      spawn_x: '780',
       spawn_y: '300',
       color: '#facc15',
     },
@@ -284,17 +284,17 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'whisperwood',
     type: 'forest',
-    x: 780,
-    y: 320,
+    x: 920,
+    y: 330,
     z: 0,
     name: 'Whisperwood Park',
-    radius: 260,
+    radius: 200,
     params: { map_id: 'park1' },
   },
   {
     id: 'gate_park_enter',
     type: 'landmark',
-    x: 610,
+    x: 740,
     y: 300,
     z: 1,
     name: 'Town Gate',
@@ -304,7 +304,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
       gate: 'entrance',
       to: 'town1',
       sibling: 'gate_town_exit',
-      spawn_x: '570',
+      spawn_x: '540',
       spawn_y: '300',
       color: '#facc15',
     },
@@ -312,7 +312,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_1',
     type: 'monster',
-    x: 720,
+    x: 820,
     y: 220,
     z: 1,
     name: 'Fluff Rabbit',
@@ -322,8 +322,8 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_rabbit_2',
     type: 'monster',
-    x: 860,
-    y: 380,
+    x: 980,
+    y: 400,
     z: 1,
     name: 'Fluff Rabbit',
     radius: 30,
@@ -332,7 +332,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_bunny_3',
     type: 'monster',
-    x: 780,
+    x: 900,
     y: 300,
     z: 1,
     name: 'Fluff Rabbit',
@@ -342,7 +342,7 @@ export const STAR_TOWN_FALLBACK: WorldObject[] = [
   {
     id: 'forest_sloth_1',
     type: 'monster',
-    x: 900,
+    x: 1020,
     y: 280,
     z: 1,
     name: 'Sleepy Sloth',
@@ -631,8 +631,8 @@ export function drawForestDecor(
   height: number,
 ) {
   const trees = [
-    [640, 200], [690, 420], [780, 180], [850, 360], [740, 300],
-    [900, 240], [650, 480], [820, 460], [920, 400], [600, 320],
+    [780, 190], [860, 440], [940, 180], [1000, 360], [840, 300],
+    [1060, 240], [780, 480], [980, 470], [1080, 400], [900, 520],
   ]
   for (const [tx, ty] of trees) {
     if (tx < camX - 50 || tx > camX + width + 50 || ty < camY - 60 || ty > camY + height + 50) continue
@@ -741,34 +741,19 @@ export function drawLabelBelow(
 }
 
 export function ensureStarTownObjects(objects: WorldObject[]): WorldObject[] {
-  const hasStar = objects.some((o) => o.id === 'town_start' || o.name === 'Star Town')
-  const hasInn = objects.some((o) => o.id === 'star_inn' || o.type === 'hotel')
-  const hasGate = objects.some((o) => o.id === 'gate_town_exit')
-  const hasHome = objects.some((o) => o.id === 'player_home')
-  if (hasStar && hasInn && hasGate && hasHome) {
-    return objects.map((o) =>
-      o.id === 'town_start' || o.name === 'Starter Town'
-        ? {
-            ...o,
-            name: 'Star Town',
-            params: {
-              ...o.params,
-              shape: o.params?.shape || 'poly',
-              w: o.params?.w || '480',
-              h: o.params?.h || '400',
-              map_id: o.params?.map_id || 'town1',
-              pts:
-                o.params?.pts ||
-                '220,140|580,140|620,220|620,380|580,460|220,460|180,380|180,220',
-            },
-          }
-        : o,
-    )
+  const byId = new Map(STAR_TOWN_FALLBACK.map((o) => [o.id, o]))
+  const knownIds = new Set(byId.keys())
+  const hasCore =
+    objects.some((o) => o.id === 'town_start' || o.name === 'Star Town') &&
+    objects.some((o) => o.id === 'star_inn' || o.type === 'hotel') &&
+    objects.some((o) => o.id === 'gate_town_exit') &&
+    objects.some((o) => o.id === 'player_home')
+
+  if (hasCore) {
+    const extras = objects.filter((o) => !knownIds.has(o.id) && o.id !== 'spawn_slime_1')
+    return [...STAR_TOWN_FALLBACK, ...extras]
   }
-  const keep = objects.filter((o) => {
-    if (o.id === 'town_start' || o.id === 'spawn_slime_1') return false
-    if (STAR_TOWN_FALLBACK.some((f) => f.id === o.id)) return false
-    return true
-  })
+
+  const keep = objects.filter((o) => !knownIds.has(o.id) && o.id !== 'spawn_slime_1')
   return [...STAR_TOWN_FALLBACK, ...keep]
 }

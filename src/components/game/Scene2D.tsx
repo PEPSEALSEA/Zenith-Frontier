@@ -4,25 +4,10 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { useGameStore } from '@/store/gameStore'
 import { gasService } from '@/services/gasService'
 import { sfx } from '@/lib/sfx'
-import {
-  drawBuilding,
-  drawCuteCritter,
-  drawForestDecor,
-  drawGolfGreen,
-  drawLabelBelow,
-  drawStarTownFloor,
-  ensureStarTownObjects,
-  findNearbyGate,
-  findNearbyInteractable,
-  interactKindOf,
-  interactPrompt,
-  isInSafeZone,
-  parseNum,
-  STAR_TOWN_SPAWN,
-} from '@/lib/starTown'
-import { drawAllTileMaps } from '@/lib/map/tiles'
+import { drawStarTownFloor, ensureStarTownObjects, findNearbyGate, findNearbyInteractable, interactKindOf, interactPrompt, isInSafeZone, parseNum, STAR_TOWN_SPAWN, drawBuilding, drawCuteCritter, drawForestDecor, drawGolfGreen, drawLabelBelow } from '@/lib/starTown'
 import { getZoneAt } from '@/lib/map/mapManifest'
-import { preloadSprites, drawSprite, type SpriteName } from '@/lib/sprites'
+import { drawTownWalls, drawParkGround, drawGatePath, resolveWalk } from '@/lib/map/worldLayout'
+import { preloadSprites, drawSprite } from '@/lib/sprites'
 import { parseAttackProfile, DEFAULT_ATTACK } from '@/lib/classSystem'
 import { preloadSheets, updateFx, drawFx } from '@/lib/combat/particles'
 import { updateProjectiles, drawProjectiles } from '@/lib/combat/projectiles'
@@ -306,7 +291,14 @@ export default function GameScene2D() {
     const cur = useGameStore.getState().world.objects
     const same =
       cur.length === merged.length &&
-      cur.every((o, i) => o.id === merged[i]?.id && o.name === merged[i]?.name && o.type === merged[i]?.type)
+      cur.every(
+        (o, i) =>
+          o.id === merged[i]?.id &&
+          o.name === merged[i]?.name &&
+          o.type === merged[i]?.type &&
+          o.x === merged[i]?.x &&
+          o.y === merged[i]?.y,
+      )
     if (!same) setWorldObjects(merged)
   }, [setWorldObjects])
 
@@ -686,8 +678,13 @@ export default function GameScene2D() {
       const factor = 1 / Math.sqrt(2); dx *= factor; dy *= factor
     }
 
-    posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + dx * deltaTime))
-    posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + dy * deltaTime))
+    const fromX = posRef.current.x
+    const fromY = posRef.current.y
+    const toX = Math.max(0, Math.min(WORLD_SIZE, fromX + dx * deltaTime))
+    const toY = Math.max(0, Math.min(WORLD_SIZE, fromY + dy * deltaTime))
+    const next = resolveWalk(fromX, fromY, toX, toY)
+    posRef.current.x = next.x
+    posRef.current.y = next.y
     movingRef.current = dx !== 0 || dy !== 0
     if (dx > 0) facingRef.current = 1
     else if (dx < 0) facingRef.current = -1
@@ -855,8 +852,11 @@ export default function GameScene2D() {
             },
             applyDash: (d) => {
               const ang = lastAimAngleRef.current
-              posRef.current.x = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
-              posRef.current.y = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
+              const nx = Math.max(0, Math.min(WORLD_SIZE, posRef.current.x + Math.cos(ang) * d))
+              const ny = Math.max(0, Math.min(WORLD_SIZE, posRef.current.y + Math.sin(ang) * d))
+              const next = resolveWalk(posRef.current.x, posRef.current.y, nx, ny)
+              posRef.current.x = next.x
+              posRef.current.y = next.y
               facingRef.current = Math.cos(ang) >= 0 ? 1 : -1
             },
           })
@@ -1058,30 +1058,30 @@ export default function GameScene2D() {
     ctx.fillStyle = gradientBg
     ctx.fillRect(camX, camY, width, height)
 
-    ctx.strokeStyle = isEditorMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 41, 59, 0.04)'
-    ctx.lineWidth = 1
-    for (let x = 0; x <= WORLD_SIZE; x += 100) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); ctx.stroke()
-    }
-    for (let y = 0; y <= WORLD_SIZE; y += 100) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); ctx.stroke()
+    if (isEditorMode) {
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.2)'
+      ctx.lineWidth = 1
+      for (let x = 0; x <= WORLD_SIZE; x += 100) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); ctx.stroke()
+      }
+      for (let y = 0; y <= WORLD_SIZE; y += 100) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); ctx.stroke()
+      }
     }
 
-    drawForestDecor(ctx, camX, camY, width, height)
+    drawGatePath(ctx)
 
     for (const obj of objects) {
       if (obj.type === 'town' || obj.type === 'safezone') {
         drawStarTownFloor(ctx, obj)
       }
       if (obj.type === 'forest') {
-        ctx.fillStyle = 'rgba(22, 101, 52, 0.1)'
-        ctx.beginPath()
-        ctx.arc(obj.x, obj.y, obj.radius * 0.85, 0, Math.PI * 2)
-        ctx.fill()
+        drawParkGround(ctx, obj)
       }
     }
 
-    drawAllTileMaps(ctx, camX, camY, width, height)
+    drawTownWalls(ctx)
+    drawForestDecor(ctx, camX, camY, width, height)
 
     for (const obj of objects) {
       if (obj.type === 'spawner') {
@@ -1101,7 +1101,7 @@ export default function GameScene2D() {
         ctx.fillStyle = 'rgba(187, 247, 208, 0.85)'
         ctx.font = '600 13px Oxanium, sans-serif'
         ctx.textAlign = 'center'
-        ctx.fillText(obj.name, obj.x, obj.y - obj.radius * 0.35)
+        ctx.fillText(obj.name, obj.x, obj.y - obj.radius * 0.55)
       }
     }
 

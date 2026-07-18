@@ -1,4 +1,4 @@
-import { ALL_TILE_MAPS, encodeTiles, TOWN1_TILES, PARK1_TILES } from './tiles'
+import { TOWN_BOUNDS, PARK_BOUNDS } from './worldLayout'
 import {
   HIT_CHANCE_BASE,
   DODGE_CHANCE_BASE,
@@ -39,7 +39,6 @@ export type MapRegionManifest = {
   spawn?: { x: number; y: number }
   gates: MapGate[]
   pois: MapPoi[]
-  tiles: { cellSize: number; width: number; height: number; originX: number; originY: number; cells: string; encoded: string }
   monsters?: { templateId: string; count: number; patrol: string }[]
   combatRules?: {
     hitFormula: string
@@ -55,83 +54,59 @@ const combatRules = {
   skillTier: 1 as const,
 }
 
-function tilesBlock(map: (typeof ALL_TILE_MAPS)[0]) {
-  return {
-    cellSize: map.cellSize,
-    width: map.width,
-    height: map.height,
-    originX: map.originX,
-    originY: map.originY,
-    cells: map.cells,
-    encoded: encodeTiles(map),
-  }
-}
-
 export const MAP_MANIFEST: { maps: MapRegionManifest[] } = {
   maps: [
     {
       id: 'town1',
       name: 'Star Town',
       safe: true,
-      bounds: {
-        x: TOWN1_TILES.originX,
-        y: TOWN1_TILES.originY,
-        w: TOWN1_TILES.width * TOWN1_TILES.cellSize,
-        h: TOWN1_TILES.height * TOWN1_TILES.cellSize,
-      },
-      spawn: { x: 400, y: 300 },
+      bounds: { ...TOWN_BOUNDS },
+      spawn: { x: 370, y: 300 },
       gates: [
         {
           id: 'gate_town_exit',
           to: 'park1',
-          x: 630,
+          x: 580,
           y: 300,
           sibling: 'gate_park_enter',
-          spawnX: 670,
+          spawnX: 780,
           spawnY: 300,
         },
       ],
       pois: [
-        { id: 'player_home', kind: 'house', name: 'Your House', x: 400, y: 175, interact: 'talk', labelAnchor: 'below', drawLayer: 2, noStack: true, line: 'Home sweet home. Safe walls of Town 1.' },
-        { id: 'npc_stella', kind: 'npc', name: 'Stella', x: 330, y: 230, interact: 'talk', labelAnchor: 'below', drawLayer: 2, noStack: true },
-        { id: 'star_mart', kind: 'market', name: 'Star Mart', x: 230, y: 300, interact: 'shop', labelAnchor: 'below', drawLayer: 2, noStack: true },
-        { id: 'star_scrolls', kind: 'market', name: 'Scroll Stall', x: 260, y: 400, interact: 'shop', labelAnchor: 'below', drawLayer: 2, noStack: true },
-        { id: 'star_inn', kind: 'hotel', name: 'Softcloud Inn', x: 540, y: 220, interact: 'rest', labelAnchor: 'below', drawLayer: 2, noStack: true },
-        { id: 'star_heal', kind: 'landmark', name: 'Star Spring', x: 400, y: 430, interact: 'heal', labelAnchor: 'below', drawLayer: 2, noStack: true },
-        { id: 'star_golf', kind: 'landmark', name: 'Star Golf', x: 540, y: 410, interact: 'golf', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'player_home', kind: 'house', name: 'Your House', x: 370, y: 175, interact: 'talk', labelAnchor: 'below', drawLayer: 2, noStack: true, line: 'Home sweet home. Safe walls of Town 1.' },
+        { id: 'npc_stella', kind: 'npc', name: 'Stella', x: 300, y: 240, interact: 'talk', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'star_mart', kind: 'market', name: 'Star Mart', x: 220, y: 300, interact: 'shop', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'star_scrolls', kind: 'market', name: 'Scroll Stall', x: 250, y: 400, interact: 'shop', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'star_inn', kind: 'hotel', name: 'Softcloud Inn', x: 500, y: 210, interact: 'rest', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'star_heal', kind: 'landmark', name: 'Star Spring', x: 370, y: 420, interact: 'heal', labelAnchor: 'below', drawLayer: 2, noStack: true },
+        { id: 'star_golf', kind: 'landmark', name: 'Star Golf', x: 500, y: 400, interact: 'golf', labelAnchor: 'below', drawLayer: 2, noStack: true },
       ],
-      tiles: tilesBlock(TOWN1_TILES),
-      notes: 'Safe hub. No combat. Exit east gate to Park 1. Place tiles/POIs from this manifest only — no zone circles.',
+      notes: 'Safe hub. Seamless floor + solid walls. Exit east gate to Park 1. No tile grid.',
     },
     {
       id: 'park1',
       name: 'Whisperwood Park',
       safe: false,
-      bounds: {
-        x: PARK1_TILES.originX,
-        y: PARK1_TILES.originY,
-        w: PARK1_TILES.width * PARK1_TILES.cellSize,
-        h: PARK1_TILES.height * PARK1_TILES.cellSize,
-      },
+      bounds: { ...PARK_BOUNDS },
       gates: [
         {
           id: 'gate_park_enter',
           to: 'town1',
-          x: 610,
+          x: 740,
           y: 300,
           sibling: 'gate_town_exit',
-          spawnX: 570,
+          spawnX: 540,
           spawnY: 300,
         },
       ],
       pois: [],
-      tiles: tilesBlock(PARK1_TILES),
       monsters: [
         { templateId: 'MON_003', count: 3, patrol: 'trail' },
         { templateId: 'MON_004', count: 1, patrol: 'trail' },
       ],
       combatRules: { ...combatRules, skillTier: 1 },
-      notes: 'First park stage. Tier-1 monster skills only (hop / spit). Enter west gate back to Town 1.',
+      notes: 'East of town with a gap — no overlap. Tier-1 monster skills only.',
     },
   ],
 }
