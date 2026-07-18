@@ -93,34 +93,48 @@ export default function CharacterCreator() {
         setStep(2)
     }, [auth.isAuthenticated, auth.user, step])
 
+    const finishLogin = async (email: string, displayName: string, picture = '') => {
+        setLoginAsName(displayName)
+        login({ name: displayName, email, picture })
+
+        if (email === ADMIN_EMAIL) {
+            enterAdminDashboard()
+            setAuthBootComplete(true)
+            return
+        }
+
+        setHydratingSession(true)
+        const ok = await hydrateFromServer(email)
+        setHydratingSession(false)
+        setAuthBootComplete(true)
+        if (ok) return
+
+        setName(displayName)
+        setStep(2)
+    }
+
     const handleSuccess = async (credentialResponse: any) => {
         setIsLoading(true)
         try {
             const decoded: any = jwtDecode(credentialResponse.credential)
-            const email = decoded.email
-            const displayName = decoded.name || 'Adventurer'
-            setLoginAsName(displayName)
-
-            login({
-                name: displayName,
-                email: email,
-                picture: decoded.picture
-            })
-
-            if (email === ADMIN_EMAIL) {
-                enterAdminDashboard()
-                setAuthBootComplete(true)
-                return
-            }
-
-            setHydratingSession(true)
-            const ok = await hydrateFromServer(email)
+            await finishLogin(
+                decoded.email,
+                decoded.name || 'Adventurer',
+                decoded.picture || '',
+            )
+        } catch (e) {
+            console.error(e)
             setHydratingSession(false)
             setAuthBootComplete(true)
-            if (ok) return
+        } finally {
+            setIsLoading(false)
+        }
+    }
 
-            setName(displayName)
-            setStep(2)
+    const handleGuestLogin = async () => {
+        setIsLoading(true)
+        try {
+            await finishLogin('guest@zenith.local', 'Guest')
         } catch (e) {
             console.error(e)
             setHydratingSession(false)
@@ -189,15 +203,28 @@ export default function CharacterCreator() {
 
                     <div className="flex min-h-0 flex-col p-8 lg:p-12">
                         {!auth.isAuthenticated ? (
-                            <div className="flex h-full flex-col items-center justify-center text-center">
-                                <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic mb-6">ZENITH FRONTIER</h1>
+                            <div className="flex h-full flex-col items-center justify-center text-center gap-4">
+                                <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic mb-2">ZENITH FRONTIER</h1>
                                 <GoogleLogin onSuccess={handleSuccess} onError={() => { }} />
+                                <button
+                                    type="button"
+                                    onClick={handleGuestLogin}
+                                    className="mt-2 rounded-lg border border-white/15 bg-white/5 px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white/80 transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-400"
+                                >
+                                    Play as Guest
+                                </button>
                             </div>
                         ) : (
                             <div className="flex min-h-0 flex-1 flex-col">
                                 <div className="mb-6 flex shrink-0 items-center justify-between overflow-x-auto">
                                     <div className="flex items-center gap-4">
-                                        <img src={auth.user?.picture} className="h-10 w-10 rounded-full border border-emerald-500/50" />
+                                        {auth.user?.picture ? (
+                                            <img src={auth.user.picture} alt="" className="h-10 w-10 rounded-full border border-emerald-500/50" />
+                                        ) : (
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/50 bg-emerald-500/15">
+                                                <Ghost className="h-5 w-5 text-emerald-400" />
+                                            </div>
+                                        )}
                                         <span className="text-xs font-bold text-white uppercase">{auth.user?.name}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
