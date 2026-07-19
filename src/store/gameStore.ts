@@ -488,6 +488,23 @@ function mergeStackedTitle(kind: GameToastKind, prevTitle: string, nextTitle: st
     return nextTitle || prevTitle
 }
 
+function maxExpForLevel(level: number): number {
+    let need = 100
+    for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
+    return need
+}
+
+/** Lifetime EXP progress for comparing local vs server snapshots. */
+function expProgress(level: number, exp: number): number {
+    let total = Math.max(0, exp)
+    let need = 100
+    for (let i = 1; i < level; i++) {
+        total += need
+        need = Math.floor(need * 1.5)
+    }
+    return total
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
     auth: {
         user: null,
@@ -1390,21 +1407,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             || get().player.inventory.find((i) => i.item_id === id)?.name
             || id
 
-        if (!email) {
-            get().gainExp(exp)
-            if (money) addMoney(money)
-            for (const id of items || []) {
-                const title = itemLabel(id)
-                addInventoryItem({ item_id: id, quantity: 1, name: title })
-                pushToast({
-                    kind: 'item',
-                    title,
-                    detail: 'Item acquired',
-                })
-            }
-            return
-        }
-
+        // Always apply locally first so HUD updates even if the API fails.
+        get().gainExp(exp)
         if (money) addMoney(money)
         for (const id of items || []) {
             const title = itemLabel(id)
@@ -1416,13 +1420,14 @@ export const useGameStore = create<GameState>((set, get) => ({
             })
         }
 
+        if (!email) return
+
         const { gasService } = await import('@/services/gasService')
         const expRes = await gasService.addExp(email, exp, 12)
         if (expRes.startsWith('OK|EXP_ADDED|')) {
             const parts = expRes.split('|')
             const level = Number(parts[2])
             const serverExp = Number(parts[3])
-            const leveled = Number(parts[4]) || 0
             const statPoints = Number(parts[5])
             const mastery = Number(parts[6])
             const masteryExp = Number(parts[7])
@@ -1438,23 +1443,10 @@ export const useGameStore = create<GameState>((set, get) => ({
                             ...state.player.stats,
                             level,
                             exp: serverExp,
-                            maxExp: (() => {
-                                let need = 100
-                                for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
-                                return need
-                            })(),
+                            maxExp: maxExpForLevel(level),
                         },
                     },
                 }))
-            }
-            if (leveled > 0) {
-                const { sfx } = await import('@/lib/sfx')
-                sfx.levelUp()
-                pushToast({
-                    kind: 'level',
-                    title: `LEVEL UP  ${level}`,
-                    detail: `+${leveled * STAT_POINTS_PER_LEVEL} potential · allocate in Job System`,
-                })
             }
         }
         if (money) {
@@ -1486,6 +1478,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             || get().player.inventory.find((i) => i.item_id === id)?.name
             || id
 
+        const before = get().player.stats
+        const beforeProg = expProgress(before.level, before.exp)
         get().gainExp(exp)
         if (money) {
             addMoney(money)
@@ -1498,9 +1492,9 @@ export const useGameStore = create<GameState>((set, get) => ({
             pushToast({ kind: 'item', title, detail: 'Party loot' })
         }
         pushToast({
-            kind: 'info',
-            title: 'Combat reward',
-            detail: `+${exp} EXP` + (money ? ` · +${money} G` : ''),
+            kind: 'exp',
+            title: `+${exp} EXP`,
+            detail: money ? `+${money} G` : 'Combat reward',
         })
 
         const email = auth.user?.email
@@ -1508,28 +1502,68 @@ export const useGameStore = create<GameState>((set, get) => ({
         try {
             const { gasService } = await import('@/services/gasService')
             const row = await gasService.getPlayer(email)
-            if (!row) return
-            const level = Number(row.level) || get().player.stats.level
-            const serverExp = Number(row.exp) || 0
-            const moneyBal = Number(row.money)
-            set((state) => ({
-                player: {
-                    ...state.player,
-                    stats: {
-                        ...state.player.stats,
-                        level,
-                        exp: serverExp,
-                        money: Number.isNaN(moneyBal) ? state.player.stats.money : moneyBal,
-                        maxExp: (() => {
-                            let need = 100
-                            for (let i = 1; i < level; i++) need = Math.floor(need * 1.5)
-                            return need
-                        })(),
+            const serverLevel = row ? (Number(row.level) || 1) : 0
+            const serverExp = row ? (Number(row.exp) || 0) : 0
+            const serverProg = row ? expProgress(serverLevel, serverExp) : -1
+            // Zone persist may fail. Only trust server when it reflects this grant.
+            if (row && serverProg + 1 >= beforeProg + exp) {
+                const moneyBal = Number(row.money)
+                set((state) => ({
+                    player: {
+                        ...state.player,
+                        stats: {
+                            ...state.player.stats,
+                            level: serverLevel,
+                            exp: serverExp,
+                            money: Number.isNaN(moneyBal) ? state.player.stats.money : moneyBal,
+                            maxExp: maxExpForLevel(serverLevel),
+                        },
                     },
-                },
-            }))
+                }))
+                return
+            }
+            const expRes = await gasService.addExp(email, exp, 12)
+            if (expRes.startsWith('OK|EXP_ADDED|')) {
+                const parts = expRes.split('|')
+                const level = Number(parts[2])
+                const syncedExp = Number(parts[3])
+                const statPoints = Number(parts[5])
+                const mastery = Number(parts[6])
+                const masteryExp = Number(parts[7])
+                if (!Number.isNaN(level)) {
+                    set((state) => ({
+                        player: {
+                            ...state.player,
+                            statPoints: Number.isNaN(statPoints) ? state.player.statPoints : statPoints,
+                            jobMastery: Number.isNaN(mastery) ? state.player.jobMastery : mastery,
+                            jobMasteryExp: Number.isNaN(masteryExp) ? state.player.jobMasteryExp : masteryExp,
+                            pendingLevelUps: 0,
+                            stats: {
+                                ...state.player.stats,
+                                level,
+                                exp: syncedExp,
+                                maxExp: maxExpForLevel(level),
+                            },
+                        },
+                    }))
+                }
+            }
+            if (money) {
+                const moneyRes = await gasService.addMoney(email, money)
+                if (moneyRes.startsWith('OK|MONEY_UPDATED|')) {
+                    const m = Number(moneyRes.split('|')[2])
+                    if (!Number.isNaN(m)) {
+                        set((state) => ({
+                            player: { ...state.player, stats: { ...state.player.stats, money: m } },
+                        }))
+                    }
+                }
+            }
+            for (const id of items || []) {
+                await gasService.addItem(email, id, 1)
+            }
         } catch {
-            /* ignore */
+            /* keep local rewards */
         }
     },
 
