@@ -20,6 +20,15 @@ import {
   resolveMonsterSkillIds,
   rollDodge,
 } from '@/lib/combat/hitDodge'
+import {
+  fireSkillProjectile,
+  fireStyleProjectiles,
+  parseEffect,
+  skillFx,
+  spawnBasicAttackFx,
+  spawnSkillVisual,
+  styleDelivery,
+} from '@/lib/combat/fxRegistry'
 import { useZoneSession } from '@/hooks/useZoneSession'
 import { zoneSocket } from '@/services/zoneSocket'
 import type { ZoneEntitySeed } from '@/lib/zoneProtocol'
@@ -1282,17 +1291,38 @@ export default function GameScene2D() {
     ) {
       lastAttackHandled.current = lastAtk.time
       if (zoneAuthRef.current) {
+        const hard = lastAtk.type === 'hard'
+        const range = (hard ? profile.hard_range : profile.light_range) + buff.rangeAdd
+        const delivery = styleDelivery(profile.style)
+        const inRange = (m: { x: number; y: number }) =>
+          dist(posRef.current.x, posRef.current.y, m.x, m.y) <= range
         const target =
-          locked ||
-          monstersRef.current.find(
-            (m) =>
-              m.deadUntil <= now &&
-              dist(posRef.current.x, posRef.current.y, m.x, m.y) < (profile.light_range || 70) + 40,
+          (locked && inRange(locked) ? locked : null) ||
+          monstersRef.current.find((m) => m.deadUntil <= now && inRange(m)) ||
+          null
+        const angle = lastAimAngleRef.current
+        if (delivery.shape === 'projectile' || delivery.shape === 'volley') {
+          spawnBasicAttackFx(profile, posRef.current, angle, hard)
+          const mult = hard ? profile.hard_mult : profile.light_mult
+          const baseDmg = Math.max(1, Math.floor(atkNow * mult))
+          fireStyleProjectiles(
+            delivery,
+            posRef.current,
+            angle,
+            baseDmg,
+            range,
+            hard,
+            target?.id || locked?.id || null,
+            {
+              attackType: lastAtk.type,
+              power: hard ? profile.hard_mult : profile.light_mult,
+              range,
+            },
           )
-        if (target) {
+        } else if (target) {
           sendZoneHit(target.id, lastAtk.type, {
-            power: lastAtk.type === 'hard' ? 1.6 : 1,
-            range: lastAtk.type === 'hard' ? profile.hard_range : profile.light_range,
+            power: hard ? profile.hard_mult : profile.light_mult,
+            range,
           })
         }
       } else {
@@ -1334,18 +1364,51 @@ export default function GameScene2D() {
         }
         if (!(playerSafe && skill.skill_type === 'damage')) {
           if (zoneAuthRef.current && skill.skill_type === 'damage') {
+            const tags = parseEffect(skill.effect)
+            const fx = skillFx(skill.skill_id)
+            const range = skill.range + buff.rangeAdd
+            const angle = lastAimAngleRef.current
+            const inRange = (m: { x: number; y: number }) =>
+              dist(posRef.current.x, posRef.current.y, m.x, m.y) <= range
             const target =
-              locked ||
-              monstersRef.current.find(
-                (m) =>
-                  m.deadUntil <= now &&
-                  dist(posRef.current.x, posRef.current.y, m.x, m.y) < skill.range + 40,
-              )
-            if (target) {
+              (locked && inRange(locked) ? locked : null) ||
+              monstersRef.current.find((m) => m.deadUntil <= now && inRange(m)) ||
+              null
+            const isProj =
+              tags.projectile ||
+              fx.sheet === 'fireball' ||
+              fx.sheet === 'arrow' ||
+              fx.sheet === 'bolt' ||
+              fx.sheet === 'hex' ||
+              fx.sheet === 'holy'
+            if (isProj) {
+              spawnSkillVisual(skill.skill_id, posRef.current, angle)
+              const base = Math.max(1, Math.floor(atkNow * skill.power))
+              const n = Math.max(1, tags.hits)
+              for (let i = 0; i < n; i++) {
+                const spread = n > 1 ? (i - (n - 1) / 2) * 0.1 : 0
+                fireSkillProjectile(
+                  skill.skill_id,
+                  posRef.current,
+                  angle + spread,
+                  Math.floor(base * (n > 1 ? 0.7 : 1)),
+                  range,
+                  tags,
+                  target?.id || locked?.id || null,
+                  {
+                    attackType: 'skill',
+                    skillId: skill.skill_id,
+                    power: skill.power,
+                    range,
+                  },
+                )
+              }
+              pushFloat(posRef.current.x, posRef.current.y - 36, skill.skill_name, '#c4b5fd')
+            } else if (target) {
               sendZoneHit(target.id, 'skill', {
                 skillId: skill.skill_id,
                 power: skill.power,
-                range: skill.range,
+                range,
               })
               pushFloat(target.x, target.y - 36, skill.skill_name, '#c4b5fd')
             }
@@ -1447,12 +1510,25 @@ export default function GameScene2D() {
     }
 
     // projectiles
-    if (!isEditorMode && !isForgeMode && !zoneAuthRef.current) {
+    if (!isEditorMode && !isForgeMode) {
       const projHits = updateProjectiles(now, deltaTime, monstersRef.current, (id) => {
         const m = monstersRef.current.find((x) => x.id === id)
         return m && m.deadUntil <= now ? { x: m.x, y: m.y } : null
       })
       for (const h of projHits) {
+        if (zoneAuthRef.current && h.zoneHit) {
+          const m = monstersRef.current.find((x) => x.id === h.targetId)
+          if (!m || m.deadUntil > now || m.hp <= 0) continue
+          const maxRange = (h.zoneHit.range || 160) + 24
+          if (dist(posRef.current.x, posRef.current.y, m.x, m.y) > maxRange) continue
+          sendZoneHit(h.targetId, h.zoneHit.attackType, {
+            skillId: h.zoneHit.skillId,
+            power: h.zoneHit.power,
+            range: h.zoneHit.range,
+          })
+          continue
+        }
+        if (zoneAuthRef.current) continue
         applyProjectileDamage(
           monstersRef.current,
           h.targetId,
@@ -1470,7 +1546,7 @@ export default function GameScene2D() {
         )
       }
       updateFx(now, deltaTime)
-      if (now - lastDotTick.current > 400) {
+      if (!zoneAuthRef.current && now - lastDotTick.current > 400) {
         lastDotTick.current = now
         tickDots(now, 400, (id, dmg) => {
           const m = monstersRef.current.find((x) => x.id === id)
@@ -1481,8 +1557,6 @@ export default function GameScene2D() {
           if (m.hp <= 0) onKillMonster(m)
         })
       }
-    } else if (!isEditorMode && !isForgeMode) {
-      updateFx(now, deltaTime)
     }
 
     if (time % 50 < 16) {

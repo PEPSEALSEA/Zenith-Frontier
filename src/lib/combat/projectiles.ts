@@ -2,6 +2,13 @@ import { dist } from './hitShapes'
 import { spawnAnim, spawnBurst } from './particles'
 import type { VfxSheetName } from './particles'
 
+export type ZoneHitPayload = {
+  attackType: 'light' | 'hard' | 'skill'
+  skillId?: string
+  power?: number
+  range?: number
+}
+
 export type Projectile = {
   id: number
   x: number
@@ -26,6 +33,7 @@ export type Projectile = {
   hitIds: Set<string>
   homingId?: string | null
   owner: 'player'
+  zoneHit?: ZoneHitPayload
 }
 
 export type HitTarget = {
@@ -66,6 +74,7 @@ export type ProjHitResult = {
   aoe: number
   explodeSheet?: VfxSheetName
   onHitSfx?: string
+  zoneHit?: ZoneHitPayload
 }
 
 export function updateProjectiles(
@@ -114,6 +123,7 @@ export function updateProjectiles(
         aoe: p.aoe,
         explodeSheet: p.explodeSheet,
         onHitSfx: p.onHitSfx,
+        zoneHit: p.zoneHit,
       })
       p.pierced++
       if (p.aoe > 0) {

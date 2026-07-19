@@ -270,6 +270,7 @@ export function fireStyleProjectiles(
   range: number,
   hard: boolean,
   homingId: string | null,
+  zoneHit?: import('./projectiles').ZoneHitPayload,
 ) {
   const sheet = delivery.projectileSheet || 'bolt'
   const count = delivery.shape === 'volley' ? (delivery.volley || 3) : 1
@@ -298,6 +299,7 @@ export function fireStyleProjectiles(
       status: delivery.status || null,
       homingId,
       owner: 'player',
+      zoneHit,
     })
   }
 }
@@ -310,6 +312,7 @@ export function fireSkillProjectile(
   range: number,
   tags: EffectTags,
   homingId: string | null,
+  zoneHit?: import('./projectiles').ZoneHitPayload,
 ) {
   const fx = skillFx(skillId)
   const sheet = (tags.fire ? 'fireball' : fx.sheet) as VfxSheetName
@@ -331,6 +334,7 @@ export function fireSkillProjectile(
     status: tags.stun ? 'stun' : tags.dot ? 'dot' : tags.crit ? 'crit' : tags.mark ? 'mark' : null,
     homingId: tags.lock || homingId ? homingId : null,
     owner: 'player',
+    zoneHit,
   })
   playDeliverySfx(fx.sfx)
 }
