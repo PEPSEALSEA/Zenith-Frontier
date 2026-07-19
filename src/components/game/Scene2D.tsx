@@ -712,6 +712,8 @@ export default function GameScene2D() {
             name: t.name,
             x: ox,
             y: oy,
+            tx: ox,
+            ty: oy,
             homeX: ox,
             homeY: oy,
             hp: t.hp,
