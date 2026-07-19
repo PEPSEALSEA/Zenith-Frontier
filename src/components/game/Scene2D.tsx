@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { useGameStore } from '@/store/gameStore'
 import { gasService } from '@/services/gasService'
 import { sfx } from '@/lib/sfx'
-import { drawStarTownFloor, ensureStarTownObjects, findNearbyGate, findNearbyInteractable, interactKindOf, interactPrompt, isInSafeZone, parseNum, STAR_TOWN_SPAWN, drawBuilding, drawCuteCritter, drawForestDecor, drawGolfGreen, drawLabelBelow } from '@/lib/starTown'
+import { drawStarTownFloor, ensureStarTownObjects, findNearbyInteractable, interactKindOf, interactPrompt, isInSafeZone, STAR_TOWN_SPAWN, drawBuilding, drawCuteCritter, drawForestDecor, drawGolfGreen, drawLabelBelow } from '@/lib/starTown'
 import { getZoneAt } from '@/lib/map/mapManifest'
 import { drawTownWalls, drawParkGround, drawGatePath, resolveWalk } from '@/lib/map/worldLayout'
 import { preloadSprites, drawSprite } from '@/lib/sprites'
@@ -38,7 +38,6 @@ const WORLD_SIZE = 3200
 const CONTACT_RANGE = 36
 const CHASE_RANGE = 220
 const RESPAWN_MS = 4000
-const GATE_COOLDOWN_MS = 900
 
 type LivingMonster = {
   id: string
@@ -304,8 +303,6 @@ export default function GameScene2D() {
   const mouseWorldRef = useRef({ x: 0, y: 0, ready: false })
   const lastAimAngleRef = useRef(0)
   const monsterShotsRef = useRef<MonsterShot[]>([])
-  const lastGateWarp = useRef(0)
-  const lastGateId = useRef('')
   const pendingHitsRef = useRef<Map<string, number>>(new Map())
   const lastServerHpRef = useRef<Map<string, number>>(new Map())
   const pendingHitAtRef = useRef<Map<string, number>>(new Map())
@@ -1563,14 +1560,11 @@ export default function GameScene2D() {
       updatePosition(posRef.current.x, posRef.current.y)
       if (!isEditorMode) updateWorldCycle(0.0005 * deltaTime)
       const near = findNearbyInteractable(posRef.current.x, posRef.current.y, objects)
-      const gateNear = findNearbyGate(posRef.current.x, posRef.current.y, objects)
       const zone = getZoneAt(posRef.current.x, posRef.current.y)
       const lockHint = locked ? ` · Lock: ${locked.id.slice(0, 8)}` : ''
       const nextHint = near && !panelRef.current
         ? `Press E — ${near.name}`
-        : gateNear
-          ? `Gate → walk through`
-          : (!playerSafe && !isEditorMode ? `Aim mouse · Tab lock${lockHint}` : '')
+        : (!playerSafe && !isEditorMode ? `Aim mouse · Tab lock${lockHint}` : '')
       if (nextHint !== hintRef.current) {
         hintRef.current = nextHint
         setHint(nextHint)
@@ -1581,22 +1575,6 @@ export default function GameScene2D() {
       }
       if (!playerSafe && zone && zone.name) {
         // banner text handled below via zone name in UI
-      }
-    }
-
-    if (!isEditorMode && !isForgeMode && !isDead) {
-      const gate = findNearbyGate(posRef.current.x, posRef.current.y, objects, 32)
-      if (gate && now - lastGateWarp.current > GATE_COOLDOWN_MS) {
-        if (lastGateId.current !== gate.id || now - lastGateWarp.current > GATE_COOLDOWN_MS) {
-          lastGateWarp.current = now
-          lastGateId.current = gate.id
-          posRef.current.x = parseNum(gate.params?.spawn_x, posRef.current.x)
-          posRef.current.y = parseNum(gate.params?.spawn_y, posRef.current.y)
-          pushFloat(posRef.current.x, posRef.current.y - 36, gate.name, '#facc15')
-          sfx.whoosh()
-        }
-      } else if (!gate) {
-        lastGateId.current = ''
       }
     }
 
@@ -1834,9 +1812,9 @@ export default function GameScene2D() {
           ctx.restore()
           continue
         }
-        buildingGroundShadow(ctx, 42, 18)
-        if (!drawSprite(ctx, 'gate', 96, 22)) drawBuilding(ctx, 'landmark', color, 30, 'gate')
-        labelOffset = 24
+        buildingGroundShadow(ctx, 58, 22)
+        if (!drawSprite(ctx, 'gate', 148, 28)) drawBuilding(ctx, 'landmark', color, 44, 'gate')
+        labelOffset = 36
         drawLabelBelow(ctx, obj.name, labelOffset)
         ctx.restore()
         continue

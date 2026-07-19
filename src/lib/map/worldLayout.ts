@@ -18,7 +18,7 @@ export const TOWN_WALL_PTS: { x: number; y: number }[] = [
 export const TOWN_WALL_THICKNESS = 22
 
 /** Walkable corridor through the east wall — only way in/out of town. */
-export const TOWN_GATE_ZONE = { x: 848, y: 360, w: 72, h: 80 }
+export const TOWN_GATE_ZONE = { x: 840, y: 320, w: 96, h: 160 }
 
 /** Whisperwood Park — fully east of town, ~3× linear vs old 620×620. */
 export const PARK_BOUNDS = { x: 1020, y: 40, w: 1860, h: 1860 }
@@ -47,11 +47,11 @@ export const PARK_OUTLINE_PTS: { x: number; y: number }[] = [
   { x: 1095, y: 1180 },
   { x: 1045, y: 900 },
   { x: 1080, y: 620 },
-  { x: 1055, y: 480 },
-  { x: 1040, y: 440 },
+  { x: 1060, y: 530 },
+  { x: 1035, y: 480 },
   { x: 1020, y: 400 },
-  { x: 1040, y: 360 },
-  { x: 1070, y: 280 },
+  { x: 1035, y: 320 },
+  { x: 1060, y: 270 },
   { x: 1045, y: 170 },
 ]
 
@@ -204,14 +204,14 @@ export function drawParkGround(ctx: CanvasRenderingContext2D, obj: WorldObject) 
 export function drawGatePath(ctx: CanvasRenderingContext2D) {
   ctx.save()
   ctx.strokeStyle = 'rgba(180, 150, 100, 0.5)'
-  ctx.lineWidth = 26
+  ctx.lineWidth = 56
   ctx.lineCap = 'round'
   ctx.beginPath()
   ctx.moveTo(GATE_PATH.fromX, GATE_PATH.y)
   ctx.lineTo(GATE_PATH.toX, GATE_PATH.y)
   ctx.stroke()
   ctx.strokeStyle = 'rgba(210, 180, 130, 0.35)'
-  ctx.lineWidth = 12
+  ctx.lineWidth = 28
   ctx.stroke()
   ctx.restore()
 }
