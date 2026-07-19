@@ -4,6 +4,7 @@ export type CombatMonster = {
   id: string
   x: number
   y: number
+  hp: number
   deadUntil: number
 }
 
@@ -15,7 +16,7 @@ const LOCK_RANGE = 320
 
 export function livingInRange(monsters: CombatMonster[], origin: Point, range: number, now: number) {
   return monsters
-    .filter((m) => m.deadUntil <= now && Math.hypot(m.x - origin.x, m.y - origin.y) <= range)
+    .filter((m) => m.deadUntil <= now && m.hp > 0 && Math.hypot(m.x - origin.x, m.y - origin.y) <= range)
     .sort((a, b) => Math.hypot(a.x - origin.x, a.y - origin.y) - Math.hypot(b.x - origin.x, b.y - origin.y))
 }
 
@@ -48,7 +49,7 @@ export function getLocked(
 ): CombatMonster | null {
   if (!state.targetId) return null
   const m = monsters.find((x) => x.id === state.targetId)
-  if (!m || m.deadUntil > now) {
+  if (!m || m.deadUntil > now || m.hp <= 0) {
     state.targetId = null
     return null
   }

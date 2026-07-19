@@ -196,6 +196,7 @@ export type MonsterHit = {
   x: number
   y: number
   def: number
+  hp?: number
   deadUntil: number
 }
 
@@ -210,7 +211,7 @@ export function monstersInShape(
 ): MonsterHit[] {
   const out: MonsterHit[] = []
   for (const m of monsters) {
-    if (m.deadUntil > now) continue
+    if (m.deadUntil > now || (m.hp != null && m.hp <= 0)) continue
     let hit = false
     if (shape === 'cone') {
       hit = inCone(m.x, m.y, origin.x, origin.y, angle, range, opts?.halfAngle ?? 0.85)

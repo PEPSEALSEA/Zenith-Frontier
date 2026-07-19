@@ -40,6 +40,7 @@ export type HitTarget = {
   id: string
   x: number
   y: number
+  hp: number
   deadUntil: number
   def: number
 }
@@ -110,7 +111,7 @@ export function updateProjectiles(
 
     let consumed = false
     for (const m of monsters) {
-      if (m.deadUntil > now) continue
+      if (m.deadUntil > now || m.hp <= 0) continue
       if (p.hitIds.has(m.id)) continue
       if (dist(p.x, p.y, m.x, m.y) > p.radius + 16) continue
       p.hitIds.add(m.id)

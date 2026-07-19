@@ -369,7 +369,14 @@ export default function GameScene2D() {
     }
 
     m.hp = Math.max(0, serverHp - pending)
-    m.deadUntil = 0
+    // Keep optimistic corpses dead until the server confirms life (hp>0 with no pending kill).
+    if (m.hp <= 0) {
+      if (!(m.deadUntil > Date.now())) {
+        m.deadUntil = m.kind === 'boss' ? Number.MAX_SAFE_INTEGER : Date.now() + RESPAWN_MS
+      }
+    } else {
+      m.deadUntil = 0
+    }
   }
 
   useEffect(() => {
@@ -513,24 +520,12 @@ export default function GameScene2D() {
             snapPos: dying,
           })
         } else {
+          // Position-only deltas must never revive an optimistic kill.
+          // Respawn always arrives with hp via entityPublic().
           if (e.maxHp != null) m.maxHp = e.maxHp
           if (e.x != null) m.tx = e.x
           if (e.y != null) m.ty = e.y
-          if (e.deadUntil != null) {
-            m.deadUntil = e.deadUntil
-          } else if (
-            (e.x != null || e.y != null) &&
-            (m.hp <= 0 || m.deadUntil > Date.now()) &&
-            lastServerHpRef.current.has(m.id)
-          ) {
-            const serverHp = lastServerHpRef.current.get(m.id) || m.maxHp
-            if (serverHp > 0) {
-              pendingHitsRef.current.delete(m.id)
-              pendingHitAtRef.current.delete(m.id)
-              m.hp = serverHp
-              m.deadUntil = 0
-            }
-          }
+          if (e.deadUntil != null) m.deadUntil = e.deadUntil
         }
       }
     },
@@ -1666,7 +1661,7 @@ export default function GameScene2D() {
     }
 
     if (!isEditorMode && !isForgeMode && !isDead && zoneAuthRef.current) {
-      const PENDING_HIT_TIMEOUT_MS = 900
+      const PENDING_HIT_TIMEOUT_MS = 1200
       for (const [id, at] of [...pendingHitAtRef.current.entries()]) {
         if (now - at < PENDING_HIT_TIMEOUT_MS) continue
         const m = monstersRef.current.find((x) => x.id === id)
@@ -1674,6 +1669,8 @@ export default function GameScene2D() {
         pendingHitsRef.current.delete(id)
         pendingHitAtRef.current.delete(id)
         if (!m || serverHp == null) continue
+        // Rejected/missed hits: unwind optimistic damage from last known server HP.
+        // Do not touch monsters the server already confirmed dead (serverHp <= 0).
         if (serverHp > 0) {
           m.hp = serverHp
           m.deadUntil = 0
@@ -1838,7 +1835,7 @@ export default function GameScene2D() {
     }
 
     for (const m of monstersRef.current) {
-      if (m.deadUntil > now) continue
+      if (m.deadUntil > now || m.hp <= 0) continue
       const mBob = Math.sin(time * 0.006 + m.x * 0.02) * 1.6
       ctx.save()
       ctx.translate(m.x, m.y)
