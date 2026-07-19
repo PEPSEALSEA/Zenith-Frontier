@@ -1,7 +1,7 @@
 export const ZONE_LOOT_RANGE = 280
 export const ZONE_MAX_PLAYERS = 8
 export const ZONE_CHAT_MAX_LEN = 120
-export const ZONE_PRESENCE_HZ = 12
+export const ZONE_PRESENCE_HZ = 20
 export const ZONE_RESPAWN_MS = 4000
 export const ZONE_HIT_RANGE_PAD = 48
 

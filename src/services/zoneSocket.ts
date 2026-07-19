@@ -14,6 +14,8 @@ export type ZoneSocketHandlers = {
   onError?: (err: Event) => void
 }
 
+const PING_INTERVAL_MS = 2000
+
 function wsBaseFromApi(apiUrl: string): string {
   const u = new URL(apiUrl)
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -29,13 +31,20 @@ export class ZoneSocket {
   private handlers: ZoneSocketHandlers | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private presenceTimer: ReturnType<typeof setInterval> | null = null
+  private pingTimer: ReturnType<typeof setInterval> | null = null
   private shouldRun = false
   private joinPayload: Extract<ClientToZone, { type: 'join' }> | null = null
   private lastPresence = { x: 0, y: 0, facing: 1 }
   private intentionalClose = false
+  private rttMs = 80
+  private pendingPingAt = 0
 
   get connected() {
     return this.ws?.readyState === WebSocket.OPEN
+  }
+
+  getRttMs() {
+    return this.rttMs
   }
 
   connect(mapId: string, join: Extract<ClientToZone, { type: 'join' }>, handlers: ZoneSocketHandlers) {
@@ -63,12 +72,21 @@ export class ZoneSocket {
     ws.onopen = () => {
       if (this.joinPayload) this.send(this.joinPayload)
       this.startPresenceLoop()
+      this.startPingLoop()
       this.handlers?.onOpen?.()
     }
 
     ws.onmessage = (ev) => {
       const msg = parseZoneMessage(String(ev.data))
       if (!msg || !('type' in msg)) return
+      if (msg.type === 'pong') {
+        if (this.pendingPingAt > 0 && typeof msg.t === 'number' && msg.t === this.pendingPingAt) {
+          const sample = Math.max(1, performance.now() - this.pendingPingAt)
+          this.rttMs = this.rttMs * 0.7 + sample * 0.3
+          this.pendingPingAt = 0
+        }
+        return
+      }
       this.handlers?.onMessage(msg as ZoneToClient)
     }
 
@@ -78,6 +96,7 @@ export class ZoneSocket {
 
     ws.onclose = () => {
       this.stopPresenceLoop()
+      this.stopPingLoop()
       this.handlers?.onClose?.()
       if (this.shouldRun && !this.intentionalClose) {
         this.reconnectTimer = setTimeout(() => this.open(), 1500)
@@ -109,7 +128,7 @@ export class ZoneSocket {
 
   private startPresenceLoop() {
     this.stopPresenceLoop()
-    const interval = Math.max(50, Math.floor(1000 / ZONE_PRESENCE_HZ))
+    const interval = Math.max(40, Math.floor(1000 / ZONE_PRESENCE_HZ))
     this.presenceTimer = setInterval(() => {
       this.send({
         type: 'presence',
@@ -127,6 +146,26 @@ export class ZoneSocket {
     }
   }
 
+  private startPingLoop() {
+    this.stopPingLoop()
+    const sendPing = () => {
+      if (this.ws?.readyState !== WebSocket.OPEN) return
+      const t = performance.now()
+      this.pendingPingAt = t
+      this.send({ type: 'ping', t })
+    }
+    sendPing()
+    this.pingTimer = setInterval(sendPing, PING_INTERVAL_MS)
+  }
+
+  private stopPingLoop() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer)
+      this.pingTimer = null
+    }
+    this.pendingPingAt = 0
+  }
+
   private clearReconnect() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -139,6 +178,7 @@ export class ZoneSocket {
     this.shouldRun = false
     this.clearReconnect()
     this.stopPresenceLoop()
+    this.stopPingLoop()
     try {
       this.ws?.close()
     } catch {

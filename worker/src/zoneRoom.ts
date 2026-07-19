@@ -3,6 +3,7 @@ import {
   ZONE_HIT_RANGE_PAD,
   ZONE_LOOT_RANGE,
   ZONE_MAX_PLAYERS,
+  ZONE_PRESENCE_HZ,
   ZONE_RESPAWN_MS,
   type ClientToZone,
   type ZoneEntityPublic,
@@ -11,6 +12,9 @@ import {
   type ZoneStatsSnapshot,
   type ZoneToClient,
 } from './zoneProtocol'
+
+const PRESENCE_TICK_MS = Math.max(40, Math.floor(1000 / ZONE_PRESENCE_HZ))
+const PRESENCE_DIRTY_PX = 2
 
 declare const WebSocketPair: {
   new (): { 0: CfWebSocket; 1: CfWebSocket }
@@ -45,6 +49,9 @@ type Session = {
   x: number
   y: number
   facing: number
+  lastSentX: number
+  lastSentY: number
+  lastSentFacing: number
   lastChatAt: number
   lastHitAt: number
   joined: boolean
@@ -74,6 +81,7 @@ export class ZoneRoom implements DurableObject {
   private seeded = false
   private mapId = 'zone'
   private aiTimer: number | null = null
+  private presenceDirty = new Set<string>()
 
   constructor(
     private readonly state: DurableObjectState,
@@ -82,7 +90,14 @@ export class ZoneRoom implements DurableObject {
     this.state.getWebSockets().forEach((ws) => {
       const socket = ws as unknown as CfWebSocket
       const meta = socket.deserializeAttachment() as Session | null
-      if (meta?.playerId) this.sessions.set(socket, meta)
+      if (meta?.playerId) {
+        this.sessions.set(socket, {
+          ...meta,
+          lastSentX: meta.lastSentX ?? meta.x,
+          lastSentY: meta.lastSentY ?? meta.y,
+          lastSentFacing: meta.lastSentFacing ?? meta.facing,
+        })
+      }
     })
   }
 
@@ -109,6 +124,9 @@ export class ZoneRoom implements DurableObject {
       x: 0,
       y: 0,
       facing: 1,
+      lastSentX: 0,
+      lastSentY: 0,
+      lastSentFacing: 1,
       lastChatAt: 0,
       lastHitAt: 0,
       joined: false,
@@ -147,10 +165,18 @@ export class ZoneRoom implements DurableObject {
     }
 
     if (msg.type === 'presence') {
-      session.x = msg.x
-      session.y = msg.y
-      session.facing = msg.facing
+      const nx = Number(msg.x) || 0
+      const ny = Number(msg.y) || 0
+      const nf = Number(msg.facing) || 1
+      session.x = nx
+      session.y = ny
+      session.facing = nf
+      const moved =
+        Math.abs(nx - session.lastSentX) >= PRESENCE_DIRTY_PX ||
+        Math.abs(ny - session.lastSentY) >= PRESENCE_DIRTY_PX ||
+        nf !== session.lastSentFacing
       this.persistSession(socket, session)
+      if (moved && session.playerId) this.presenceDirty.add(session.playerId)
       return
     }
 
@@ -251,16 +277,26 @@ export class ZoneRoom implements DurableObject {
     this.aiTimer = setInterval(() => {
       this.tickPresence()
       this.tickEntities()
-    }, 100) as unknown as number
+    }, PRESENCE_TICK_MS) as unknown as number
   }
 
   private tickPresence() {
-    const players = this.activePlayers().map((s) => ({
-      playerId: s.playerId,
-      x: s.x,
-      y: s.y,
-      facing: s.facing,
-    }))
+    if (this.presenceDirty.size === 0) return
+    const dirty = this.presenceDirty
+    this.presenceDirty = new Set()
+    const players: { playerId: string; x: number; y: number; facing: number }[] = []
+    for (const s of this.activePlayers()) {
+      if (!dirty.has(s.playerId)) continue
+      s.lastSentX = s.x
+      s.lastSentY = s.y
+      s.lastSentFacing = s.facing
+      players.push({
+        playerId: s.playerId,
+        x: s.x,
+        y: s.y,
+        facing: s.facing,
+      })
+    }
     if (players.length === 0) return
     this.broadcast({ type: 'presence_batch', players })
   }
@@ -364,8 +400,12 @@ export class ZoneRoom implements DurableObject {
     session.x = Number(msg.x) || 0
     session.y = Number(msg.y) || 0
     session.facing = Number(msg.facing) || 1
+    session.lastSentX = session.x
+    session.lastSentY = session.y
+    session.lastSentFacing = session.facing
     session.joined = true
     this.persistSession(ws, session)
+    if (session.playerId) this.presenceDirty.add(session.playerId)
 
     if (!this.seeded && Array.isArray(msg.entities) && msg.entities.length > 0) {
       this.seedEntities(msg.entities)

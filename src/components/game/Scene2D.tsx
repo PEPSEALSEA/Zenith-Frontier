@@ -37,6 +37,8 @@ type LivingMonster = {
   name: string
   x: number
   y: number
+  tx: number
+  ty: number
   hp: number
   maxHp: number
   atk: number
@@ -56,6 +58,19 @@ type LivingMonster = {
   bossId?: string
   scenarioKey?: string
   kind: 'monster' | 'boss'
+}
+
+type RemoteNetSample = {
+  playerId: string
+  name: string
+  appearance: { color: string; face: string }
+  level: number
+  x: number
+  y: number
+  facing: number
+  recvAt: number
+  vx: number
+  vy: number
 }
 
 type MonsterShot = {
@@ -283,15 +298,7 @@ export default function GameScene2D() {
   const lastGateWarp = useRef(0)
   const lastGateId = useRef('')
   const pendingHitsRef = useRef<Map<string, number>>(new Map())
-  const remoteNetRef = useRef<Record<string, {
-    playerId: string
-    name: string
-    appearance: { color: string; face: string }
-    level: number
-    x: number
-    y: number
-    facing: number
-  }>>({})
+  const remoteNetRef = useRef<Record<string, RemoteNetSample>>({})
   const remoteRenderRef = useRef<Record<string, {
     playerId: string
     name: string
@@ -311,13 +318,19 @@ export default function GameScene2D() {
   const reconcileEntityHp = (
     m: LivingMonster,
     serverHp: number,
-    extras?: { maxHp?: number; x?: number; y?: number; deadUntil?: number },
+    extras?: { maxHp?: number; x?: number; y?: number; deadUntil?: number; snapPos?: boolean },
   ) => {
     pendingHitsRef.current.delete(m.id)
     m.hp = serverHp
     if (extras?.maxHp != null) m.maxHp = extras.maxHp
-    if (extras?.x != null) m.x = extras.x
-    if (extras?.y != null) m.y = extras.y
+    if (extras?.x != null) {
+      m.tx = extras.x
+      if (extras.snapPos) m.x = extras.x
+    }
+    if (extras?.y != null) {
+      m.ty = extras.y
+      if (extras.snapPos) m.y = extras.y
+    }
     if (extras?.deadUntil != null) {
       m.deadUntil = extras.deadUntil
     } else if (serverHp > 0) {
@@ -339,9 +352,24 @@ export default function GameScene2D() {
     const net = remoteNetRef.current
     const render = remoteRenderRef.current
     const seen = new Set<string>()
+    const now = performance.now()
     for (const rp of Object.values(remotePlayers)) {
       seen.add(rp.playerId)
       const prev = net[rp.playerId]
+      let vx = 0
+      let vy = 0
+      if (prev) {
+        const dt = Math.max(16, now - prev.recvAt) / 1000
+        vx = (rp.x - prev.x) / dt
+        vy = (rp.y - prev.y) / dt
+        const speed = Math.sqrt(vx * vx + vy * vy)
+        const maxSpeed = 420
+        if (speed > maxSpeed) {
+          const s = maxSpeed / speed
+          vx *= s
+          vy *= s
+        }
+      }
       net[rp.playerId] = {
         playerId: rp.playerId,
         name: rp.name,
@@ -350,6 +378,9 @@ export default function GameScene2D() {
         x: rp.x,
         y: rp.y,
         facing: rp.facing,
+        recvAt: now,
+        vx,
+        vy,
       }
       if (!render[rp.playerId] || !prev) {
         render[rp.playerId] = {
@@ -428,6 +459,7 @@ export default function GameScene2D() {
           x: e.x,
           y: e.y,
           deadUntil: e.deadUntil,
+          snapPos: true,
         })
       }
     },
@@ -436,16 +468,18 @@ export default function GameScene2D() {
         const m = monstersRef.current.find((x) => x.id === e.id)
         if (!m) continue
         if (e.hp != null) {
+          const dying = e.hp <= 0 || (e.deadUntil != null && e.deadUntil > 0)
           reconcileEntityHp(m, e.hp, {
             maxHp: e.maxHp,
             x: e.x,
             y: e.y,
             deadUntil: e.deadUntil,
+            snapPos: dying,
           })
         } else {
           if (e.maxHp != null) m.maxHp = e.maxHp
-          if (e.x != null) m.x = e.x
-          if (e.y != null) m.y = e.y
+          if (e.x != null) m.tx = e.x
+          if (e.y != null) m.ty = e.y
           if (e.deadUntil != null) m.deadUntil = e.deadUntil
         }
       }
@@ -642,6 +676,8 @@ export default function GameScene2D() {
             name: t?.name || o.name || 'Critter',
             x: o.x,
             y: o.y,
+            tx: o.x,
+            ty: o.y,
             homeX: o.x,
             homeY: o.y,
             hp,
@@ -1014,21 +1050,36 @@ export default function GameScene2D() {
     {
       const net = remoteNetRef.current
       const render = remoteRenderRef.current
-      const follow = Math.min(1, 0.18 * deltaTime)
+      const follow = Math.min(1, 0.42 * deltaTime)
       const snapDist = 220
+      const rtt = zoneSocket.getRttMs()
+      const extrapolateMs = Math.min(140, Math.max(40, rtt * 0.45))
+      const nowMs = performance.now()
       for (const id of Object.keys(net)) {
         const t = net[id]
         let r = render[id]
         if (!r) {
-          render[id] = { ...t }
+          render[id] = {
+            playerId: t.playerId,
+            name: t.name,
+            appearance: t.appearance,
+            level: t.level,
+            x: t.x,
+            y: t.y,
+            facing: t.facing,
+          }
           continue
         }
-        const dxr = t.x - r.x
-        const dyr = t.y - r.y
+        const age = Math.max(0, nowMs - t.recvAt)
+        const lead = Math.min(extrapolateMs, age + extrapolateMs * 0.35) / 1000
+        const tx = t.x + t.vx * lead
+        const ty = t.y + t.vy * lead
+        const dxr = tx - r.x
+        const dyr = ty - r.y
         const d = Math.sqrt(dxr * dxr + dyr * dyr)
         if (d > snapDist) {
-          r.x = t.x
-          r.y = t.y
+          r.x = tx
+          r.y = ty
         } else {
           r.x += dxr * follow
           r.y += dyr * follow
@@ -1429,6 +1480,8 @@ export default function GameScene2D() {
             m.hp = m.maxHp
             m.x = m.homeX
             m.y = m.homeY
+            m.tx = m.homeX
+            m.ty = m.homeY
           }
           continue
         }
@@ -1508,7 +1561,19 @@ export default function GameScene2D() {
     }
 
     if (!isEditorMode && !isForgeMode && !isDead && zoneAuthRef.current) {
+      const entFollow = Math.min(1, 0.38 * deltaTime)
+      const entSnap = 180
       for (const m of monstersRef.current) {
+        const dx = m.tx - m.x
+        const dy = m.ty - m.y
+        const d = Math.sqrt(dx * dx + dy * dy)
+        if (d > entSnap) {
+          m.x = m.tx
+          m.y = m.ty
+        } else if (d > 0.15) {
+          m.x += dx * entFollow
+          m.y += dy * entFollow
+        }
         if (m.deadUntil > now || m.hp <= 0) continue
         if (playerSafe || stealthed) continue
         if (
