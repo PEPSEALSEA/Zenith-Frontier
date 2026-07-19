@@ -298,6 +298,8 @@ export default function GameScene2D() {
   const lastGateWarp = useRef(0)
   const lastGateId = useRef('')
   const pendingHitsRef = useRef<Map<string, number>>(new Map())
+  const lastServerHpRef = useRef<Map<string, number>>(new Map())
+  const pendingHitAtRef = useRef<Map<string, number>>(new Map())
   const remoteNetRef = useRef<Record<string, RemoteNetSample>>({})
   const remoteRenderRef = useRef<Record<string, {
     playerId: string
@@ -320,8 +322,13 @@ export default function GameScene2D() {
     serverHp: number,
     extras?: { maxHp?: number; x?: number; y?: number; deadUntil?: number; snapPos?: boolean },
   ) => {
-    pendingHitsRef.current.delete(m.id)
-    m.hp = serverHp
+    const prevServer = lastServerHpRef.current.get(m.id)
+    const baseline = prevServer == null ? Math.max(serverHp, m.hp) : prevServer
+    const applied = Math.max(0, baseline - serverHp)
+    let pending = pendingHitsRef.current.get(m.id) || 0
+    pending = Math.max(0, pending - applied)
+    lastServerHpRef.current.set(m.id, serverHp)
+
     if (extras?.maxHp != null) m.maxHp = extras.maxHp
     if (extras?.x != null) {
       m.tx = extras.x
@@ -331,11 +338,32 @@ export default function GameScene2D() {
       m.ty = extras.y
       if (extras.snapPos) m.y = extras.y
     }
-    if (extras?.deadUntil != null) {
-      m.deadUntil = extras.deadUntil
-    } else if (serverHp > 0) {
-      m.deadUntil = 0
+
+    const serverDead =
+      serverHp <= 0 ||
+      (extras?.deadUntil != null && extras.deadUntil > Date.now())
+
+    if (serverDead) {
+      pendingHitsRef.current.delete(m.id)
+      pendingHitAtRef.current.delete(m.id)
+      m.hp = 0
+      if (extras?.deadUntil != null) {
+        m.deadUntil = extras.deadUntil
+      } else if (serverHp <= 0) {
+        m.deadUntil = m.kind === 'boss' ? Number.MAX_SAFE_INTEGER : Date.now() + RESPAWN_MS
+      }
+      return
     }
+
+    if (pending > 0) {
+      pendingHitsRef.current.set(m.id, pending)
+    } else {
+      pendingHitsRef.current.delete(m.id)
+      pendingHitAtRef.current.delete(m.id)
+    }
+
+    m.hp = Math.max(0, serverHp - pending)
+    m.deadUntil = 0
   }
 
   useEffect(() => {
@@ -416,6 +444,8 @@ export default function GameScene2D() {
   useEffect(() => {
     if (zoneAuth) return
     pendingHitsRef.current.clear()
+    lastServerHpRef.current.clear()
+    pendingHitAtRef.current.clear()
     remoteNetRef.current = {}
     remoteRenderRef.current = {}
   }, [zoneAuth])
@@ -480,7 +510,21 @@ export default function GameScene2D() {
           if (e.maxHp != null) m.maxHp = e.maxHp
           if (e.x != null) m.tx = e.x
           if (e.y != null) m.ty = e.y
-          if (e.deadUntil != null) m.deadUntil = e.deadUntil
+          if (e.deadUntil != null) {
+            m.deadUntil = e.deadUntil
+          } else if (
+            (e.x != null || e.y != null) &&
+            (m.hp <= 0 || m.deadUntil > Date.now()) &&
+            lastServerHpRef.current.has(m.id)
+          ) {
+            const serverHp = lastServerHpRef.current.get(m.id) || m.maxHp
+            if (serverHp > 0) {
+              pendingHitsRef.current.delete(m.id)
+              pendingHitAtRef.current.delete(m.id)
+              m.hp = serverHp
+              m.deadUntil = 0
+            }
+          }
         }
       }
     },
@@ -1180,12 +1224,16 @@ export default function GameScene2D() {
 
       const power = opts?.power ?? (attackType === 'hard' ? 1.6 : 1)
       const dmg = predictZoneDamage(atkNow, target.def, power)
+      if (!lastServerHpRef.current.has(targetId)) {
+        lastServerHpRef.current.set(targetId, Math.max(target.hp, dmg))
+      }
       target.hp = Math.max(0, target.hp - dmg)
       target.flashUntil = now + 80
       pendingHitsRef.current.set(
         targetId,
         (pendingHitsRef.current.get(targetId) || 0) + dmg,
       )
+      pendingHitAtRef.current.set(targetId, now)
       pushFloat(target.x, target.y - 18, `-${dmg}`, '#fde68a')
       sfx.hit()
 
@@ -1199,6 +1247,7 @@ export default function GameScene2D() {
       }
 
       zoneSocket.setPresence(posRef.current.x, posRef.current.y, facingRef.current)
+      zoneSocket.flushPresence()
       zoneSocket.sendAttack({
         type: 'attack',
         entityId: targetId,
@@ -1206,6 +1255,8 @@ export default function GameScene2D() {
         skillId: opts?.skillId,
         power: opts?.power,
         range: opts?.range,
+        x: posRef.current.x,
+        y: posRef.current.y,
       })
     }
 
@@ -1563,6 +1614,20 @@ export default function GameScene2D() {
     }
 
     if (!isEditorMode && !isForgeMode && !isDead && zoneAuthRef.current) {
+      const PENDING_HIT_TIMEOUT_MS = 900
+      for (const [id, at] of [...pendingHitAtRef.current.entries()]) {
+        if (now - at < PENDING_HIT_TIMEOUT_MS) continue
+        const m = monstersRef.current.find((x) => x.id === id)
+        const serverHp = lastServerHpRef.current.get(id)
+        pendingHitsRef.current.delete(id)
+        pendingHitAtRef.current.delete(id)
+        if (!m || serverHp == null) continue
+        if (serverHp > 0) {
+          m.hp = serverHp
+          m.deadUntil = 0
+        }
+      }
+
       const entFollow = Math.min(1, 0.38 * deltaTime)
       const entSnap = 180
       for (const m of monstersRef.current) {

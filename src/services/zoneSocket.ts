@@ -112,6 +112,16 @@ export class ZoneSocket {
     this.lastPresence = { x, y, facing }
   }
 
+  flushPresence() {
+    if (this.ws?.readyState !== WebSocket.OPEN) return
+    this.send({
+      type: 'presence',
+      x: this.lastPresence.x,
+      y: this.lastPresence.y,
+      facing: this.lastPresence.facing,
+    })
+  }
+
   sendChat(text: string) {
     this.send({ type: 'chat', text })
   }

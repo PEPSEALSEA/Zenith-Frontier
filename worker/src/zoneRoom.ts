@@ -461,6 +461,13 @@ export class ZoneRoom implements DurableObject {
     session.lastHitAt = now
     this.persistSession(ws, session)
 
+    if (Number.isFinite(msg.x) && Number.isFinite(msg.y)) {
+      session.x = Number(msg.x)
+      session.y = Number(msg.y)
+      this.persistSession(ws, session)
+      if (session.playerId) this.presenceDirty.add(session.playerId)
+    }
+
     const entity = this.entities.get(msg.entityId)
     if (!entity || entity.deadUntil > now || entity.hp <= 0) return
 

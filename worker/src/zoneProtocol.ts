@@ -82,6 +82,8 @@ export type ClientToZone =
       skillId?: string
       power?: number
       range?: number
+      x?: number
+      y?: number
     }
   | { type: 'ping'; t: number }
 
